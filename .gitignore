@@ -1,0 +1,33 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# Python
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/**/__pycache__/
+backend/**/*.py[cod]
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+data/config/
+
+# User data
+data/vocab.db
+data/vocab.db-*
+data/uploads/
+data/backups/
+data/ocr-temp/
+
+# Generated / local artifacts
+.superpowers/
+*.log
+.DS_Store
+Thumbs.db
+
