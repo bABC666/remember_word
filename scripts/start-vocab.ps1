@@ -9,6 +9,14 @@ $logRoot = Join-Path $dataRoot 'logs'
 $pidPath = Join-Path $dataRoot 'server.pid'
 $healthUrl = 'http://127.0.0.1:8000/api/health'
 $appUrl = 'http://127.0.0.1:8000'
+$shortcutInstaller = Join-Path $PSScriptRoot 'install-shortcut.ps1'
+
+# Keep the desktop shortcut aligned with the versioned launcher and icon.
+try {
+    & $shortcutInstaller -Quiet
+} catch {
+    Write-Warning "Desktop shortcut could not be refreshed: $($_.Exception.Message)"
+}
 
 New-Item -ItemType Directory -Force -Path $dataRoot, $logRoot | Out-Null
 

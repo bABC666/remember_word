@@ -4,7 +4,7 @@
 
 ## 日常启动（Windows）
 
-双击根目录的 `start-vocab.bat`。脚本会：
+双击桌面的“拾词”快捷方式，或双击根目录的 `start-vocab.bat`。脚本会：
 
 1. 首次运行时创建 Python 环境，并安装后端、PaddleOCR CPU 与前端依赖；
 2. 安装或构建 React 前端；
@@ -13,6 +13,14 @@
 5. 自动打开 `http://127.0.0.1:8000`。
 
 停止后台服务时双击 `stop-vocab.bat`。
+
+桌面快捷方式使用稳定入口 `start-vocab.bat`，并在每次启动时自动刷新目标路径、工作目录和项目图标。需要手动重新安装或更新时，运行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\install-shortcut.ps1
+```
+
+图标源文件保存在 `assets/shici-app.png`，Windows 多尺寸图标保存在 `assets/shici-app.ico`。
 
 ## 首次配置
 
