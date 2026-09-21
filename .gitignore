@@ -7,7 +7,9 @@ frontend/test-results/
 
 # Python
 backend/.venv/
+backend/*.egg-info/
 backend/.pytest_cache/
+backend/.pytest-tmp/
 backend/.ruff_cache/
 backend/**/__pycache__/
 backend/**/*.py[cod]
@@ -18,16 +20,11 @@ backend/**/*.py[cod]
 !.env.example
 data/config/
 
-# User data
-data/vocab.db
-data/vocab.db-*
-data/uploads/
-data/backups/
-data/ocr-temp/
+# User data (database, uploads, models, backups, config and logs)
+data/
 
 # Generated / local artifacts
 .superpowers/
 *.log
 .DS_Store
 Thumbs.db
-

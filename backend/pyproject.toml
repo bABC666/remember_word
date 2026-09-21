@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shici-vocab"
+version = "1.0.0"
+description = "Local English vocabulary learning application"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "sqlalchemy>=2.0.41,<3",
+  "alembic>=1.16,<2",
+  "pydantic>=2.11,<3",
+  "python-multipart>=0.0.20,<1",
+  "httpx>=0.28,<1",
+  "pillow>=11,<13",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.0,<2",
+  "ruff>=0.12,<1",
+]
+ocr = [
+  "paddleocr>=3.1,<4",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --basetemp=.pytest-tmp -p no:cacheprovider"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["B008"]
