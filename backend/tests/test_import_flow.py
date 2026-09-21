@@ -61,3 +61,74 @@ def test_import_failure_preserves_existing_ocr_and_user_edits(session) -> None:
     assert batch.raw_ocr_json == {"lines": ["raw result"]}
     assert candidate.source_raw == "user fixed"
     assert batch.status == "ai_failed"
+
+
+def test_import_image_removal_is_recoverable_and_hidden(session, tmp_path) -> None:
+    from app.api.helpers import batch_dict
+    from app.api.imports import remove_import_image
+    from app.models import ImportBatch, ImportImage
+
+    image_path = tmp_path / "wrong-page.jpg"
+    image_path.write_bytes(b"preserved source image")
+    batch = ImportBatch(status="uploaded", stage="upload")
+    image = ImportImage(
+        original_name="wrong-page.jpg",
+        file_path=str(image_path),
+        sha256="a" * 64,
+    )
+    batch.images.append(image)
+    session.add(batch)
+    session.commit()
+
+    payload = remove_import_image(batch.id, image.id, session)
+
+    session.refresh(image)
+    assert image.is_deleted is True
+    assert image_path.exists()
+    assert payload["images"] == []
+    assert batch_dict(batch)["images"] == []
+
+
+def test_import_image_cannot_be_removed_after_candidates_exist(session, tmp_path) -> None:
+    import pytest
+    from fastapi import HTTPException
+
+    from app.api.imports import remove_import_image
+    from app.models import ImportBatch, ImportCandidate, ImportImage
+
+    image_path = tmp_path / "page.jpg"
+    image_path.write_bytes(b"source")
+    batch = ImportBatch(status="review", stage="review")
+    batch.images.append(
+        ImportImage(original_name="page.jpg", file_path=str(image_path), sha256="b" * 64)
+    )
+    batch.candidates.append(ImportCandidate(word="retain", source_raw="retain v. 保留"))
+    session.add(batch)
+    session.commit()
+
+    with pytest.raises(HTTPException) as error:
+        remove_import_image(batch.id, batch.images[0].id, session)
+
+    assert error.value.status_code == 409
+    assert batch.images[0].is_deleted is False
+
+
+def test_abandon_import_batch_keeps_source_records(session, tmp_path) -> None:
+    from app.api.imports import abandon_import
+    from app.models import ImportBatch, ImportImage
+
+    image_path = tmp_path / "page.jpg"
+    image_path.write_bytes(b"source")
+    batch = ImportBatch(status="uploaded", stage="upload")
+    batch.images.append(
+        ImportImage(original_name="page.jpg", file_path=str(image_path), sha256="c" * 64)
+    )
+    session.add(batch)
+    session.commit()
+
+    response = abandon_import(batch.id, session)
+
+    session.refresh(batch)
+    assert response == {"message": "导入批次已移除"}
+    assert batch.is_deleted is True
+    assert image_path.exists()

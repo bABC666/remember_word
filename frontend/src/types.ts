@@ -45,7 +45,7 @@ export interface ImportBatch {
   raw_ocr_text: string
   error_stage: string
   error_message: string
-  images: Array<{ id: number; original_name: string; width: number; height: number; ocr_text: string; error_message: string }>
+  images: Array<{ id: number; original_name: string; width: number; height: number; ocr_text: string; error_message: string; is_deleted: boolean }>
   candidates: Candidate[]
 }
 

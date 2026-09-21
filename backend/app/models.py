@@ -64,6 +64,7 @@ class ImportBatch(Base):
     raw_ocr_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     error_stage: Mapped[str] = mapped_column(String(32), default="")
     error_message: Mapped[str] = mapped_column(Text, default="")
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -93,6 +94,7 @@ class ImportImage(Base):
     ocr_raw_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     ocr_text: Mapped[str] = mapped_column(Text, default="")
     error_message: Mapped[str] = mapped_column(Text, default="")
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     batch: Mapped[ImportBatch] = relationship(back_populates="images")

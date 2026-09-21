@@ -70,6 +70,7 @@ def image_dict(image: ImportImage) -> dict[str, object]:
         "ocr_text": image.ocr_text,
         "ocr_raw_json": image.ocr_raw_json,
         "error_message": image.error_message,
+        "is_deleted": image.is_deleted,
     }
 
 
@@ -85,7 +86,7 @@ def batch_dict(batch: ImportBatch) -> dict[str, object]:
         "error_message": batch.error_message,
         "created_at": batch.created_at,
         "updated_at": batch.updated_at,
-        "images": [image_dict(image) for image in batch.images],
+        "images": [image_dict(image) for image in batch.images if not image.is_deleted],
         "candidates": [candidate_dict(candidate) for candidate in batch.candidates],
     }
 

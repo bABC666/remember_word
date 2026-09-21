@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.helpers import batch_dict, candidate_dict
 from app.config import get_settings
 from app.db import get_session
-from app.models import AppSetting, ImportBatch, ImportCandidate, ImportImage
+from app.models import AppSetting, HistoryEvent, ImportBatch, ImportCandidate, ImportImage
 from app.schemas import CandidateUpdate, ConfirmCandidatesRequest
 from app.services.ai import AIProviderError, DeepSeekProvider
 from app.services.imports import confirm_candidates, record_import_failure
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/imports", tags=["imports"])
 def _load_batch(session: Session, batch_id: int) -> ImportBatch:
     batch = session.scalar(
         select(ImportBatch)
-        .where(ImportBatch.id == batch_id)
+        .where(ImportBatch.id == batch_id, ImportBatch.is_deleted.is_(False))
         .options(selectinload(ImportBatch.images), selectinload(ImportBatch.candidates))
     )
     if batch is None:
@@ -32,16 +32,10 @@ def _load_batch(session: Session, batch_id: int) -> ImportBatch:
     return batch
 
 
-@router.post("")
-async def create_import(
-    files: list[UploadFile] = File(...), session: Session = Depends(get_session)
-) -> dict[str, object]:
-    if not files:
-        raise HTTPException(400, "请选择至少一张图片")
+async def _save_uploads(
+    batch: ImportBatch, files: list[UploadFile], session: Session
+) -> None:
     settings = get_settings()
-    batch = ImportBatch(status="uploaded", stage="upload")
-    session.add(batch)
-    session.flush()
     batch_dir = settings.uploads_dir / str(batch.id)
     batch_dir.mkdir(parents=True, exist_ok=True)
     for upload in files:
@@ -69,14 +63,108 @@ async def create_import(
                 height=height,
             )
         )
+
+
+@router.post("")
+async def create_import(
+    files: list[UploadFile] = File(...), session: Session = Depends(get_session)
+) -> dict[str, object]:
+    if not files:
+        raise HTTPException(400, "请选择至少一张图片")
+    batch = ImportBatch(status="uploaded", stage="upload")
+    session.add(batch)
+    session.flush()
+    await _save_uploads(batch, files, session)
     session.commit()
     return batch_dict(_load_batch(session, batch.id))
+
+
+@router.post("/{batch_id}/images")
+async def append_import_images(
+    batch_id: int,
+    files: list[UploadFile] = File(...),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    batch = _load_batch(session, batch_id)
+    if batch.status == "confirmed" or batch.candidates:
+        raise HTTPException(409, "已进入词条校对，不能再追加图片；请新建导入批次")
+    if not files:
+        raise HTTPException(400, "请选择至少一张图片")
+    await _save_uploads(batch, files, session)
+    batch.status = "uploaded"
+    batch.stage = "upload"
+    batch.error_stage = ""
+    batch.error_message = ""
+    session.commit()
+    return batch_dict(_load_batch(session, batch.id))
+
+
+def _rebuild_batch_ocr(batch: ImportBatch) -> None:
+    active = [image for image in batch.images if not image.is_deleted]
+    completed = [image for image in active if image.ocr_text.strip()]
+    batch.raw_ocr_text = "\n\n".join(image.ocr_text for image in completed)
+    batch.raw_ocr_json = {
+        "provider": batch.provider,
+        "documents": [image.ocr_raw_json for image in completed],
+    }
+    all_complete = bool(active) and len(completed) == len(active)
+    batch.status = "ocr_complete" if all_complete else "uploaded"
+    batch.stage = "ocr" if all_complete else "upload"
+
+
+@router.delete("/{batch_id}/images/{image_id}")
+def remove_import_image(
+    batch_id: int, image_id: int, session: Session = Depends(get_session)
+) -> dict[str, object]:
+    batch = _load_batch(session, batch_id)
+    if batch.status == "confirmed" or batch.candidates:
+        raise HTTPException(409, "已进入词条校对，不能单独删除原图；可取消候选或放弃批次")
+    image = next(
+        (item for item in batch.images if item.id == image_id and not item.is_deleted), None
+    )
+    if image is None:
+        raise HTTPException(404, "导入图片不存在")
+    image.is_deleted = True
+    _rebuild_batch_ocr(batch)
+    session.add(
+        HistoryEvent(
+            event_type="import_image_removed",
+            entity_type="import_image",
+            entity_id=image.id,
+            payload={"batch_id": batch.id, "file_path": image.file_path},
+        )
+    )
+    session.commit()
+    return batch_dict(_load_batch(session, batch.id))
+
+
+@router.delete("/{batch_id}")
+def abandon_import(
+    batch_id: int, session: Session = Depends(get_session)
+) -> dict[str, str]:
+    batch = _load_batch(session, batch_id)
+    if any(candidate.confirmed for candidate in batch.candidates):
+        raise HTTPException(409, "已有词条正式入库，不能移除这个批次")
+    batch.is_deleted = True
+    session.add(
+        HistoryEvent(
+            event_type="import_batch_removed",
+            entity_type="import_batch",
+            entity_id=batch.id,
+            payload={"recoverable": True},
+        )
+    )
+    session.commit()
+    return {"message": "导入批次已移除"}
 
 
 @router.get("")
 def list_imports(session: Session = Depends(get_session)) -> list[dict[str, object]]:
     batches = session.scalars(
-        select(ImportBatch).order_by(ImportBatch.created_at.desc()).limit(30)
+        select(ImportBatch)
+        .where(ImportBatch.is_deleted.is_(False))
+        .order_by(ImportBatch.created_at.desc())
+        .limit(30)
     ).all()
     return [
         {"id": item.id, "status": item.status, "stage": item.stage, "created_at": item.created_at}

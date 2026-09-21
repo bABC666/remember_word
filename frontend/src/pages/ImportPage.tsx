@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Check, Clock3, FileImage, LoaderCircle, UploadCloud } from 'lucide-react'
+import { AlertTriangle, Check, Clock3, FileImage, LoaderCircle, Plus, Trash2, UploadCloud, X } from 'lucide-react'
 import { api } from '../api'
 import { ErrorState } from '../components/States'
 import type { Candidate, ImportBatch } from '../types'
@@ -9,11 +9,20 @@ const steps = ['上传图片', 'OCR 识别', '校对词条', '确认入库']
 
 type ImportSummary = Pick<ImportBatch, 'id' | 'status' | 'stage' | 'created_at'>
 
+const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`
+
+export function mergeImageFiles(current: File[], incoming: File[]) {
+  const merged = new Map(current.map((file) => [fileKey(file), file]))
+  incoming.filter((file) => file.type.startsWith('image/')).forEach((file) => merged.set(fileKey(file), file))
+  return Array.from(merged.values())
+}
+
 export function ImportPage() {
   const [batch, setBatch] = useState<ImportBatch | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const batchInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const imports = useQuery({
     queryKey: ['imports'],
@@ -26,10 +35,26 @@ export function ImportPage() {
       files.forEach((file) => form.append('files', file))
       return api<ImportBatch>('/api/imports', { method: 'POST', body: form })
     },
-    onSuccess: async (value) => { setBatch(value); await queryClient.invalidateQueries({ queryKey: ['imports'] }) },
+    onSuccess: async (value) => { setBatch(value); setFiles([]); await queryClient.invalidateQueries({ queryKey: ['imports'] }) },
   })
   const ocr = useMutation({ mutationFn: () => api<ImportBatch>(`/api/imports/${batch!.id}/ocr`, { method: 'POST' }), onSuccess: setBatch })
   const structure = useMutation({ mutationFn: () => api<ImportBatch>(`/api/imports/${batch!.id}/structure`, { method: 'POST' }), onSuccess: setBatch })
+  const appendImages = useMutation({
+    mutationFn: async (incoming: File[]) => {
+      const form = new FormData()
+      incoming.forEach((file) => form.append('files', file))
+      return api<ImportBatch>(`/api/imports/${batch!.id}/images`, { method: 'POST', body: form })
+    },
+    onSuccess: setBatch,
+  })
+  const removeImage = useMutation({
+    mutationFn: (imageId: number) => api<ImportBatch>(`/api/imports/${batch!.id}/images/${imageId}`, { method: 'DELETE' }),
+    onSuccess: setBatch,
+  })
+  const abandon = useMutation({
+    mutationFn: () => api(`/api/imports/${batch!.id}`, { method: 'DELETE' }),
+    onSuccess: async () => { setBatch(null); await queryClient.invalidateQueries({ queryKey: ['imports'] }) },
+  })
   const confirm = useMutation({
     mutationFn: () => api<{ created: number }>(`/api/imports/${batch!.id}/confirm`, { method: 'POST', body: JSON.stringify({ candidate_ids: batch!.candidates.filter((item) => item.selected && !item.confirmed).map((item) => item.id) }) }),
     onSuccess: async () => { await queryClient.invalidateQueries(); setBatch((value) => value ? { ...value, status: 'confirmed', stage: 'confirmed' } : value) },
@@ -47,8 +72,14 @@ export function ImportPage() {
       setBatch((value) => value ? { ...value, error_message: error instanceof Error ? error.message : '保存失败' } : value)
     }
   }
+  const addFiles = (incoming: File[]) => setFiles((current) => mergeImageFiles(current, incoming))
+  const removeQueuedFile = (target: File) => setFiles((current) => current.filter((file) => fileKey(file) !== fileKey(target)))
+  const abandonCurrent = () => {
+    if (window.confirm('移除这个未完成批次？原始记录会保留在本地，界面中不再显示。')) abandon.mutate()
+  }
   const stage = batch?.status === 'confirmed' ? 4 : batch?.candidates.length ? 3 : batch?.raw_ocr_text ? 2 : batch ? 1 : 0
-  const activeError = upload.error ?? ocr.error ?? structure.error ?? confirm.error
+  const needsOcr = Boolean(batch?.images.some((image) => !image.ocr_text))
+  const activeError = upload.error ?? appendImages.error ?? removeImage.error ?? abandon.error ?? ocr.error ?? structure.error ?? confirm.error
 
   return (
     <div className="page import-page">
@@ -56,11 +87,11 @@ export function ImportPage() {
       <div className="steps">{steps.map((label, index) => <div key={label} className={stage >= index + 1 ? 'done' : stage === index ? 'active' : ''}><i>{stage > index + 1 ? <Check size={16} /> : index + 1}</i><span>{label}<small>{index === 2 ? '人工确认是必需步骤' : ''}</small></span></div>)}</div>
       {!batch && (
         <>
-          <section className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={(event) => { event.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); setFiles(Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith('image/'))) }}>
-            <UploadCloud size={38} /><h2>拖入单词书照片</h2><p>支持 JPG、PNG、WEBP，可一次选择多张图片。</p>
+          <section className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={(event) => { event.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); addFiles(Array.from(event.dataTransfer.files)) }}>
+            <UploadCloud size={38} /><h2>拖入单词书照片</h2><p>支持 JPG、PNG、WEBP，可连续拖入或分多次选择。</p>
             <button className="button secondary" onClick={() => inputRef.current?.click()}>选择图片</button>
-            <input ref={inputRef} hidden type="file" accept="image/*" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
-            {files.length > 0 && <div className="file-list">{files.map((file) => <span key={`${file.name}-${file.size}`}><FileImage size={16} />{file.name}</span>)}</div>}
+            <input ref={inputRef} hidden type="file" accept="image/*" multiple onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = '' }} />
+            {files.length > 0 && <div className="file-list">{files.map((file) => <div key={fileKey(file)}><span><FileImage size={16} />{file.name}</span><button type="button" aria-label={`移除 ${file.name}`} onClick={() => removeQueuedFile(file)}><X size={15} /></button></div>)}</div>}
             <button className="button primary" disabled={!files.length || upload.isPending} onClick={() => upload.mutate()}>{upload.isPending ? <><LoaderCircle className="spin" size={17} />正在保存图片…</> : `创建导入批次（${files.length} 张）`}</button>
           </section>
           {imports.data?.some((item) => item.status !== 'confirmed') && (
@@ -77,18 +108,18 @@ export function ImportPage() {
       )}
       {batch && !batch.candidates.length && (
         <section className="import-progress">
-          <div className="image-list"><h2>已保存的图片（{batch.images.length}）</h2>{batch.images.map((image) => <div key={image.id}><FileImage size={20} /><span>{image.original_name}<small>{image.width} × {image.height}</small></span>{image.ocr_text && <Check size={18} className="success" />}</div>)}</div>
+          <div className="image-list"><div className="image-list-title"><h2>已保存的图片（{batch.images.length}）</h2><button className="icon-action danger" aria-label="移除当前导入批次" onClick={abandonCurrent}><Trash2 size={16} /></button></div>{batch.images.map((image) => <div key={image.id}><FileImage size={20} /><span>{image.original_name}<small>{image.width} × {image.height}</small></span>{image.ocr_text && <Check size={18} className="success" />}<button className="icon-action" aria-label={`删除 ${image.original_name}`} disabled={removeImage.isPending} onClick={() => removeImage.mutate(image.id)}><X size={15} /></button></div>)}<button className="add-image-button" disabled={appendImages.isPending} onClick={() => batchInputRef.current?.click()}><Plus size={16} />{appendImages.isPending ? '正在添加…' : '继续添加照片'}</button><input ref={batchInputRef} hidden type="file" accept="image/*" multiple onChange={(event) => { const incoming = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/')); if (incoming.length) appendImages.mutate(incoming); event.currentTarget.value = '' }} /></div>
           <div className="process-panel">
-            <h2>{batch.raw_ocr_text ? 'OCR 原始结果已安全保存' : '图片已安全保存'}</h2>
-            <p>{batch.raw_ocr_text ? '下一步由 DeepSeek 整理候选词条；原始结果不会被覆盖。' : '现在使用 PaddleOCR 识别。即使识别失败，这个批次和图片也会保留。'}</p>
+            <h2>{batch.raw_ocr_text && !needsOcr ? 'OCR 原始结果已安全保存' : batch.images.length ? '图片已安全保存' : '请先添加图片'}</h2>
+            <p>{batch.raw_ocr_text && !needsOcr ? '下一步由 DeepSeek 排除页码、栏目标题等噪声，整理为候选词条；OCR 原文不会被覆盖。' : batch.images.length ? 'PaddleOCR 会复用已完成图片的结果，只识别新增或失败的图片。' : '可以继续添加正确的单词书照片，也可以移除这个批次。'}</p>
             {batch.raw_ocr_text && <pre>{batch.raw_ocr_text}</pre>}
-            {!batch.raw_ocr_text ? <button className="button primary" disabled={ocr.isPending} onClick={() => ocr.mutate()}>{ocr.isPending ? '正在 OCR…' : '开始 OCR 识别'}</button> : <button className="button primary" disabled={structure.isPending} onClick={() => structure.mutate()}>{structure.isPending ? '正在结构化…' : '结构化为候选词条'}</button>}
+            {(!batch.raw_ocr_text || needsOcr) ? <button className="button primary" disabled={ocr.isPending || !batch.images.length} onClick={() => ocr.mutate()}>{ocr.isPending ? '正在 OCR…' : batch.raw_ocr_text ? '识别新增图片' : '开始 OCR 识别'}</button> : <button className="button primary" disabled={structure.isPending} onClick={() => structure.mutate()}>{structure.isPending ? '正在结构化…' : 'AI 清理并生成候选词条'}</button>}
           </div>
         </section>
       )}
       {batch && batch.candidates.length > 0 && (
         <section className="candidate-review">
-          <div className="review-head"><div><h2>识别到 {batch.candidates.length} 个词条</h2><p>逐项校对原书内容和最小语义锚点。勾选后才会入库。</p></div><span>批次 #{batch.id}</span></div>
+          <div className="review-head"><div><h2>识别到 {batch.candidates.length} 个词条</h2><p>AI 已排除明显噪声；仍请逐项校对，勾选后才会入库。</p></div><div className="review-meta"><span>批次 #{batch.id}</span>{batch.status !== 'confirmed' && <button className="text-button danger" onClick={abandonCurrent}><Trash2 size={14} />放弃批次</button>}{batch.status === 'confirmed' && <button className="text-button" onClick={() => setBatch(null)}>开始新的导入</button>}</div></div>
           <div className="candidate-table">
             <div className="candidate-header"><span>选择</span><span>单词 / 音标</span><span>词性</span><span>原书完整释义</span><span>Anchor</span><span>疑点</span></div>
             {batch.candidates.map((candidate) => (
