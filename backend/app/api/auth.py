@@ -19,6 +19,7 @@ from app.schemas import (
     ChangePasswordRequest,
     CreateUserRequest,
     LoginRequest,
+    SessionRevokeRequest,
     UpdateUserRequest,
 )
 from app.security import hash_password, password_is_usable
@@ -29,6 +30,8 @@ from app.services.auth import (
     list_user_sessions,
     normalize_username,
     revoke_all_sessions,
+    revoke_all_user_sessions,
+    revoke_other_sessions,
     revoke_session,
     revoke_user_session,
     set_password,
@@ -49,8 +52,9 @@ BUSY_RETRY_AFTER_SECONDS = 1
 
 #: Which sensitive operation a re-auth attempt belonged to. A closed set: the value
 #: ends up in an audit payload, so it must never be caller-supplied text.
-ReauthAction = Literal["change_password"]
+ReauthAction = Literal["change_password", "revoke_sessions"]
 CHANGE_PASSWORD_ACTION: ReauthAction = "change_password"
+REVOKE_SESSIONS_ACTION: ReauthAction = "revoke_sessions"
 
 
 def user_payload(user: User, settings: UserSettings) -> dict[str, object]:
@@ -401,6 +405,63 @@ def revoke_session_endpoint(
         # the same attributes it was issued with.
         response.delete_cookie(COOKIE_NAME, **_session_cookie_attributes())
     return {"ok": True}
+
+
+@router.post("/api/auth/sessions/revoke")
+def revoke_sessions_endpoint(
+    payload: SessionRevokeRequest,
+    response: Response,
+    session: SessionDep,
+    user: CurrentUser,
+    current: CurrentSession,
+) -> dict[str, object]:
+    """Sign out the account's other sessions, or every session including this one.
+
+    The order is the contract and it is not negotiable:
+
+    1. the session making the request is resolved (as a dependency, before any of
+       this runs);
+    2. the password is verified by the shared re-auth guard -- budget, shared
+       verification gate, ``reauth_failed`` audit;
+    3. only then is anything revoked;
+    4. one ``session_revoked`` event is written per revoked session;
+    5. and only ``scope="all"`` clears the cookie, because only that scope ends the
+       caller's own session.
+
+    Revoking first and checking the password afterwards would leave a failed request
+    with a real, unrecoverable effect. Nothing else about the outcome is disclosed:
+    the response says how many of *the caller's* sessions ended and nothing about
+    which ids exist or who they belong to.
+    """
+    _require_password(session, user, payload.current_password, action=REVOKE_SESSIONS_ACTION)
+
+    if payload.scope == "others":
+        revoked = revoke_other_sessions(session, user, current.id)
+    else:
+        revoked = revoke_all_user_sessions(session, user)
+
+    if revoked:
+        # One event per session: history_event is append-only evidence, and a summary
+        # row would lose which sessions actually ended.
+        session.add_all(
+            [
+                HistoryEvent(
+                    user_id=user.id,
+                    event_type="session_revoked",
+                    entity_type="user_session",
+                    entity_id=record.id,
+                    payload={"scope": payload.scope},
+                )
+                for record in revoked
+            ]
+        )
+        session.commit()
+
+    if payload.scope == "all":
+        # The caller's own session is gone, so the cookie must go with it.
+        response.delete_cookie(COOKIE_NAME, **_session_cookie_attributes())
+
+    return {"ok": True, "revoked": len(revoked)}
 
 
 @router.get("/api/auth/me")

@@ -21,34 +21,14 @@ import time
 import pytest
 from sqlalchemy import select
 
-from app.config import get_settings
 from app.models import HistoryEvent, UserSession
 from app.services.auth import COOKIE_NAME
-from app.services.limiter import (
-    login_limiter,
-    reauth_limiter,
-    reset_login_limiter,
-    reset_reauth_limiter,
-)
+from app.services.limiter import login_limiter, reauth_limiter
 
 PASSWORD = "test-password-123"
 NEW_PASSWORD = "another-password-1"
 WRONG = "definitely-wrong"
 LIMITED_DETAIL = "密码校验尝试过于频繁，请稍后再试"
-
-
-@pytest.fixture()
-def reauth_limits(monkeypatch):
-    """Apply re-auth settings, then rebuild the limiters from them."""
-
-    def _apply(*, failures: int = 5, window: int = 300) -> None:
-        monkeypatch.setenv("VOCAB_REAUTH_FAILURES", str(failures))
-        monkeypatch.setenv("VOCAB_REAUTH_WINDOW_SECONDS", str(window))
-        get_settings.cache_clear()
-        reset_login_limiter()
-        reset_reauth_limiter()
-
-    return _apply
 
 
 def change_password(world, *, current: str = WRONG, new: str = NEW_PASSWORD):

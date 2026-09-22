@@ -96,6 +96,18 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=256)
 
 
+class SessionRevokeRequest(BaseModel):
+    """Bulk session revocation: "sign out my other devices", or all of them.
+
+    ``scope`` is a closed set rather than a free string, and the only other field is
+    the password the re-auth guard demands. Nothing here can influence the audit
+    trail: the event's ``action`` is chosen by the endpoint, not sent by the client.
+    """
+
+    scope: Literal["others", "all"]
+    current_password: str = Field(min_length=1, max_length=256)
+
+
 class CreateUserRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     display_name: str = Field(default="", max_length=120)

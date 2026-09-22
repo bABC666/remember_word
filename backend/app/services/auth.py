@@ -370,15 +370,65 @@ def revoke_user_session(
     return record, changed
 
 
-def revoke_all_sessions(session: Session, user: User, now: datetime | None = None) -> int:
+def _revoke_user_sessions(
+    session: Session,
+    user: User,
+    *,
+    keep_session_id: int | None = None,
+    now: datetime | None = None,
+) -> list[UserSession]:
+    """Revoke this user's live sessions, optionally sparing one, and return the rows.
+
+    Every condition is in SQL and every one of them is about the *caller*:
+    ``user_id`` (so another account's sessions can never be in scope), ``revoked_at IS
+    NULL`` (so a repeat request revokes nothing and therefore records nothing), and
+    the optional exclusion of the session making the request.
+
+    Returning the rows rather than a count is what lets the caller write one audit
+    event per revoked session, and what makes "already revoked" naturally silent.
+    """
     moment = now or datetime.now(UTC)
-    records = session.scalars(
-        select(UserSession).where(
-            UserSession.user_id == user.id, UserSession.revoked_at.is_(None)
-        )
-    ).all()
+    query = select(UserSession).where(
+        UserSession.user_id == user.id, UserSession.revoked_at.is_(None)
+    )
+    if keep_session_id is not None:
+        query = query.where(UserSession.id != keep_session_id)
+
+    records = list(session.scalars(query.order_by(UserSession.id)).all())
     for record in records:
         record.revoked_at = moment
         session.add(record)
     session.commit()
-    return len(records)
+    return records
+
+
+def revoke_other_sessions(
+    session: Session, user: User, current_session_id: int, now: datetime | None = None
+) -> list[UserSession]:
+    """Sign the user's other devices out, keeping the session making the request.
+
+    The caller's own session is excluded by id *and* by ``user_id``, so passing an id
+    that is not the caller's -- or one that does not exist -- simply revokes their
+    other sessions rather than reaching anything else.
+    """
+    return _revoke_user_sessions(
+        session, user, keep_session_id=current_session_id, now=now
+    )
+
+
+def revoke_all_user_sessions(
+    session: Session, user: User, now: datetime | None = None
+) -> list[UserSession]:
+    """Revoke every live session of this user, including the one making the request."""
+    return _revoke_user_sessions(session, user, now=now)
+
+
+def revoke_all_sessions(session: Session, user: User, now: datetime | None = None) -> int:
+    """Revoke every live session of this user, and report how many.
+
+    Kept as the count-returning name for the callers that predate the bulk endpoint
+    (password change, and the admin paths that disable an account or change a role);
+    the work itself lives in :func:`revoke_all_user_sessions` so there is only one
+    implementation of "revoke them all".
+    """
+    return len(revoke_all_user_sessions(session, user, now=now))

@@ -217,6 +217,26 @@ def reset_login_limiter_between_tests() -> None:
 
 
 @pytest.fixture()
+def reauth_limits(monkeypatch):
+    """Apply re-auth settings, then rebuild the limiters from them.
+
+    Shared by every test that exercises a sensitive operation: the guard's budget,
+    its window and the shared verification gate all come from these settings.
+    """
+    from app.config import get_settings
+    from app.services.limiter import reset_login_limiter, reset_reauth_limiter
+
+    def _apply(*, failures: int = 5, window: int = 300) -> None:
+        monkeypatch.setenv("VOCAB_REAUTH_FAILURES", str(failures))
+        monkeypatch.setenv("VOCAB_REAUTH_WINDOW_SECONDS", str(window))
+        get_settings.cache_clear()
+        reset_login_limiter()
+        reset_reauth_limiter()
+
+    return _apply
+
+
+@pytest.fixture()
 def session(tmp_path: Path):
     """A fresh temporary database with the full current schema."""
     import app.models  # noqa: F401
