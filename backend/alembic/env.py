@@ -8,7 +8,11 @@ from app.config import get_settings
 from app.db import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+
+# Tests pass an explicit database with ``-x db_url=...`` so that a migration can
+# be exercised against a throwaway database instead of the live one.
+_overridden_url = context.get_x_argument(as_dictionary=True).get("db_url")
+config.set_main_option("sqlalchemy.url", _overridden_url or get_settings().database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata

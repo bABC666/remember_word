@@ -30,6 +30,21 @@ class Settings:
     def local_config_path(self) -> Path:
         return self.config_dir / "settings.json"
 
+    @property
+    def ocr_enabled(self) -> bool:
+        """PaddleOCR is a local-only capability.
+
+        The cloud deployment must be able to start without Paddle installed, so
+        every OCR entry point is guarded by this flag instead of relying on the
+        import failing somewhere deep in the stack.
+        """
+        return os.getenv("VOCAB_ENABLE_OCR", "true").strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+
     def ensure_directories(self) -> None:
         for path in (
             self.data_dir,

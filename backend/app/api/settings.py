@@ -61,15 +61,19 @@ def read_settings(session: Session = Depends(get_session)) -> dict[str, object]:
     settings = get_settings()
     ai = settings.ai_config()
     values = _values(session)
-    try:
-        configure_paddle_environment()
-        import paddleocr  # noqa: F401
-
-        paddle_available = True
-        paddle_message = "PaddleOCR 已安装"
-    except (ImportError, OSError) as error:
+    if not settings.ocr_enabled:
         paddle_available = False
-        paddle_message = f"PaddleOCR 不可用：{error}"
+        paddle_message = "当前实例已通过 VOCAB_ENABLE_OCR 关闭 OCR"
+    else:
+        try:
+            configure_paddle_environment()
+            import paddleocr  # noqa: F401
+
+            paddle_available = True
+            paddle_message = "PaddleOCR 已安装"
+        except (ImportError, OSError) as error:
+            paddle_available = False
+            paddle_message = f"PaddleOCR 不可用：{error}"
     return {
         "deepseek_api_key_configured": bool(ai["api_key"]),
         "deepseek_api_key_masked": _mask(ai["api_key"]),

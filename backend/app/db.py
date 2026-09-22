@@ -13,9 +13,10 @@ class Base(DeclarativeBase):
 
 
 def make_engine(url: str) -> Engine:
-    engine = create_engine(
-        url, connect_args={"check_same_thread": False} if url.startswith("sqlite") else {}
-    )
+    connect_args: dict[str, object] = {}
+    if url.startswith("sqlite"):
+        connect_args = {"check_same_thread": False, "timeout": 5.0}
+    engine = create_engine(url, connect_args=connect_args)
     if url.startswith("sqlite"):
 
         @event.listens_for(engine, "connect")
@@ -23,6 +24,10 @@ def make_engine(url: str) -> Engine:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.execute("PRAGMA journal_mode=WAL")
+            # Without an explicit busy timeout SQLite fails a contended write
+            # almost immediately with "database is locked". Two concurrent
+            # users are enough to hit this.
+            cursor.execute("PRAGMA busy_timeout=5000")
             cursor.close()
 
     return engine
