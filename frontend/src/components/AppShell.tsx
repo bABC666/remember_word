@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { BookOpen, Home, Import, LibraryBig, Settings, Sparkles } from 'lucide-react'
+import { BookOpen, Home, Import, LibraryBig, LogOut, Settings, Sparkles } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../useAuth'
 import { HelpCenter } from './HelpCenter'
 
 const items = [
@@ -13,6 +14,7 @@ const items = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { user, logout } = useAuth()
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -25,6 +27,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <HelpCenter />
+        <div className="sidebar-account">
+          <div className="sidebar-account-name">
+            <strong>{user?.display_name || user?.username || ''}</strong>
+            {user?.is_admin && <small>管理员</small>}
+          </div>
+          <button className="account-logout" type="button" onClick={() => void logout()} aria-label="退出登录">
+            <LogOut size={16} strokeWidth={1.8} />
+            <span>退出</span>
+          </button>
+        </div>
         <div className="sidebar-foot"><span className="status-dot" />数据已本地保存<small>专注积累，静待改变。</small></div>
       </aside>
       <main className="main-content">{children}</main>
