@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import app.models
-from app.api import articles, dashboard, imports, settings, study, words
+from app.api import articles, auth, dashboard, imports, settings, study, words
 from app.config import get_settings
 from app.db import verify_schema_revision
 from app.services.backup import create_backup
@@ -29,6 +29,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="拾词", version="1.0.0", lifespan=lifespan)
+app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(imports.router)
 app.include_router(study.router)

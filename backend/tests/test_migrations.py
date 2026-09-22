@@ -704,12 +704,23 @@ def test_v1_1_database_rolls_forward_without_data_loss(v1_1_database: Path) -> N
             )
 
     if _head_revision() != "0003_article_reading_tools":
-        assert revision == _head_revision(), "the database did not reach head"
-        # Once a V1.2 migration exists, head must match the models exactly.
+        head = _head_revision()
+        assert revision == head, f"the database is at {revision}, expected head {head}"
+        # Now that head is beyond V1.1, the roll-forward must produce a schema
+        # that matches the models exactly. ``alembic_version`` is engine
+        # bookkeeping and has no model, so it is excluded.
         models = _expected_schema("models")
-        assert sorted(actual) == sorted(models), "table set differs from the models"
+        actual_without_version = {
+            table: spec for table, spec in actual.items() if table != "alembic_version"
+        }
+        assert sorted(actual_without_version) == sorted(models), (
+            f"table set differs from the models: "
+            f"{sorted(set(actual_without_version) ^ set(models))}"
+        )
         for table, spec in models.items():
-            assert actual[table]["columns"] == spec["columns"], f"columns differ for {table}"
+            assert actual_without_version[table]["columns"] == spec["columns"], (
+                f"columns differ for {table}"
+            )
 
 
 def _head_revision() -> str:

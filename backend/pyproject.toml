@@ -16,6 +16,7 @@ dependencies = [
   "python-multipart>=0.0.20,<1",
   "httpx>=0.28,<1",
   "pillow>=11,<13",
+  "pwdlib[argon2]>=0.3,<1",
 ]
 
 [project.optional-dependencies]
@@ -37,11 +38,20 @@ pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-ra --basetemp=.pytest-tmp -p no:cacheprovider"
 
+# Lint rules for application and test code. Kept identical to the repository-root
+# ruff.toml (which covers tools/) so the same files lint the same way wherever
+# the linter is invoked from. src = ["."] is what marks `app` as first-party.
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+src = ["."]
 
 [tool.ruff.lint]
 # B008: FastAPI's Depends()/Query() belong in argument defaults.
-# UP031: percent formatting is used deliberately for fixed-width operator output.
+# UP031: percent formatting is used deliberately for fixed-width CLI output.
 ignore = ["B008", "UP031"]
+
+[tool.ruff.lint.per-file-ignores]
+# Applied migrations are frozen history: they have already run against real
+# databases, so their bytes must not churn for formatting reasons.
+"alembic/versions/*.py" = ["I001"]

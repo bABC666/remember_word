@@ -35,6 +35,18 @@ os.environ["VOCAB_REAL_DATA_DIR"] = str(_REAL_DATA_DIR)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
+# Argon2id is deliberately expensive. Real logins pay that cost once; the test
+# suite would hash on every user creation, so use the cheapest valid parameters.
+# Production keeps pwdlib's recommended defaults.
+from pwdlib import PasswordHash
+from pwdlib.hashers.argon2 import Argon2Hasher
+
+import app.security
+
+app.security._PASSWORD_HASH = PasswordHash(
+    [Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1, hash_len=32, salt_len=8)]
+)
+
 
 @pytest.fixture(scope="session")
 def test_data_dir() -> Path:

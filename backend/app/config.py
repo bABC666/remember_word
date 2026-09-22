@@ -47,6 +47,33 @@ class Settings:
             "off",
         }
 
+    @property
+    def session_days(self) -> int:
+        raw = os.getenv("VOCAB_SESSION_DAYS", "30").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 30
+        return value if value > 0 else 30
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Secure cookies require HTTPS, so this must follow the environment.
+
+        Hard-coding ``True`` makes local http://127.0.0.1 login impossible;
+        hard-coding ``False`` is unsafe in production.
+        """
+        return os.getenv("VOCAB_COOKIE_SECURE", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    @property
+    def bootstrap_username(self) -> str:
+        return os.getenv("VOCAB_BOOTSTRAP_USERNAME", "admin").strip() or "admin"
+
     def ensure_directories(self) -> None:
         for path in (
             self.data_dir,

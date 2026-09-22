@@ -1,14 +1,20 @@
-# Ruff configuration for files outside backend/ (operator tooling).
+# Ruff configuration for linting the repository from its root (covers tools/).
 #
-# backend/pyproject.toml holds the settings for application and test code; ruff
-# only discovers that file when it is invoked from within backend/. This root
-# config keeps the same rules for tools/ so `scripts/check.ps1` lints everything
-# without relying on the working directory.
+# backend/pyproject.toml holds the settings for application, test and migration
+# code. The two files must agree so the same source lints the same way wherever
+# the linter is invoked from; scripts/check.ps1 runs ruff from backend/ for
+# backend code and from the root for tools/, which is the canonical invocation.
 
 line-length = 100
 target-version = "py311"
+src = ["backend"]
 
 [lint]
 # B008: FastAPI's Depends()/Query() belong in argument defaults.
-# UP031: percent formatting is used deliberately for fixed-width operator output.
+# UP031: percent formatting is used deliberately for fixed-width CLI output.
 ignore = ["B008", "UP031"]
+
+[lint.per-file-ignores]
+# Applied migrations are frozen history: they have already run against real
+# databases, so their bytes must not churn for formatting reasons.
+"backend/alembic/versions/*.py" = ["I001"]
