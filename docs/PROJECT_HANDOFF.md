@@ -32,7 +32,34 @@
 backend\.venv\Scripts\python.exe tools\verify_backup.py <database>
 backend\.venv\Scripts\python.exe tools\prove_test_isolation.py   # 证明 pytest 不碰 data/
 backend\.venv\Scripts\python.exe tools\compare_with_source.py    # 实盘与恢复源逐字段比对
+powershell -File scripts\check.ps1                               # 全量检查（隔离取证为必过项）
 ```
+
+## 0.1 三级数据库环境（强制）
+
+| 级别 | 位置 | 用途 | 规则 |
+|---|---|---|---|
+| **Level 1** | pytest 临时目录 | 单元 / API / migration 测试 | 只允许存在于 pytest 临时目录 |
+| **Level 2** | `data/staging/v1.1-realdata-migration-test.db` | 用**真实数据内容**演练迁移 | 唯一允许拿真实数据做迁移演练的地方；可随时删除重建；不是生产 |
+| **Level 3** | `data/vocab.db` | 生产 | 开发期间**禁止迁移** |
+
+Level 2 工作流：
+
+```powershell
+backend\.venv\Scripts\python.exe tools\make_staging.py                  # 从已验证 V1.1 源克隆 + 记录迁移前基线
+backend\.venv\Scripts\python.exe tools\staging_migration_check.py       # 0003 → head 并逐项断言真实数据未损坏
+backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实启动应用指向 staging，双用户验证
+```
+
+迁移等级由 `VOCAB_DATABASE_PATH` 显式指定数据库文件；`VOCAB_DATA_DIR` 仍决定 uploads / backups / config 的位置。
+
+## 0.2 分支与当前状态（2026-09-22）
+
+- `recovery/v1.1-guarded`：事故后的安全基线（V1.1 + 全部护栏）。
+- `feat/v1.2-phase1-safe`：**当前开发分支**，从安全基线建立。已含 P1.0（迁移地基）、P1.1（用户体系）、P1.2（词库模型 + staging 演练）。
+- `wip/v1.2-phase1-code` / `codex/vocab-ux-reading-v2` / `stash@{0}`：事故前工作，**仅作参考**。其 conftest 改动包含 `drop_all`，**禁止直接套用**。
+- **生产库仍是 V1.1（revision 0003）**，sha256 `c8be615d…f67944`。V1.2 代码面对它会因版本护栏拒绝启动——这是正确行为。
+- 尚未实施：P1.3（按用户隔离全部业务 API）、前端登录页、PWA、部署。
 
 ## 1. 一句话概况
 
