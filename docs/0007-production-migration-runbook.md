@@ -21,24 +21,49 @@
 
 ## 0. 硬性规则
 
-1. **只允许** `upgrade 0007_bridge_foreign_keys`（显式 revision）。
-2. **禁止** `upgrade head`。禁止任何 downgrade。
-3. **禁止**在 production 上创建用户、修改密码、登录测试账号。
-4. 迁移前**必须**有一份校验过的备份；没有备份不得开始。
-5. Part A 与 Part B 必须分开执行、分开留证。
-6. 每一步都留证据（命令 + 输出 + 时间戳），不要靠记忆。
+1. **先跑预演。** 没有 Step A1 产出的 rehearsal 证据，**禁止执行生产迁移**（Step A3）。
+2. **只允许** `upgrade 0007_bridge_foreign_keys`（显式 revision）。
+3. **禁止** `upgrade head`。禁止任何 downgrade。
+4. **禁止**在 production 上创建用户、修改密码、登录测试账号。
+5. 迁移前**必须**有一份校验过的备份；没有备份不得开始。
+6. Part A 与 Part B 必须分开执行、分开留证。
+7. 每一步都留证据（命令 + 输出 + 时间戳），不要靠记忆。
+
+**执行顺序（不得跳步、不得换序）**
+
+```
+Step A0 停机
+   ↓
+Step A1 Preflight 预演（强制）──── 无证据 → 停止，禁止继续
+   ↓
+Step A2 备份
+   ↓
+Step A3 迁移（唯一的写操作）
+   ↓
+Step A4 迁移后校验 ──── 未通过 → Step A5 恢复
+   ↓
+Step A6 解除启动封锁
+   ↓
+Part B  应用验收（只在副本上）
+```
 
 ### 0.1 两个必须知道的陷阱
 
 **陷阱一：`scripts/start-vocab.ps1` 会自动迁移。**
 
-`scripts/start-vocab.ps1:64` 执行 `alembic upgrade head`，`scripts/check.ps1` 也会调用。因此在发布窗口内**不得启动应用**（包括桌面快捷方式）：一次启动就等于一次没有备份、没有日志的隐式迁移。
+`scripts/start-vocab.ps1:64` 执行 `alembic upgrade head`：启动器**先迁移、再拉起 uvicorn**。因此在发布窗口内**不得启动应用**（包括桌面快捷方式）：一次启动就等于一次没有备份、没有日志的隐式迁移。
 
-放行方式：迁移并验证完成后，先确认 `alembic current` 已是 `0007_bridge_foreign_keys`，此时 `upgrade head` 退化为空操作，才允许启动。见 Step A5。
+放行方式：迁移并验证完成后，先确认 `alembic current` 已是 `0007_bridge_foreign_keys`，此时 `upgrade head` 退化为空操作，才允许启动。见 Step A6。
+
+> **澄清：`scripts/check.ps1` 不执行任何 alembic 迁移，也不会执行 upgrade。**
+> 它是**只读验证工具**，依次运行：ruff、backend tests（只作用于测试自建的临时数据库）、frontend tests / typecheck / lint / build、`prove_test_isolation.py`，最后把 `data/vocab.db` 交给**只读**打开的 `verify_backup.py`（`verified_db.connect_readonly` 使用 `mode=ro`）。
+> 全仓 `upgrade head` 只出现在 `pytest tests` 内部，且只作用于测试自己创建的临时数据库——**不是** `check.ps1` 直接调用，更不会作用于生产库。
+>
+> 另注：`check.ps1` 的最后一步 `verify_backup.py` 目前会因基线冻结在 `0003_article_reading_tools` 而必然 FAIL（exit 1，原因见 `docs/2026-09-22-migration-history-forensics.md` §6）。这与 0007 无关——**不要**据它判断本次迁移的成败。
 
 **陷阱二：失败后的残留临时表会让重跑失败。**
 
-0007 逐表重建。若在中途失败，SQLite 会回滚全部重建（数据不丢），但第一个被重建的表的 `CREATE TABLE _alembic_tmp_<表名>` 是在事务开启前以 autocommit 执行的，**会残留一张 0 行的 `_alembic_tmp_word`**。此时直接重跑会报 `table _alembic_tmp_word already exists`。处理见 Step A4。
+0007 逐表重建。若在中途失败，SQLite 会回滚全部重建（数据不丢），但第一个被重建的表的 `CREATE TABLE _alembic_tmp_<表名>` 是在事务开启前以 autocommit 执行的，**会残留一张 0 行的 `_alembic_tmp_word`**。此时直接重跑会报 `table _alembic_tmp_word already exists`。处理见 Step A5。
 
 ---
 
@@ -71,7 +96,41 @@ Get-NetTCPConnection -LocalPort 8000 -State Listen   # 期望：无输出
 
 放行条件：sha256 始终为 `95D09866…B37A`，`vocab.db-wal` 始终为 `0`。
 
-### Step A1 · 备份
+### Step A1 · Preflight 预演（强制）
+
+> **本步骤是生产迁移的前置条件，不是可选项。**
+> 没有本步骤产出的证据，**禁止执行 Step A3 的生产迁移**。
+> Step A4 的内容基线正是取自这里产出的 `phase1.before_fingerprints`，因此没有它就**无法证明业务表数据未被改动**。
+
+放在停机之后执行：预演会把 `data/vocab.db` 复制成克隆，库处于静止状态时这份克隆才与随后的备份一致。
+
+```powershell
+cd D:\背单词web
+backend\.venv\Scripts\python.exe tools\rehearsal_migration_0007.py `
+    --json data\recovery\rehearsal-0006-to-0007.json
+```
+
+放行条件（三项必须同时满足）：
+
+| 检查 | 期望 |
+| --- | --- |
+| 结束行 | `REHEARSAL PASSED: 0006 -> 0007 on the clone, production untouched` |
+| 退出码 | `0` |
+| 证据文件 | `data/recovery/rehearsal-0006-to-0007.json` 存在，且 `verdict = PASS`、`failures = []` |
+
+复核证据文件：
+
+```powershell
+backend\.venv\Scripts\python.exe -c "import json,pathlib; d=json.loads(pathlib.Path('data/recovery/rehearsal-0006-to-0007.json').read_text(encoding='utf-8')); print('verdict:',d['verdict']); print('source sha256:',d['phase1']['source_sha256']); print('before:',d['phase1']['before_revision']); print('after:',d['phase2']['after_revision']); print('integrity:',d['phase3']['integrity_check']); print('fk:',d['phase4']['orm_foreign_keys'],'/',d['phase4']['physical_foreign_keys']); print('failures:',d['failures'])"
+```
+
+`phase1.source_sha256` 必须等于生产库当前的 `95d09866c5b2d830156338748b123c40f9c84db13fead5ca6b61aba9f576b37a`；若不等，说明生产库在预演之后发生了变化，必须重跑预演。
+
+该工具做什么：把 `data/vocab.db` 复制为 `data/staging/migration-rehearsal-0006.db` 并证明字节一致 → 只对该克隆执行**显式** `upgrade 0007_bridge_foreign_keys` → 比对 revision、每张表的行数与内容哈希、`integrity_check`、`foreign_key_check` → 比对 ORM 声明与物理外键（26/26）→ 最后证明 `data/vocab.db` 字节未变。生产库**始终只读**。
+
+**若预演失败、退出码非 0，或证据文件缺失/`verdict` 不是 `PASS`：停止；不要进入 Step A2 及其之后的任何步骤。**
+
+### Step A2 · 备份
 
 ```powershell
 # WAL 必须为空；非空时的裸拷贝会静默丢失已提交页
@@ -95,7 +154,7 @@ Get-FileHash data\backups\pre-0007-production.db -Algorithm SHA256
 
 > 复核提示：仓内 `data/backups/` 与 `data/recovery/` 下**没有任何现存文件的 sha256 等于上面的值**，所以这一份备份必须现做，不能复用旧快照。
 
-### Step A2 · 迁移
+### Step A3 · 迁移
 
 ```powershell
 cd D:\背单词web\backend
@@ -108,7 +167,7 @@ cd D:\背单词web\backend
 - 只允许 `upgrade 0007_bridge_foreign_keys`。**不要写 `head`。**
 - 完整保存 stdout+stderr 到 `data/recovery/0007-production-migration.log`。
 
-### Step A3 · 迁移后校验（只读）
+### Step A4 · 迁移后校验（只读）
 
 把下面的脚本保存为 `data/recovery/verify_0007_production.py`，然后运行。它对生产库只读打开，不做任何写入。
 
@@ -163,16 +222,16 @@ review 历史（`review_event` 10 行、`article_word_exposure` 16 行、`user_w
 
 > 注意：本库**没有 `translation` 表**。译文是 `article` 上的列，随 `article` 一起核对。
 
-只要 `tmp leftovers` 不是 `none`，或 `content drift` 不是 `none`，**停止**并进入 Step A4。
+只要 `tmp leftovers` 不是 `none`，或 `content drift` 不是 `none`，**停止**并进入 Step A5。
 
-### Step A4 · 失败与恢复（仅在 A2/A3 未通过时执行）
+### Step A5 · 失败与恢复（仅在 A3/A4 未通过时执行）
 
 0007 的 9 次重建位于同一个隐式事务内，异常会整体回滚；故障注入演练确认：失败后 revision 仍是 `0006`，所有表行数原样，`integrity_check = ok`，`foreign_key_check = 0`。唯一副作用是残留 `_alembic_tmp_word`。
 
 **恢复路径 B（首选，可证明恢复到位）**
 
 ```powershell
-# 删除损坏文件及其 sidecar，然后还原 Step A1 的备份
+# 删除损坏文件及其 sidecar，然后还原 Step A2 的备份
 Remove-Item data\vocab.db, data\vocab.db-wal, data\vocab.db-shm -ErrorAction SilentlyContinue
 Copy-Item data\backups\pre-0007-production.db data\vocab.db
 (Get-FileHash data\vocab.db -Algorithm SHA256).Hash    # 必须等于 95D09866…B37A
@@ -208,9 +267,9 @@ cd backend
 .\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade 0007_bridge_foreign_keys
 ```
 
-恢复后必须重新执行 Step A3 的全部检查。
+恢复后必须重新执行 Step A4 的全部检查。
 
-### Step A5 · 解除启动封锁（Part A 与 Part B 都完成后才可执行）
+### Step A6 · 解除启动封锁（Part A 与 Part B 都完成后才可执行）
 
 ```powershell
 cd D:\背单词web\backend
@@ -218,7 +277,7 @@ cd D:\背单词web\backend
 # 必须输出 0007_bridge_foreign_keys，此时 start-vocab.ps1 的 `upgrade head` 是空操作
 ```
 
-应用本身是失败关闭的：数据库 revision 不等于代码 head 时会拒绝启动。因此 Step A5 之前的任何启动尝试都会失败——这是设计如此，不是故障。
+应用本身是失败关闭的：数据库 revision 不等于代码 head 时会拒绝启动。因此 Step A6 之前的任何启动尝试都会失败——这是设计如此，不是故障。
 
 ---
 
@@ -240,7 +299,7 @@ staging_two_user_check  ──►  报告
 
 ### Step B0 · 前提
 
-Part A 的 Step A3 全部通过。应用处于停止状态（沿用 Step A0 的证明）。
+Part A 的 Step A4 全部通过（含 Step A1 的 rehearsal 证据）。应用处于停止状态（沿用 Step A0 的证明）。
 
 ### Step B1 · 从迁移后的 production 制作副本
 
@@ -300,29 +359,16 @@ Remove-Item data\staging\post-0007-verification.db*
 
 ---
 
-## 附：迁移前的预演（可选，但推荐）
-
-在动生产之前，可以先在克隆上把整套流程跑一遍，并留下可复现证据：
-
-```powershell
-backend\.venv\Scripts\python.exe tools\rehearsal_migration_0007.py `
-    --json data\recovery\rehearsal-0006-to-0007.json
-```
-
-该工具：把 `data/vocab.db` 复制为 `data/staging/migration-rehearsal-0006.db` 并证明字节一致 → 只对该克隆执行**显式** `upgrade 0007_bridge_foreign_keys` → 比对 revision、每张表的行数与内容哈希、`integrity_check`、`foreign_key_check` → 比对 ORM 声明与物理外键（26/26）→ 最后证明 `data/vocab.db` 字节未变。生产库始终只读。
-
-它产出的 `phase1.before_fingerprints` 就是 Part A Step A3 用来判断 `content drift` 的基线，所以**先跑预演、再做生产**能让 A3 变成一次自动比对。
-
----
-
 ## 附：证据清单
 
-| 文件 | 内容 | 产生于 |
-| --- | --- | --- |
-| `data/backups/pre-0007-production.db` | 迁移前完整备份 | Step A1 |
-| `data/recovery/0007-production-migration.log` | alembic 完整输出 | Step A2 |
-| `data/recovery/rehearsal-0006-to-0007.json` | 预演证据（含内容哈希基线） | 预演 / `rehearsal_migration_0007.py` |
-| `data/recovery/post-0007-two-user-report.json` | 副本上的应用验收 | Step B3 |
-| `data/recovery/post-0007-isolation-report.json` | 副本上的隔离证明 | Step B4 |
+预演已改为强制步骤（Step A1），不再是文末的可选附录。
+
+| 文件 | 内容 | 产生于 | 性质 |
+| --- | --- | --- | --- |
+| `data/recovery/rehearsal-0006-to-0007.json` | 预演证据，含 Step A4 判断 `content drift` 所需的内容哈希基线 | Step A1 | **强制前置**，缺失则禁止迁移 |
+| `data/backups/pre-0007-production.db` | 迁移前完整备份 | Step A2 | 强制，回滚唯一依据 |
+| `data/recovery/0007-production-migration.log` | alembic 完整输出 | Step A3 | 强制 |
+| `data/recovery/post-0007-two-user-report.json` | 副本上的应用验收 | Step B3 | Part B |
+| `data/recovery/post-0007-isolation-report.json` | 副本上的隔离证明 | Step B4 | Part B（可选，推荐） |
 
 配套的逐步勾选表见 [`0007-production-migration-checklist.md`](./0007-production-migration-checklist.md)。

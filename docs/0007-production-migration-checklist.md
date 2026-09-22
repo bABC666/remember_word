@@ -96,14 +96,37 @@
 
   实测：`________________`
 
-- [ ] **B9. 备份已创建**
+- [ ] **B9.（强制前置）Preflight 预演已完成** — 没有本项证据**禁止进入 During**
+
+  ```powershell
+  cd D:\背单词web
+  backend\.venv\Scripts\python.exe tools\rehearsal_migration_0007.py --json data\recovery\rehearsal-0006-to-0007.json
+  ```
+
+  三项必须同时满足：
+
+  | 检查 | 期望 | 实测 |
+  | --- | --- | --- |
+  | 结束行 | `REHEARSAL PASSED: 0006 -> 0007 on the clone, production untouched` | |
+  | 退出码 | `0` | |
+  | 证据文件 `verdict` / `failures` | `PASS` / `[]` | |
+
+  复核证据文件（`source_sha256` 必须等于 B7 记录的迁移前 sha256）：
+
+  ```powershell
+  backend\.venv\Scripts\python.exe -c "import json,pathlib; d=json.loads(pathlib.Path('data/recovery/rehearsal-0006-to-0007.json').read_text(encoding='utf-8')); print(d['verdict'], d['failures']); print(d['phase1']['source_sha256'])"
+  ```
+
+  说明：After 段的内容哈希基线（A5 的 `content drift`）取自本文件，因此跳过预演会让 A5 无法执行。
+
+- [ ] **B10. 备份已创建**
 
   ```powershell
   New-Item -ItemType Directory -Force data\backups | Out-Null
   Copy-Item data\vocab.db data\backups\pre-0007-production.db
   ```
 
-- [ ] **B10. 备份 sha256 已记录且与迁移前一致**
+- [ ] **B11. 备份 sha256 已记录且与迁移前一致**
 
   ```powershell
   Get-FileHash data\backups\pre-0007-production.db -Algorithm SHA256
@@ -115,7 +138,7 @@
 
   实测 sha256：`________________`　实测大小：`________________`
 
-- [ ] **B11. 备份可用性已确认**（revision 与 integrity）
+- [ ] **B12. 备份可用性已确认**（revision 与 integrity）
 
   ```powershell
   backend\.venv\Scripts\python.exe -c "import sqlite3; c=sqlite3.connect('file:data/backups/pre-0007-production.db?mode=ro',uri=True); print([r[0] for r in c.execute('select version_num from alembic_version')]); print(c.execute('pragma integrity_check').fetchone()[0])"
@@ -123,16 +146,8 @@
 
   期望：`['0006_article_exposure_entry']` 与 `ok`　实测：`________________`
 
-- [ ] **B12. 发布窗口内不会启动应用** — 已确认 `scripts/start-vocab.ps1` 会执行 `alembic upgrade head`，因此在 Step A5 之前不得启动（含桌面快捷方式）
-
-- [ ] **B13.（推荐）预演证据已生成** — 提供 Step After-4 的内容哈希基线
-
-  ```powershell
-  backend\.venv\Scripts\python.exe tools\rehearsal_migration_0007.py --json data\recovery\rehearsal-0006-to-0007.json
-  ```
-
-  期望结尾：`REHEARSAL PASSED: 0006 -> 0007 on the clone, production untouched`
-  实测：`________________`
+- [ ] **B13. 发布窗口内不会启动应用** — 已确认 `scripts/start-vocab.ps1` 会执行 `alembic upgrade head`，因此在 Step A6 之前不得启动（含桌面快捷方式）。
+  另已确认 `scripts/check.ps1` **不执行任何 alembic 迁移**（只读验证工具，不会 upgrade、不会迁移数据库）；但它的最后一步 `verify_backup.py` 目前会因基线冻结在 `0003_article_reading_tools` 而必然 FAIL，**不要**据它判断本次迁移成败。
 
 ---
 
@@ -183,7 +198,7 @@
 
 - [ ] **A5. 内容哈希无漂移** — 17 张业务表逐行内容与迁移前一致
 
-  把 runbook Step A3 的脚本存为 `data/recovery/verify_0007_production.py` 后运行：
+  把 runbook Step A4 的脚本存为 `data/recovery/verify_0007_production.py` 后运行：
 
   ```powershell
   cd D:\背单词web
@@ -309,7 +324,7 @@
 
   `________________________________________________________________`
 
-> 恢复路径 A（删除残留 `_alembic_tmp_*` 后重跑 `upgrade 0007_bridge_foreign_keys`）见 runbook Step A4。仅在确认残留表为 0 行、且 `content drift` 仍为 `none` 时使用。
+> 恢复路径 A（删除残留 `_alembic_tmp_*` 后重跑 `upgrade 0007_bridge_foreign_keys`）见 runbook Step A5。仅在确认残留表为 0 行、且 `content drift` 仍为 `none` 时使用。
 
 ---
 
