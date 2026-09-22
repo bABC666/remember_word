@@ -1,0 +1,152 @@
+{
+  "manifest_version": 1,
+  "audit_commit": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+  "purpose": "Byte-for-byte record of the Alembic revisions, the version of each that was applied to the live database, and every revision changed afterwards with its impact. Verified by tools/verify_migration_history.py.",
+  "audit_context": {
+    "event": "an unauthorized 'alembic upgrade head' ran against data/vocab.db",
+    "when": "2026-09-22 15:04:30 +0800",
+    "trigger": "the desktop shortcut start-vocab.bat -> scripts/start-vocab.ps1, which ran the migration unconditionally (findings F-01/F-02 of the first audit)",
+    "head_at_the_time": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+    "head_evidence": "git reflog: 6ad8fce committed 2026-09-22 14:53:17, the next change to HEAD is b0d9d09 at 16:50:35",
+    "revision_before": "0003_article_reading_tools",
+    "revision_after": "0006_article_exposure_entry",
+    "report": "docs/2026-09-22-migration-history-forensics.md"
+  },
+  "revisions": [
+    {
+      "applied_at_commit": null,
+      "applied_to_production": true,
+      "applied_when": "before 2026-09-22 13:03 (the initial V1.1 build); the commit that first ran it is older than any database still in the repository",
+      "as_applied": null,
+      "blob": "343793589a4aef318f2740fdf32bc385d77f6b3f",
+      "blob_at_audit_commit": "343793589a4aef318f2740fdf32bc385d77f6b3f",
+      "change_commits": [],
+      "changed_since_audit_commit": false,
+      "data_semantics_impact": "not applicable",
+      "notes": "Changed once, in b62d601 (13:03), before the earliest database that still exists. Its blob is identical at the audit commit and at HEAD, so nothing about it changed during or after the 15:04 migration.",
+      "path": "backend/alembic/versions/0001_initial.py",
+      "revision": "0001_initial",
+      "schema_impact": "not applicable",
+      "sha256": "47d76a997035cd065f41979e9b30f8758297825b85c90dc8d7061e3efd087342",
+      "sha256_at_audit_commit": "47d76a997035cd065f41979e9b30f8758297825b85c90dc8d7061e3efd087342"
+    },
+    {
+      "applied_at_commit": null,
+      "applied_to_production": true,
+      "applied_when": "before 2026-09-22 13:03 (the initial V1.1 build)",
+      "as_applied": null,
+      "blob": "15dbd1e11ece726912a1f33ff6900fe08ea889d9",
+      "blob_at_audit_commit": "15dbd1e11ece726912a1f33ff6900fe08ea889d9",
+      "change_commits": [],
+      "changed_since_audit_commit": false,
+      "data_semantics_impact": "not applicable",
+      "notes": "Never modified since it was written (one commit, ebb072f) and identical at the audit commit and at HEAD.",
+      "path": "backend/alembic/versions/0002_reading_assistance.py",
+      "revision": "0002_reading_assistance",
+      "schema_impact": "not applicable",
+      "sha256": "878d311543b735697b2d2716bf67529582386e086b6e7ff2fbd3a8d4ebbcc334",
+      "sha256_at_audit_commit": "878d311543b735697b2d2716bf67529582386e086b6e7ff2fbd3a8d4ebbcc334"
+    },
+    {
+      "applied_at_commit": null,
+      "applied_to_production": true,
+      "applied_when": "before 2026-09-22 13:44 (the restored V1.1 database is at this revision)",
+      "as_applied": null,
+      "blob": "d8c241ab6fa1228fc277c0296b1d9b3470903160",
+      "blob_at_audit_commit": "d8c241ab6fa1228fc277c0296b1d9b3470903160",
+      "change_commits": [],
+      "changed_since_audit_commit": false,
+      "data_semantics_impact": "not applicable",
+      "notes": "Never modified since it was written (one commit, 2b465c9) and identical at the audit commit and at HEAD.",
+      "path": "backend/alembic/versions/0003_article_reading_tools.py",
+      "revision": "0003_article_reading_tools",
+      "schema_impact": "not applicable",
+      "sha256": "e145dbb122c031f5385d632240bdd442b2a98a47a5d1323ebe6f76d0ea950eef",
+      "sha256_at_audit_commit": "e145dbb122c031f5385d632240bdd442b2a98a47a5d1323ebe6f76d0ea950eef"
+    },
+    {
+      "applied_at_commit": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+      "applied_to_production": true,
+      "applied_when": "2026-09-22 15:04:30 +0800, as part of the unauthorized upgrade",
+      "as_applied": {
+        "commit": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+        "blob": "ec431e3ee26a8c0e84cc8fbac2df0fa1b1a02d86",
+        "sha256": "b9947bba0d10d01f3240ac63dd1ddc3b31f76295ce90820b41f33b25c8f00d85"
+      },
+      "blob": "ec431e3ee26a8c0e84cc8fbac2df0fa1b1a02d86",
+      "blob_at_audit_commit": "ec431e3ee26a8c0e84cc8fbac2df0fa1b1a02d86",
+      "change_commits": [],
+      "changed_since_audit_commit": false,
+      "data_semantics_impact": "none",
+      "notes": "Applied by the 15:04 run and unchanged since; the applied version is the file at the audit commit, byte-identical to HEAD.",
+      "path": "backend/alembic/versions/0004_multiuser_foundation.py",
+      "revision": "0004_multiuser_foundation",
+      "schema_impact": "none",
+      "sha256": "b9947bba0d10d01f3240ac63dd1ddc3b31f76295ce90820b41f33b25c8f00d85",
+      "sha256_at_audit_commit": "b9947bba0d10d01f3240ac63dd1ddc3b31f76295ce90820b41f33b25c8f00d85"
+    },
+    {
+      "applied_at_commit": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+      "applied_to_production": true,
+      "applied_when": "2026-09-22 15:04:30 +0800, as part of the unauthorized upgrade",
+      "as_applied": {
+        "commit": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+        "blob": "72348b9be6f3bdee7d8026ab97b6d3ea6caa7813",
+        "sha256": "f16ce9dd7b6186b96fb0876e95dd97411c8ca41d334959b55055ce0f26ee9e99"
+      },
+      "blob": "5d82e5dc4a08291d10e418532b61efdc16376e49",
+      "blob_at_audit_commit": "72348b9be6f3bdee7d8026ab97b6d3ea6caa7813",
+      "change_commits": [
+        "cfbabc62c78361cedfc8bf661b618d4471a95c95"
+      ],
+      "changed_since_audit_commit": true,
+      "data_semantics_impact": "none for a database with no normalized duplicate words, which includes the live one; the changed code path only runs when two legacy words collide, and then it aborts earlier than it used to",
+      "notes": "THE ONE REVISION THAT CHANGED AFTER IT WAS APPLIED. Applied as blob 72348b9be6f3bdee7d8026ab97b6d3ea6caa7813 at commit 6ad8fce, later changed by cfbabc6 to blob 5d82e5dc4a08291d10e418532b61efdc16376e49. The change moves the duplicate-word preflight from the first statement of _migrate_data() to the first statement of upgrade(), so a collision aborts before any DDL instead of after it. No DDL, no data statement and no column definition was touched. Verified by replaying the applied version against the verified V1.1 source: the resulting revision, schema and content tables match the live database.",
+      "path": "backend/alembic/versions/0005_lexicon_and_migration.py",
+      "revision": "0005_lexicon_and_migration",
+      "schema_impact": "none",
+      "sha256": "51b6beb66a36c51b3d48a982729f2663d812ed532380307c621f734da6520068",
+      "sha256_at_audit_commit": "f16ce9dd7b6186b96fb0876e95dd97411c8ca41d334959b55055ce0f26ee9e99"
+    },
+    {
+      "applied_at_commit": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+      "applied_to_production": true,
+      "applied_when": "2026-09-22 15:04:30 +0800, as part of the unauthorized upgrade",
+      "as_applied": {
+        "commit": "6ad8fce58041b03977deb2a98ae668cc22eef35a",
+        "blob": "951baaf6813a28164b81bf5252c33f3b2f94b56a",
+        "sha256": "6f9a52e00744e36f770193b259748e5ec87c4492901dbb4aea0190e48607fb78"
+      },
+      "blob": "951baaf6813a28164b81bf5252c33f3b2f94b56a",
+      "blob_at_audit_commit": "951baaf6813a28164b81bf5252c33f3b2f94b56a",
+      "change_commits": [],
+      "changed_since_audit_commit": false,
+      "data_semantics_impact": "none",
+      "notes": "Applied by the 15:04 run and unchanged since (one commit, 56c0fee); the applied version is byte-identical to HEAD.",
+      "path": "backend/alembic/versions/0006_article_exposure_entry.py",
+      "revision": "0006_article_exposure_entry",
+      "schema_impact": "none",
+      "sha256": "6f9a52e00744e36f770193b259748e5ec87c4492901dbb4aea0190e48607fb78",
+      "sha256_at_audit_commit": "6f9a52e00744e36f770193b259748e5ec87c4492901dbb4aea0190e48607fb78"
+    },
+    {
+      "applied_at_commit": null,
+      "applied_to_production": false,
+      "applied_when": null,
+      "as_applied": null,
+      "blob": "b989274aca805d2cc4fcc2938a7084b9aebe8ebc",
+      "blob_at_audit_commit": null,
+      "change_commits": [
+        "1c935d6abdcdf874dd69d7487e045de8cb31846d"
+      ],
+      "changed_since_audit_commit": false,
+      "data_semantics_impact": "changes what happens when a referenced user or lexicon entry is deleted: history rows survive with their bridge cleared instead of being unconstrained",
+      "notes": "Written in this repository after the incident and NOT applied to the live database. The live database is deliberately left at 0006 until a production migration is authorized.",
+      "path": "backend/alembic/versions/0007_bridge_foreign_keys.py",
+      "revision": "0007_bridge_foreign_keys",
+      "schema_impact": "adds the nine bridge foreign keys the ORM declares and SQLite silently dropped, all ON DELETE SET NULL",
+      "sha256": "76d458fc8c9d5faed6cf07ec5a7238ba73d1de54bd1d0e2f35b8b56517bd5260",
+      "sha256_at_audit_commit": null
+    }
+  ]
+}
