@@ -146,6 +146,22 @@ def session_is_live(record: UserSession, *, now: datetime | None = None) -> bool
     return last_activity_at(record) > moment - idle
 
 
+def find_session_record(session: Session, token: str) -> UserSession | None:
+    """The session row for a raw token, live or not.
+
+    Only logout uses this: signing out has to be able to clear a cookie whose
+    session is already revoked or expired, which :func:`resolve_session` refuses to
+    return by design. Finding a row is *not* an authentication check -- a token
+    that matches a row still says nothing about whether that session may be used --
+    so nothing that decides who the caller is may call this.
+    """
+    if not token:
+        return None
+    return session.scalar(
+        select(UserSession).where(UserSession.token_hash == hash_session_token(token))
+    )
+
+
 def resolve_session(
     session: Session, token: str, *, now: datetime | None = None
 ) -> UserSession | None:
@@ -155,20 +171,27 @@ def resolve_session(
     session is simply not live any more, and :func:`prune_sessions` is what removes
     the row.
     """
-    if not token:
-        return None
-    record = session.scalar(
-        select(UserSession).where(UserSession.token_hash == hash_session_token(token))
-    )
+    record = find_session_record(session, token)
     if record is None or not session_is_live(record, now=now):
         return None
     return record
 
 
-def revoke_session(session: Session, record: UserSession, now: datetime | None = None) -> None:
+def revoke_session(
+    session: Session, record: UserSession, now: datetime | None = None
+) -> bool:
+    """Revoke a session. Returns True when this call is what revoked it.
+
+    Idempotent: revoking an already revoked session keeps the original timestamp.
+    The first logout is the fact worth recording, and a repeated one -- which is
+    exactly what an idempotent logout invites -- must not rewrite it.
+    """
+    if record.revoked_at is not None:
+        return False
     record.revoked_at = now or datetime.now(UTC)
     session.add(record)
     session.commit()
+    return True
 
 
 def touch_session(

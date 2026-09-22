@@ -429,9 +429,15 @@ def test_every_runtime_cookie_site_agrees_with_the_constant(world) -> None:
 
     declared, without = cookie_aliases(app.openapi())
     assert declared == {COOKIE_NAME}, f"routes declare {declared}, constant is {COOKIE_NAME!r}"
-    # Only endpoints that must work without a session may omit it, so a new
-    # authenticated endpoint that forgot the dependency fails here too.
-    assert without == {"POST /api/auth/login", "GET /api/health"}, sorted(without)
+    # Only the three endpoints that must work without a session may omit it, so a
+    # new authenticated endpoint that forgot the dependency fails here too. Logout
+    # is one of them on purpose: it reads the cookie itself so that signing out
+    # always clears it, even when the session behind it is already dead.
+    assert without == {
+        "POST /api/auth/login",
+        "POST /api/auth/logout",
+        "GET /api/health",
+    }, sorted(without)
 
     login = world.client.post(
         "/api/auth/login", json={"username": world.username, "password": TEST_PASSWORD}

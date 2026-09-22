@@ -27,8 +27,8 @@ from app.security import (
 from app.services.auth import (
     COOKIE_NAME,
     create_session,
+    find_session_record,
     normalize_username,
-    resolve_session,
     revoke_all_sessions,
     revoke_session,
     set_password,
@@ -96,6 +96,33 @@ def _set_session_cookie(response: Response, token: str) -> None:
     )
 
 
+def _record_login_failure(session: SessionDep, user: User | None) -> None:
+    """Record a refused login attempt without recording anything unverified.
+
+    Two shapes, on purpose:
+
+    * the username resolved to an account, so the event is attributed to it
+      (``user_id``): that is what makes an attack on a real account visible, and it
+      stores only the name already held on the account row;
+    * the username resolved to nothing, so the event carries no subject and no
+      payload. The attempted string is attacker-controlled -- a guess, an address,
+      junk -- and is therefore never written down, while the row itself still counts
+      enumeration attempts that would otherwise leave no trace at all.
+
+    No password, and no token, is ever part of this or of any other event.
+    """
+    session.add(
+        HistoryEvent(
+            user_id=user.id if user is not None else None,
+            event_type="login_failed",
+            entity_type="user" if user is not None else "",
+            entity_id=user.id if user is not None else None,
+            payload={"username": user.username} if user is not None else {},
+        )
+    )
+    session.commit()
+
+
 @router.post("/api/auth/login")
 def login(
     payload: LoginRequest, request: Request, response: Response, session: SessionDep
@@ -113,11 +140,14 @@ def login(
       the sentinel can never be logged into;
     * a disabled account is verified like any other and then refused.
 
-    No branch reports *why* it refused, and none of them issues a session.
+    No branch reports *why* it refused, and none of them issues a session. Each one
+    does leave a ``login_failed`` audit event, for the same reason a success leaves
+    a ``user_login`` one.
     """
     user = find_user_by_username(session, payload.username)
     if user is None:
         verify_password(payload.password, dummy_password_hash())
+        _record_login_failure(session, None)
         raise _invalid_credentials()
 
     usable = password_is_usable(user.password_hash)
@@ -125,6 +155,7 @@ def login(
         payload.password, user.password_hash if usable else dummy_password_hash()
     )
     if not usable or not matched or not user.is_active:
+        _record_login_failure(session, user)
         raise _invalid_credentials()
 
     token, _record = create_session(
@@ -133,6 +164,9 @@ def login(
     _set_session_cookie(response, token)
     session.add(
         HistoryEvent(
+            # Attributed to the account, so a login can be found by user rather than
+            # only by the name written inside the payload.
+            user_id=user.id,
             event_type="user_login",
             entity_type="user",
             entity_id=user.id,
@@ -144,11 +178,20 @@ def login(
 
 
 @router.post("/api/auth/logout")
-def logout(
-    request: Request, response: Response, session: SessionDep, user: CurrentUser
-) -> dict[str, bool]:
-    record = resolve_session(session, request.cookies.get(COOKIE_NAME, ""))
-    if record is not None and record.user_id == user.id:
+def logout(request: Request, response: Response, session: SessionDep) -> dict[str, bool]:
+    """End this session, in whatever state it is in.
+
+    Signing out must always work and must always clear the cookie, so this depends
+    on nothing about the session: an absent cookie, an unrecognised token, a revoked
+    session and an expired one all answer exactly like a successful logout. A 401
+    here would both leave a dead cookie in the browser and tell an unauthenticated
+    caller something about the token it presented.
+
+    The row is revoked when one exists, and the first revocation time is kept if
+    this is a repeat call. No branch distinguishes the cases in the response.
+    """
+    record = find_session_record(session, request.cookies.get(COOKIE_NAME, ""))
+    if record is not None:
         revoke_session(session, record)
     # Deleted with the same attributes it was set with, so the deletion keeps
     # working if the cookie ever moves behind a __Host-/__Secure- prefixed name.

@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.models import User, UserSession
+from app.models import HistoryEvent, User, UserSession
 from app.security import UNUSABLE_PASSWORD, hash_password, password_is_usable, verify_password
 from app.services.auth import COOKIE_NAME
 
@@ -410,9 +410,171 @@ def test_revoked_session_is_rejected(auth_db, client) -> None:
 
 def test_auth_endpoints_require_authentication(client) -> None:
     assert client.get("/api/auth/me").status_code == 401
-    assert client.post("/api/auth/logout").status_code == 401
-    # Health stays anonymous for deployment probes.
+    # Logout is deliberately absent from this list: it is idempotent and safe to
+    # call without a session, so it can always clear a dead cookie
+    # (see test_logout_is_idempotent_in_every_session_state).
     assert client.get("/api/health").status_code == 200
+
+
+def test_logout_is_idempotent_in_every_session_state(auth_db, client) -> None:
+    """Logout always succeeds and always clears the cookie, whatever the session is.
+
+    Refusing a dead session leaves a dead cookie in the browser and tells an
+    unauthenticated caller something about the token it presented. Every state
+    therefore answers the same 200 with the same body and the same deletion cookie.
+    """
+    create_user(auth_db, "logout-idempotent")
+    login = client.post(
+        "/api/auth/login", json={"username": "logout-idempotent", "password": PASSWORD}
+    )
+    assert login.status_code == 200, login.text
+    issued = parse_cookie(login.headers["set-cookie"])
+    token = login.headers["set-cookie"].split(";")[0].split("=", 1)[1]
+
+    answers = []
+
+    # 1. a live session
+    live = client.post("/api/auth/logout")
+    answers.append(("live", live))
+    with auth_db() as session:
+        record = session.scalar(select(UserSession))
+        assert record is not None and record.revoked_at is not None
+        first_revocation = record.revoked_at
+
+    # 2. the same session again, now revoked (the cookie is replayed)
+    client.cookies.set(COOKIE_NAME, token)
+    answers.append(("already revoked", client.post("/api/auth/logout")))
+    with auth_db() as session:
+        assert session.scalar(select(UserSession)).revoked_at == first_revocation, (
+            "a repeat logout must not rewrite the original revocation time"
+        )
+
+    # 3. an expired session
+    client.cookies.clear()
+    assert client.post(
+        "/api/auth/login", json={"username": "logout-idempotent", "password": PASSWORD}
+    ).status_code == 200
+    expired_token = client.cookies.get(COOKIE_NAME)
+    with auth_db() as session:
+        live_record = session.scalars(
+            select(UserSession).where(UserSession.revoked_at.is_(None))
+        ).one()
+        live_record.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)
+        session.add(live_record)
+        session.commit()
+    client.cookies.clear()
+    client.cookies.set(COOKIE_NAME, expired_token)
+    answers.append(("expired", client.post("/api/auth/logout")))
+    assert client.get("/api/auth/me").status_code == 401, "the expired session stays unusable"
+
+    # 4. an unrecognised token
+    client.cookies.clear()
+    client.cookies.set(COOKIE_NAME, "not-a-real-token")
+    answers.append(("unknown token", client.post("/api/auth/logout")))
+
+    # 5. no cookie at all
+    client.cookies.clear()
+    answers.append(("no cookie", client.post("/api/auth/logout")))
+
+    for label, response in answers:
+        assert response.status_code == 200, (label, response.text)
+        assert response.json() == {"ok": True}, (label, response.json())
+        deleted = parse_cookie(response.headers["set-cookie"])
+        # Every state clears the cookie, with the attributes it was issued with.
+        assert deleted["name"] == issued["name"] == COOKIE_NAME, label
+        assert deleted["max-age"] == "0", label
+        for attribute in ("path", "secure", "httponly", "samesite"):
+            assert deleted[attribute] == issued[attribute], (label, attribute, deleted, issued)
+    assert len({(r.status_code, r.text) for _, r in answers}) == 1, "states must be indistinguishable"
+
+
+def login_failure_events(auth_db) -> list[HistoryEvent]:
+    with auth_db() as session:
+        return list(
+            session.scalars(
+                select(HistoryEvent)
+                .where(HistoryEvent.event_type == "login_failed")
+                .order_by(HistoryEvent.id)
+            )
+        )
+
+
+def login_events(auth_db) -> list[HistoryEvent]:
+    with auth_db() as session:
+        return list(
+            session.scalars(
+                select(HistoryEvent)
+                .where(HistoryEvent.event_type == "user_login")
+                .order_by(HistoryEvent.id)
+            )
+        )
+
+
+def session_exists_for(auth_db) -> bool:
+    with auth_db() as session:
+        return session.scalar(select(UserSession.id)) is not None
+
+
+def test_a_successful_login_is_attributed_to_the_account(auth_db, client) -> None:
+    """user_login carries the account id, not just a name inside the payload."""
+    user_id = create_user(auth_db, "audited-user")
+    assert client.post(
+        "/api/auth/login", json={"username": "audited-user", "password": PASSWORD}
+    ).status_code == 200
+
+    events = login_events(auth_db)
+    assert len(events) == 1
+    event = events[0]
+    assert event.user_id == user_id
+    assert event.entity_type == "user" and event.entity_id == user_id
+    assert event.timestamp is not None
+    assert event.payload == {"username": "audited-user"}
+    assert PASSWORD not in str(event.payload)
+
+
+def test_a_failed_login_on_a_real_account_is_recorded_against_it(auth_db, client) -> None:
+    """Wrong password, no password set and disabled: one event each, per account."""
+    known_id = create_user(auth_db, "attacked-user")
+    sentinel_id = create_user(auth_db, "attacked-sentinel", password=None)
+    disabled_id = create_user(auth_db, "attacked-disabled", is_active=False)
+
+    attempts = (
+        {"username": "attacked-user", "password": "definitely-wrong"},
+        {"username": "attacked-sentinel", "password": "definitely-wrong"},
+        {"username": "attacked-disabled", "password": "definitely-wrong"},
+    )
+    for payload in attempts:
+        assert client.post("/api/auth/login", json=payload).status_code == 401
+
+    events = login_failure_events(auth_db)
+    assert [event.user_id for event in events] == [known_id, sentinel_id, disabled_id]
+    assert [event.entity_id for event in events] == [known_id, sentinel_id, disabled_id]
+    assert [event.payload.get("username") for event in events] == [
+        "attacked-user",
+        "attacked-sentinel",
+        "attacked-disabled",
+    ]
+    # The submitted password must never reach the audit trail.
+    assert all("definitely-wrong" not in str(event.payload) for event in events)
+    # Every refusal is attributable and none of them opened a session.
+    assert not session_exists_for(auth_db)
+
+
+def test_an_unknown_username_failure_records_no_identifier(auth_db, client) -> None:
+    """Enumeration attempts are counted, but the attacker's string is not stored."""
+    attempted = "who-is-this-supposed-to-be"
+    assert client.post(
+        "/api/auth/login", json={"username": attempted, "password": PASSWORD}
+    ).status_code == 401
+
+    events = login_failure_events(auth_db)
+    assert len(events) == 1
+    event = events[0]
+    assert event.user_id is None
+    assert event.entity_id is None
+    assert event.payload == {}, "nothing the caller chose may be written down"
+    assert attempted not in str(event.payload)
+    assert not session_exists_for(auth_db)
 
 
 def test_normal_user_cannot_use_admin_endpoints(auth_db, client) -> None:
