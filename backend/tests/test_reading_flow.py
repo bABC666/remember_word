@@ -199,22 +199,39 @@ def test_add_lookup_to_wordbook_preserves_article_source_and_exposure(world) -> 
 
 
 def test_reading_history_is_attributed_to_the_acting_user(world) -> None:
-    from app.models import HistoryEvent
+    """The event this lookup writes must name the user who caused it.
+
+    Scoped to the rows this test creates, not to every row in the table. The test
+    database is shared by the whole session, and other tests' lookups belong to
+    users that were deleted afterwards -- with the bridge set to NULL, exactly as
+    designed. A session-wide assertion here was passing on reused row ids rather
+    than on attribution.
+    """
+    from app.models import Article, HistoryEvent
     from app.services.reading import lookup_article_word
+
+    with world.session() as session:
+        before = {row.id for row in session.query(HistoryEvent.id).all()}
 
     article_id = world.add_article(title="Nuance", content="A subtle change altered it.")
     with world.session() as session:
-        from app.models import Article
-
         article = session.get(Article, article_id)
         asyncio.run(
             lookup_article_word(session, world.reload_user(), article, "subtle", FakeReadingAI())
         )
 
     with world.session() as session:
-        events = session.query(HistoryEvent).filter_by(event_type="article_word_lookup").all()
-        assert events, "the lookup must be recorded"
-        assert all(event.user_id == world.user_id for event in events)
+        created = [
+            event
+            for event in session.query(HistoryEvent)
+            .filter_by(event_type="article_word_lookup")
+            .all()
+            if event.id not in before
+        ]
+        assert len(created) == 1, "the lookup must be recorded exactly once"
+        assert created[0].user_id == world.user_id
+        assert created[0].entity_type == "article"
+        assert created[0].entity_id == article_id
 
 
 def test_article_selection_prefers_due_and_failed_words(world) -> None:
