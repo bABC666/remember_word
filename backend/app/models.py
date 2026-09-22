@@ -142,11 +142,19 @@ class Article(Base):
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ai_raw_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    translation: Mapped[str] = mapped_column(Text, default="")
+    translated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    translation_ai_raw_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     exposures: Mapped[list[ArticleWordExposure]] = relationship(
         back_populates="article", cascade="all, delete-orphan"
     )
     review_events: Mapped[list[ReviewEvent]] = relationship(back_populates="article")
+    word_lookups: Mapped[list[ArticleWordLookup]] = relationship(
+        back_populates="article", cascade="all, delete-orphan"
+    )
 
 
 class ArticleWordExposure(Base):
@@ -165,6 +173,35 @@ class ArticleWordExposure(Base):
 
     article: Mapped[Article] = relationship(back_populates="exposures")
     word: Mapped[Word] = relationship(back_populates="exposures")
+
+
+class ArticleWordLookup(Base):
+    __tablename__ = "article_word_lookup"
+    __table_args__ = (
+        UniqueConstraint("article_id", "normalized_word", name="uq_article_lookup_word"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(
+        ForeignKey("article.id", ondelete="CASCADE"), index=True
+    )
+    surface: Mapped[str] = mapped_column(String(160))
+    normalized_word: Mapped[str] = mapped_column(String(160), index=True)
+    phonetic: Mapped[str] = mapped_column(String(200), default="")
+    part_of_speech: Mapped[str] = mapped_column(String(80), default="")
+    meaning: Mapped[str] = mapped_column(String(500), default="")
+    explanation: Mapped[str] = mapped_column(Text, default="")
+    context: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(24), default="ai")
+    added_word_id: Mapped[int | None] = mapped_column(
+        ForeignKey("word.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    ai_raw_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+
+    article: Mapped[Article] = relationship(back_populates="word_lookups")
 
 
 class ReviewEvent(Base):

@@ -50,13 +50,18 @@ class Settings:
 
     def ai_config(self) -> dict[str, str]:
         local = self.read_local_config()
+        configured_model = os.getenv(
+            "DEEPSEEK_MODEL", str(local.get("deepseek_model", "deepseek-flash"))
+        ).strip()
+        if configured_model in {"deepseek-chat", "deepseek-v4-flash"}:
+            configured_model = "deepseek-flash"
         return {
             "api_key": os.getenv("DEEPSEEK_API_KEY", str(local.get("deepseek_api_key", ""))),
             "base_url": os.getenv(
                 "DEEPSEEK_BASE_URL",
                 str(local.get("deepseek_base_url", "https://api.deepseek.com")),
             ),
-            "model": os.getenv("DEEPSEEK_MODEL", str(local.get("deepseek_model", "deepseek-chat"))),
+            "model": configured_model or "deepseek-flash",
         }
 
 

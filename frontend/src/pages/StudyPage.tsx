@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { BookOpen, RotateCcw } from 'lucide-react'
 import { api } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
+import { MeaningList } from '../components/MeaningList'
 import type { ReviewResult, Word } from '../types'
 
 export function StudyPage() {
@@ -36,7 +37,7 @@ export function StudyPage() {
     <div className="study-page">
       <header className="study-head"><h1>今日学习</h1><div><span>{index + 1} / {words.length}</span><div className="progress"><i style={{ width: `${((index + 1) / words.length) * 100}%` }} /></div></div></header>
       <section className="study-stage">
-        <div className="word-main"><h2>{current.word}</h2><p>{current.phonetic}</p>{current.part_of_speech && <span>{current.part_of_speech}</span>}</div>
+        <div className="word-main"><h2>{current.word}</h2><p className="phonetic">{current.phonetic}</p>{current.part_of_speech && <span>{current.part_of_speech}</span>}</div>
         {!revealed ? (
           <button className="reveal-button" onClick={() => setRevealed(true)}><BookOpen size={19} />显示答案 <kbd>Space</kbd></button>
         ) : (
@@ -44,7 +45,7 @@ export function StudyPage() {
             <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
             <div className="answer-divider" />
             <span className="source-label">原书完整释义</span>
-            <ol>{current.source_meanings.length ? current.source_meanings.map((meaning) => <li key={meaning}>{meaning}</li>) : <li>{current.source_raw}</li>}</ol>
+            <MeaningList values={current.source_meanings} fallback={current.source_raw} />
             {current.semantic_note && <p className="semantic-note">{current.semantic_note}</p>}
           </div>
         )}

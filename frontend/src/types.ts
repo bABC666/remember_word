@@ -57,5 +57,23 @@ export interface Article {
   target_words: string[]
   actual_used_words?: string[]
   completed: boolean
+  translation?: string
+  translated_at?: string | null
+  lookup_history?: ArticleWordLookup[]
   quiz_words?: Array<Word & { context: string }>
+}
+
+export interface ArticleWordLookup {
+  id: number
+  article_id: number
+  surface: string
+  normalized_word: string
+  phonetic: string
+  part_of_speech: string
+  meaning: string
+  explanation: string
+  context: string
+  source: 'wordbook' | 'ai'
+  added_word_id: number | null
+  created_at: string
 }

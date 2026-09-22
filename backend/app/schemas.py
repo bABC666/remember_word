@@ -64,6 +64,10 @@ class ArticleJudgeRequest(BaseModel):
     user_meaning: str = Field(min_length=1, max_length=1000)
 
 
+class ArticleLookupRequest(BaseModel):
+    word: str = Field(min_length=1, max_length=160)
+
+
 class SettingsUpdate(BaseModel):
     deepseek_api_key: str | None = Field(default=None, max_length=500)
     deepseek_base_url: str | None = Field(default=None, max_length=500)

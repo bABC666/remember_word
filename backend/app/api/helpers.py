@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from app.models import Article, ImportBatch, ImportCandidate, ImportImage, ReviewEvent, Word
+from app.models import (
+    Article,
+    ArticleWordLookup,
+    ImportBatch,
+    ImportCandidate,
+    ImportImage,
+    ReviewEvent,
+    Word,
+)
 
 
 def word_dict(word: Word) -> dict[str, object]:
@@ -91,7 +99,26 @@ def batch_dict(batch: ImportBatch) -> dict[str, object]:
     }
 
 
-def article_dict(article: Article, include_actual: bool = False) -> dict[str, object]:
+def lookup_dict(lookup: ArticleWordLookup) -> dict[str, object]:
+    return {
+        "id": lookup.id,
+        "article_id": lookup.article_id,
+        "surface": lookup.surface,
+        "normalized_word": lookup.normalized_word,
+        "phonetic": lookup.phonetic,
+        "part_of_speech": lookup.part_of_speech,
+        "meaning": lookup.meaning,
+        "explanation": lookup.explanation,
+        "context": lookup.context,
+        "source": lookup.source,
+        "added_word_id": lookup.added_word_id,
+        "created_at": lookup.created_at,
+    }
+
+
+def article_dict(
+    article: Article, include_actual: bool = False, include_lookups: bool = False
+) -> dict[str, object]:
     payload: dict[str, object] = {
         "id": article.id,
         "title": article.title,
@@ -100,7 +127,11 @@ def article_dict(article: Article, include_actual: bool = False) -> dict[str, ob
         "target_words": article.target_words,
         "completed": article.completed,
         "completed_at": article.completed_at,
+        "translation": article.translation,
+        "translated_at": article.translated_at,
     }
     if include_actual or article.completed:
         payload["actual_used_words"] = article.actual_used_words
+    if include_lookups:
+        payload["lookup_history"] = [lookup_dict(item) for item in article.word_lookups]
     return payload

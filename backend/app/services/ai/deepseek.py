@@ -11,8 +11,10 @@ from app.config import get_settings
 from app.services.ai.base import (
     AIProviderError,
     ArticleGeneration,
+    ArticleTranslation,
     JudgementSuggestion,
     StructuredCandidates,
+    WordLookupResult,
 )
 
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
@@ -80,3 +82,15 @@ class DeepSeekProvider:
             f"原书释义：{json.dumps(source_meanings, ensure_ascii=False)}\nJSON_SCHEMA:\n{schema}"
         )
         return await self._chat_json(self._prompt("judge_meaning.txt"), user, JudgementSuggestion)
+
+    async def lookup_word(self, word: str, context: str) -> WordLookupResult:
+        schema = json.dumps(WordLookupResult.model_json_schema(), ensure_ascii=False)
+        user = f"待解释词：{word}\n文章语境：{context}\nJSON_SCHEMA:\n{schema}"
+        return await self._chat_json(self._prompt("lookup_word.txt"), user, WordLookupResult)
+
+    async def translate_article(self, title: str, content: str) -> ArticleTranslation:
+        schema = json.dumps(ArticleTranslation.model_json_schema(), ensure_ascii=False)
+        user = f"标题：{title}\n英文原文：\n{content}\nJSON_SCHEMA:\n{schema}"
+        return await self._chat_json(
+            self._prompt("translate_article.txt"), user, ArticleTranslation
+        )

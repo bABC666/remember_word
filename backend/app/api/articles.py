@@ -4,14 +4,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.helpers import article_dict, word_dict
+from app.api.helpers import article_dict, lookup_dict, word_dict
 from app.db import get_session
-from app.models import AppSetting, Article, ArticleWordExposure, Word
-from app.schemas import ArticleGenerateRequest, ArticleJudgeRequest
+from app.models import AppSetting, Article, ArticleWordExposure, ArticleWordLookup, Word
+from app.schemas import ArticleGenerateRequest, ArticleJudgeRequest, ArticleLookupRequest
 from app.services.ai import AIProviderError, DeepSeekProvider
 from app.services.reading import (
+    add_lookup_to_wordbook,
     complete_article,
+    lookup_article_word,
     select_target_words,
+    translate_article,
     validate_actual_used_words,
 )
 
@@ -27,11 +30,13 @@ def list_articles(session: Session = Depends(get_session)) -> list[dict[str, obj
 @router.get("/{article_id}")
 def get_article(article_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
     article = session.scalar(
-        select(Article).where(Article.id == article_id).options(selectinload(Article.exposures))
+        select(Article)
+        .where(Article.id == article_id)
+        .options(selectinload(Article.exposures), selectinload(Article.word_lookups))
     )
     if article is None:
         raise HTTPException(404, "文章不存在")
-    payload = article_dict(article)
+    payload = article_dict(article, include_lookups=True)
     if article.completed:
         word_ids = [item.word_id for item in article.exposures]
         words = session.scalars(select(Word).where(Word.id.in_(word_ids))).all() if word_ids else []
@@ -99,3 +104,55 @@ async def judge_article_word(
     except AIProviderError as error:
         raise HTTPException(503, str(error)) from error
     return result.model_dump()
+
+
+@router.post("/{article_id}/lookup")
+async def lookup_word(
+    article_id: int,
+    payload: ArticleLookupRequest,
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    article = session.get(Article, article_id)
+    if article is None:
+        raise HTTPException(404, "文章不存在")
+    try:
+        lookup = await lookup_article_word(session, article, payload.word, DeepSeekProvider())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    except AIProviderError as error:
+        raise HTTPException(503, str(error)) from error
+    return lookup_dict(lookup)
+
+
+@router.post("/{article_id}/translate")
+async def translate(
+    article_id: int, session: Session = Depends(get_session)
+) -> dict[str, object]:
+    article = session.scalar(
+        select(Article)
+        .where(Article.id == article_id)
+        .options(selectinload(Article.word_lookups))
+    )
+    if article is None:
+        raise HTTPException(404, "文章不存在")
+    try:
+        await translate_article(session, article, DeepSeekProvider())
+    except AIProviderError as error:
+        raise HTTPException(503, str(error)) from error
+    return article_dict(article, include_lookups=True)
+
+
+@router.post("/{article_id}/lookups/{lookup_id}/add-word")
+def add_lookup_word(
+    article_id: int, lookup_id: int, session: Session = Depends(get_session)
+) -> dict[str, object]:
+    lookup = session.scalar(
+        select(ArticleWordLookup).where(
+            ArticleWordLookup.id == lookup_id,
+            ArticleWordLookup.article_id == article_id,
+        )
+    )
+    if lookup is None:
+        raise HTTPException(404, "查词记录不存在")
+    word = add_lookup_to_wordbook(session, lookup)
+    return {"lookup": lookup_dict(lookup), "word": word_dict(word)}

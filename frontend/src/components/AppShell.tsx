@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { BookOpen, Home, Import, LibraryBig, Settings, Sparkles } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { HelpCenter } from './HelpCenter'
 
 const items = [
   { to: '/', label: '今日概览', icon: Home },
@@ -23,6 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
+        <HelpCenter />
         <div className="sidebar-foot"><span className="status-dot" />数据已本地保存<small>专注积累，静待改变。</small></div>
       </aside>
       <main className="main-content">{children}</main>

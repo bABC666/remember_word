@@ -3,19 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Check, Clock3, FileImage, LoaderCircle, Plus, Trash2, UploadCloud, X } from 'lucide-react'
 import { api } from '../api'
 import { ErrorState } from '../components/States'
+import { fileKey, mergeImageFiles } from '../importFiles'
 import type { Candidate, ImportBatch } from '../types'
 
 const steps = ['上传图片', 'OCR 识别', '校对词条', '确认入库']
 
 type ImportSummary = Pick<ImportBatch, 'id' | 'status' | 'stage' | 'created_at'>
-
-const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`
-
-export function mergeImageFiles(current: File[], incoming: File[]) {
-  const merged = new Map(current.map((file) => [fileKey(file), file]))
-  incoming.filter((file) => file.type.startsWith('image/')).forEach((file) => merged.set(fileKey(file), file))
-  return Array.from(merged.values())
-}
 
 export function ImportPage() {
   const [batch, setBatch] = useState<ImportBatch | null>(null)
@@ -125,7 +118,7 @@ export function ImportPage() {
             {batch.candidates.map((candidate) => (
               <div className="candidate-row" key={candidate.id}>
                 <label className="check"><input type="checkbox" checked={candidate.selected} disabled={candidate.confirmed} onChange={(event) => updateCandidate(candidate, { selected: event.target.checked })} /><span /></label>
-                <div className="stacked-input"><input aria-label="单词" value={candidate.word} onChange={(event) => updateCandidate(candidate, { word: event.target.value })} /><input aria-label="音标" value={candidate.phonetic} placeholder="音标" onChange={(event) => updateCandidate(candidate, { phonetic: event.target.value })} /></div>
+                <div className="stacked-input"><input aria-label="单词" value={candidate.word} onChange={(event) => updateCandidate(candidate, { word: event.target.value })} /><input className="phonetic" aria-label="音标" value={candidate.phonetic} placeholder="音标" onChange={(event) => updateCandidate(candidate, { phonetic: event.target.value })} /></div>
                 <input aria-label="词性" value={candidate.part_of_speech} onChange={(event) => updateCandidate(candidate, { part_of_speech: event.target.value })} />
                 <textarea aria-label="原书完整释义" value={candidate.source_meanings.join('\n')} onChange={(event) => updateCandidate(candidate, { source_meanings: event.target.value.split('\n').filter(Boolean) })} />
                 <textarea aria-label="Anchor" value={candidate.anchor} onChange={(event) => updateCandidate(candidate, { anchor: event.target.value })} />

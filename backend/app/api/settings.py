@@ -23,6 +23,13 @@ DEFAULTS = {
 }
 
 
+def describe_deepseek_model(model: str) -> str:
+    return {
+        "deepseek-flash": "DeepSeek V4.1-Flash",
+        "deepseek-v4-pro": "DeepSeek V4-Pro-0813",
+    }.get(model, f"自定义模型（{model}）")
+
+
 def _mask(secret: str) -> str:
     if not secret:
         return ""
@@ -32,6 +39,21 @@ def _mask(secret: str) -> str:
 def _values(session: Session) -> dict[str, str]:
     rows = session.scalars(select(AppSetting)).all()
     return {**DEFAULTS, **{row.key: row.value for row in rows}}
+
+
+@router.get("/onboarding")
+def read_onboarding(session: Session = Depends(get_session)) -> dict[str, bool]:
+    row = session.get(AppSetting, "onboarding_seen")
+    return {"seen": row is not None and row.value.lower() == "true"}
+
+
+@router.post("/onboarding")
+def mark_onboarding_seen(session: Session = Depends(get_session)) -> dict[str, bool]:
+    row = session.get(AppSetting, "onboarding_seen") or AppSetting(key="onboarding_seen")
+    row.value = "true"
+    session.add(row)
+    session.commit()
+    return {"seen": True}
 
 
 @router.get("")
@@ -53,6 +75,7 @@ def read_settings(session: Session = Depends(get_session)) -> dict[str, object]:
         "deepseek_api_key_masked": _mask(ai["api_key"]),
         "deepseek_base_url": ai["base_url"],
         "deepseek_model": ai["model"],
+        "deepseek_model_display": describe_deepseek_model(ai["model"]),
         "daily_new_words": int(values["daily_new_words"]),
         "article_length": int(values["article_length"]),
         "ocr_language": values["ocr_language"],

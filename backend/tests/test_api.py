@@ -24,3 +24,13 @@ def test_settings_never_return_plaintext_api_key(monkeypatch, tmp_path) -> None:
     assert payload["deepseek_api_key_configured"] is True
     assert payload["deepseek_api_key_masked"].endswith("1234")
     assert "secret-value-1234" not in response.text
+
+
+def test_onboarding_seen_state_is_persisted_in_sqlite(session) -> None:
+    from app.api.settings import mark_onboarding_seen, read_onboarding
+    from app.models import AppSetting
+
+    assert read_onboarding(session) == {"seen": False}
+    assert mark_onboarding_seen(session) == {"seen": True}
+    assert read_onboarding(session) == {"seen": True}
+    assert session.get(AppSetting, "onboarding_seen").value == "true"

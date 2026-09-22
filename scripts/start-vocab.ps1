@@ -53,11 +53,17 @@ if (-not (Test-Path -LiteralPath (Join-Path $frontendRoot 'node_modules'))) {
 
 Write-Host 'Building the frontend...' -ForegroundColor Cyan
 Push-Location $frontendRoot
-try { npm.cmd run build } finally { Pop-Location }
+try {
+    npm.cmd run build
+    if ($LASTEXITCODE -ne 0) { throw "Frontend build failed with exit code $LASTEXITCODE" }
+} finally { Pop-Location }
 
 Write-Host 'Applying database migrations...' -ForegroundColor Cyan
 Push-Location $backendRoot
-try { & $python -m alembic -c alembic.ini upgrade head } finally { Pop-Location }
+try {
+    & $python -m alembic -c alembic.ini upgrade head
+    if ($LASTEXITCODE -ne 0) { throw "Database migration failed with exit code $LASTEXITCODE" }
+} finally { Pop-Location }
 
 $arguments = @('-m', 'uvicorn', 'app.main:app', '--app-dir', $backendRoot, '--host', '127.0.0.1', '--port', '8000')
 $envFile = Join-Path $projectRoot '.env'
