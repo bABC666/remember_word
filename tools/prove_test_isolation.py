@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -77,7 +78,15 @@ def main() -> int:
         "changed": changed,
         "untouched": not (added or removed or changed),
     }
-    Path("data/recovery/pytest-isolation-evidence.json").write_text(
+    # The evidence must live OUTSIDE the tree it claims to protect. Writing it
+    # into data/recovery/ made the proof change the very directory it reported on,
+    # so its own "no changes" claim could never have included itself.
+    artifacts = Path(
+        os.environ.get("VOCAB_TEST_ARTIFACTS_DIR", "test-artifacts")
+    ).resolve()
+    artifacts.mkdir(parents=True, exist_ok=True)
+    evidence_path = artifacts / "pytest-isolation-evidence.json"
+    evidence_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
@@ -90,7 +99,7 @@ def main() -> int:
         print("EVIDENCE: pytest did NOT touch the real data directory")
     else:
         print("EVIDENCE: pytest MODIFIED the real data directory -- investigate")
-    print("report  : data/recovery/pytest-isolation-evidence.json")
+    print("report  :", evidence_path)
     return 0 if report["untouched"] and result.returncode == 0 else 1
 
 

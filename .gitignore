@@ -36,3 +36,6 @@ Thumbs.db
 _INCIDENT-20260922/
 .pytest-tmp/
 .pytest_cache/
+
+# Test and audit evidence (must never live inside the protected data tree)
+test-artifacts/
