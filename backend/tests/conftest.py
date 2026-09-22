@@ -58,6 +58,65 @@ def real_data_dir() -> Path:
     return _REAL_DATA_DIR
 
 
+def run_alembic(
+    database: Path,
+    *arguments: str,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run alembic against an explicit database file.
+
+    The URL is always absolute and always passed with ``-x db_url``: a relative
+    ``sqlite:///`` URL is resolved against the child's working directory, which
+    once silently pointed a verification run at the wrong file.
+
+    ``PYTHONIOENCODING`` is pinned so the child's messages decode identically on
+    every console code page; assertion messages contain Chinese, and a cp936
+    round-trip through a pipe is not reliable.
+    """
+    resolved = Path(database).resolve()
+    env = dict(os.environ)
+    root = resolved.parent if resolved.parent.name else resolved
+    env["VOCAB_DATA_DIR"] = str(root)
+    env["VOCAB_REAL_DATA_DIR"] = str(root)
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "alembic",
+            "-c",
+            str(BACKEND_ROOT / "alembic.ini"),
+            "-x",
+            f"db_url=sqlite:///{resolved.as_posix()}",
+            *arguments,
+        ],
+        cwd=str(BACKEND_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        env=env,
+    )
+
+
+@pytest.fixture()
+def alembic_database(tmp_path: Path):
+    """A throwaway database file plus a helper to run alembic against it."""
+    database = (tmp_path / "app-data" / "alembic-test.db").resolve()
+    database.parent.mkdir(parents=True, exist_ok=True)
+
+    def _run(*arguments: str, extra_env: dict[str, str] | None = None):
+        result = run_alembic(database, *arguments, extra_env=extra_env)
+        return result
+
+    _run.database = database  # type: ignore[attr-defined]
+    return _run
+
+
 @pytest.fixture(scope="session", autouse=True)
 def isolated_application_engine() -> None:
     """Bind the application to a migrated temporary database and prove it.
