@@ -265,17 +265,35 @@ def test_v1_2_tables_are_classified() -> None:
 
 
 def test_recorded_baseline_of_the_real_project_is_usable() -> None:
-    """The committed baseline must describe the restored V1.1 database."""
+    """The recorded baseline must describe the database this project ships.
+
+    Phase 2.8 re-recorded it from the verified 0007 production backup, so the
+    expectations below are that snapshot and no longer the V1.1 restore source
+    this test was originally written against. A baseline recorded from the wrong
+    database, or one left behind at a pre-V1.2 revision, fails here.
+    """
     path = Path(__file__).resolve().parents[2] / "data/recovery/baseline.json"
     if not path.exists():
         pytest.skip("no project baseline recorded yet")
     baseline = verified_db.load_baseline(path)
-    assert baseline["alembic_revision"] == "0003_article_reading_tools"
-    assert baseline["tables"]["word"]["rows"] == 19
-    assert baseline["tables"]["review_event"]["rows"] == 10
-    assert baseline["tables"]["article"]["rows"] == 1
-    assert baseline["tables"]["article_word_exposure"]["rows"] == 16
-    assert baseline["tables"]["article_word_lookup"]["rows"] == 0
-    assert baseline["tables"]["import_batch"]["rows"] == 1
-    assert baseline["tables"]["import_image"]["rows"] == 2
-    assert baseline["tables"]["import_candidate"]["rows"] == 19
+    assert baseline["alembic_revision"] == "0007_bridge_foreign_keys"
+    assert baseline["integrity_check"] == "ok"
+    assert baseline["foreign_key_check_violations"] == 0
+    tables = baseline["tables"]
+    # Content layer: the imported V1.1 material plus the shared V1.2 lexicon.
+    assert tables["word"]["rows"] == 19
+    assert tables["lexicon"]["rows"] == 1
+    assert tables["lexicon_entry"]["rows"] == 19
+    assert tables["import_batch"]["rows"] == 1
+    assert tables["import_image"]["rows"] == 2
+    assert tables["import_candidate"]["rows"] == 19
+    # Learning state and history retained across the 0006/0007 migrations.
+    assert tables["user"]["rows"] == 1
+    assert tables["user_word_state"]["rows"] == 19
+    assert tables["review_event"]["rows"] == 10
+    assert tables["article"]["rows"] == 2
+    assert tables["article_word_exposure"]["rows"] == 16
+    assert tables["article_word_lookup"]["rows"] == 1
+    # Without row hashes the verifier could not detect a modified row at all, so
+    # a baseline recorded with --no-row-hashes must not pass as the project one.
+    assert all("row_hashes" in info for info in tables.values()), "baseline lacks row hashes"
