@@ -155,7 +155,7 @@ def session(tmp_path: Path):
 
 
 @pytest.fixture()
-def app_session(tmp_path: Path, real_data_untouched):
+def app_session(tmp_path: Path, isolated_application_engine):
     """A temporary database for tests that exercise the FastAPI application."""
     import app.models  # noqa: F401
     from app.db import Base, make_engine
@@ -169,3 +169,210 @@ def app_session(tmp_path: Path, real_data_untouched):
     with factory() as value:
         yield value
     engine.dispose()
+
+
+# --- per-user world helpers ------------------------------------------------
+#
+# P1.3 scopes every private endpoint to the authenticated user, so tests need an
+# actual account plus content owned by it. These helpers build that world on the
+# session database the application engine points at, and log the client in so the
+# request really travels the authenticated path.
+
+TEST_PASSWORD = "test-password-123"
+
+
+class World:
+    """A temporary user plus helpers for seeding their own content."""
+
+    def __init__(self, factory, client, user_id: int, username: str) -> None:
+        self._factory = factory
+        self.client = client
+        self.user_id = user_id
+        self.username = username
+
+    def session(self):
+        return self._factory()
+
+    def reload_user(self):
+        from app.models import User
+
+        with self.session() as session:
+            return session.get(User, self.user_id)
+
+    def lexicon(self, name: str = "test-lexicon", *, visibility: str = "private"):
+        """Create (or fetch) a lexicon owned by this user."""
+        from sqlalchemy import select
+
+        from app.models import Lexicon, UserLexicon
+
+        with self.session() as session:
+            lexicon = session.scalar(
+                select(Lexicon).where(
+                    Lexicon.owner_user_id == self.user_id, Lexicon.name == name
+                )
+            )
+            if lexicon is None:
+                lexicon = Lexicon(
+                    owner_user_id=self.user_id,
+                    name=name,
+                    visibility=visibility,
+                    source_type="manual",
+                )
+                session.add(lexicon)
+                session.flush()
+            if session.scalar(
+                select(UserLexicon).where(
+                    UserLexicon.user_id == self.user_id,
+                    UserLexicon.lexicon_id == lexicon.id,
+                )
+            ) is None:
+                session.add(UserLexicon(user_id=self.user_id, lexicon_id=lexicon.id))
+            session.commit()
+            session.refresh(lexicon)
+            return lexicon.id
+
+    def add_word(
+        self,
+        word: str,
+        *,
+        status: str = "new",
+        lexicon_id: int | None = None,
+        source_meanings: list[str] | None = None,
+        source_raw: str = "",
+        anchor: str = "",
+        sequence: int | None = None,
+    ) -> tuple[int, int]:
+        """Create a lexicon entry plus this user's state. Returns (state_id, entry_id)."""
+        from app.models import LexiconEntry, UserWordState
+
+        target = lexicon_id if lexicon_id is not None else self.lexicon()
+        with self.session() as session:
+            entry = LexiconEntry(
+                lexicon_id=target,
+                word=word,
+                normalized_word=word.casefold(),
+                source_meanings=source_meanings or [],
+                source_raw=source_raw or word,
+                default_anchor=anchor or word,
+                sequence=sequence,
+            )
+            session.add(entry)
+            session.flush()
+            state = UserWordState(
+                user_id=self.user_id,
+                lexicon_entry_id=entry.id,
+                status=status,
+                anchor_override=anchor or word,
+            )
+            session.add(state)
+            session.commit()
+            return state.id, entry.id
+
+    def add_article(
+        self,
+        *,
+        title: str = "Test article",
+        content: str = "A retained idea about cities and memory.",
+        target_words: list[str] | None = None,
+        actual_used_words: list[str] | None = None,
+        completed: bool = False,
+    ) -> int:
+        from app.models import Article
+
+        with self.session() as session:
+            article = Article(
+                user_id=self.user_id,
+                title=title,
+                content=content,
+                target_words=target_words or [],
+                actual_used_words=actual_used_words or [],
+                completed=completed,
+            )
+            session.add(article)
+            session.commit()
+            session.refresh(article)
+            return article.id
+
+    def add_import_batch(self, *, status: str = "uploaded") -> int:
+        from app.models import ImportBatch
+
+        with self.session() as session:
+            batch = ImportBatch(user_id=self.user_id, status=status, stage="upload")
+            session.add(batch)
+            session.commit()
+            session.refresh(batch)
+            return batch.id
+
+    def add_review(self, state_id: int, result: str = "know") -> int:
+        from app.services.study import record_review_for_user
+
+        with self.session() as session:
+            user = self.reload_user()
+            event = record_review_for_user(session, user, state_id, result, "daily", "recall")
+            return event.id
+
+
+@pytest.fixture()
+def make_world(isolated_application_engine):
+    """Factory that creates an authenticated user world on the app database."""
+    from fastapi.testclient import TestClient
+
+    from app.api.deps import ensure_user_settings
+    from app.db import get_session_factory
+    from app.models import User
+    from app.security import hash_password
+
+    created: list[int] = []
+
+    def _make(username: str, *, role: str = "user", password: str = TEST_PASSWORD) -> World:
+        factory = get_session_factory()
+        with factory() as session:
+            user = User(
+                username=username.casefold(),
+                display_name=username,
+                role=role,
+                password_hash=hash_password(password),
+            )
+            session.add(user)
+            session.flush()
+            ensure_user_settings(session, user)
+            session.commit()
+            user_id = user.id
+        created.append(user_id)
+
+        from app.main import app
+
+        client = TestClient(app)
+        client.__enter__()
+        response = client.post(
+            "/api/auth/login", json={"username": username, "password": password}
+        )
+        assert response.status_code == 200, response.text
+        return World(factory, client, user_id, username.casefold())
+
+    yield _make
+
+    for user_id in created:
+        with get_session_factory()() as session:
+            user = session.get(User, user_id)
+            if user is not None:
+                session.delete(user)
+                session.commit()
+
+
+@pytest.fixture()
+def world(make_world):
+    """One authenticated user, torn down with the test."""
+    value = make_world("solo-user")
+    yield value
+    value.client.__exit__(None, None, None)
+
+
+@pytest.fixture()
+def two_worlds(make_world):
+    """Two authenticated users for IDOR checks."""
+    first = make_world("user-a")
+    second = make_world("user-b")
+    yield first, second
+    first.client.__exit__(None, None, None)
+    second.client.__exit__(None, None, None)

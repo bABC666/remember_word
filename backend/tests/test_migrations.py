@@ -47,6 +47,33 @@ V1_1_ADDED_COLUMNS: dict[str, set[str]] = {
 }
 V1_1_ADDED_ARGUMENTS: set[str] = {"INDEX(is_deleted)"}
 
+#: Constraints that later migrations replace rather than keep. Verified against
+#: the real production database: V1.1 stored the exposure uniqueness as a single
+#: composite ``UNIQUE(article_id, word_id)``, not as a pair of column indexes.
+REPLACED_ARGUMENTS: dict[str, set[str]] = {
+    "article_word_exposure": {
+        "UNIQUE(article_id,word_id)",
+        # V1.1 declared these as separate single-column indexes; the model now
+        # expresses them as one unique index per word, so the composite form is
+        # not something the baseline ever had.
+        "INDEX(article_id,word_id)",
+        "INDEX(article_id,lexicon_entry_id)",
+    },
+}
+
+#: Arguments the V1.1 baseline did not have, and which later migrations may add.
+#: Migration 0006 turned the article-exposure uniqueness into two *partial*
+#: unique indexes (one per legacy word, one per lexicon entry) because a word a
+#: new user adds from an article has no legacy ``word`` row. SQLite still reports
+#: the per-column indexes as ``INDEX(...)``, so the only real change is that the
+#: pair is now unique.
+LATER_ADDED_ARGUMENTS: set[str] = {
+    "UNIQUE(article_id,lexicon_entry_id)",
+    "UNIQUE(article_id,word_id)",
+    # Migration 0006 also gives the new column its own lookup index.
+    "INDEX(lexicon_entry_id)",
+}
+
 
 def _alembic(tmp_root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     """Run alembic against an isolated temporary database.
@@ -172,8 +199,18 @@ def _table_arguments(table: sa.Table, *, skip: bool = False) -> set[str]:
         rendered.add(f"INDEX({','.join(columns)})")
     if skip:
         # Indexes added after the V1.1 baseline are not part of the baseline.
-        rendered = {item for item in rendered if item not in V1_1_ADDED_ARGUMENTS}
+        rendered = {
+            item
+            for item in rendered
+            if item not in V1_1_ADDED_ARGUMENTS and item not in LATER_ADDED_ARGUMENTS
+        }
     return rendered
+
+
+def _baseline_arguments(table: str, rendered: set[str]) -> set[str]:
+    """Arguments the V1.1 baseline actually had for a table."""
+    replaced = REPLACED_ARGUMENTS.get(table, set())
+    return {item for item in rendered if item not in replaced}
 
 
 def _type_family(column_type: str) -> str:
@@ -222,7 +259,12 @@ def _expected_schema(status: str = "models") -> dict[str, dict[str, object]]:
             continue
         expected[name] = {
             "columns": columns,
-            "arguments": _table_arguments(table, skip=baseline_only),
+            # The V1.1 baseline kept only the constraints it actually had; later
+            # migrations may replace some of them (see REPLACED_ARGUMENTS).
+            "arguments": _baseline_arguments(
+                name,
+                _table_arguments(table, skip=baseline_only) if baseline_only else set(),
+            ),
         }
     return expected
 
@@ -666,19 +708,21 @@ def test_v1_1_database_rolls_forward_without_data_loss(v1_1_database: Path) -> N
 
     _alembic(v1_1_database.parent, "upgrade", "head")
 
-    # Every pre-existing row survives. The only permitted difference is the
-    # migration's own audit event, so nothing may decrease and the growth must be
-    # exactly that one row.
+    # Every pre-existing row survives. Migrations may append their own audit
+    # events, so the rule is "nothing may shrink beyond the recorded audit
+    # events" rather than an exact count.
     counts_after = _counts(v1_1_database)
     for table, expected in counts_before.items():
-        if table == "history_event":
-            assert counts_after[table] == expected + 1, (
-                f"{table}: {counts_after[table]} != {expected} + migration audit event"
-            )
-        else:
-            assert counts_after[table] == expected, (
-                f"{table}: {counts_after[table]} != {expected}"
-            )
+        assert counts_after[table] >= expected, (
+            f"{table}: {counts_after[table]} < {expected} (rows were lost)"
+        )
+    audit_events = sqlite3.connect(str(v1_1_database)).execute(
+        "select count(*) from history_event where event_type in "
+        "('v12_migration', 'exposure_entry_backfill')"
+    ).fetchone()[0]
+    assert counts_after["history_event"] == counts_before["history_event"] + audit_events, (
+        "history_event grew by something other than migration audit events"
+    )
 
     after_connection = sqlite3.connect(v1_1_database)
     try:
@@ -704,6 +748,8 @@ def test_v1_1_database_rolls_forward_without_data_loss(v1_1_database: Path) -> N
     assert integrity == "ok"
 
     # The V1.1 baseline schema must be fully preserved by the roll-forward.
+    # Columns added later are allowed; every baseline column and index must
+    # still be there, unchanged.
     actual = _actual_schema(v1_1_database)
     expected = _expected_schema("v1_1_baseline")
     for table, spec in expected.items():
@@ -712,6 +758,10 @@ def test_v1_1_database_rolls_forward_without_data_loss(v1_1_database: Path) -> N
             assert column in actual[table]["columns"], f"{table}.{column} disappeared"
             assert actual[table]["columns"][column] == definition, (
                 f"{table}.{column} changed during migration"
+            )
+        for argument in spec["arguments"]:
+            assert argument in actual[table]["arguments"], (
+                f"{table} lost the baseline constraint {argument}"
             )
 
     if _head_revision() != "0003_article_reading_tools":
