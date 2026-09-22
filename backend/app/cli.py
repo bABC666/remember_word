@@ -16,6 +16,7 @@ Usage::
     python -m app.cli set-password admin
     python -m app.cli create-user userb
     python -m app.cli promote userb
+    python -m app.cli prune-sessions
 """
 
 from __future__ import annotations
@@ -24,13 +25,13 @@ import argparse
 import getpass
 import sys
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.db import get_session_factory, verify_schema_revision
-from app.models import User, UserSettings
+from app.models import User, UserSession, UserSettings
 from app.security import hash_password, password_is_usable
-from app.services.auth import normalize_username
+from app.services.auth import normalize_username, prune_sessions
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -159,6 +160,20 @@ def command_promote(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_prune_sessions(_args: argparse.Namespace) -> int:
+    """Delete sessions that can never be accepted again.
+
+    The startup path already runs this; the command exists so an operator can do
+    it deliberately, and so its effect can be seen rather than assumed. Valid
+    sessions are never deleted -- see ``prune_sessions`` for the rule.
+    """
+    with _open_session() as session:
+        removed = prune_sessions(session)
+        remaining = session.scalar(select(func.count()).select_from(UserSession)) or 0
+    print(f"已清理 {removed} 条失效会话（已撤销／已过期／闲置超时），保留 {remaining} 条。")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli", description="拾词管理命令（不开放公众注册）"
@@ -184,6 +199,9 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("username")
     promote.add_argument("--role", choices=["admin", "user"], default="admin")
     promote.set_defaults(func=command_promote)
+
+    prune = sub.add_parser("prune-sessions", help="清理已撤销／已过期／闲置超时的会话")
+    prune.set_defaults(func=command_prune_sessions)
 
     return parser
 

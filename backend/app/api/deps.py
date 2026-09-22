@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models import User, UserSettings
-from app.services.auth import resolve_session
+from app.services.auth import COOKIE_NAME, resolve_session, touch_session
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -30,14 +30,26 @@ def _unauthorized(detail: str = "请先登录") -> HTTPException:
 
 def get_current_user(
     session: SessionDep,
-    shici_session: Annotated[str | None, Cookie()] = None,
+    shici_session: Annotated[str | None, Cookie(alias=COOKIE_NAME)] = None,
 ) -> User:
+    """The authenticated user, or 401.
+
+    The cookie is read under :data:`app.services.auth.COOKIE_NAME` -- the same
+    constant the login endpoint writes and the logout endpoint deletes, so the
+    name has exactly one definition in the codebase.
+
+    ``touch_session`` runs only after the session *and* the account have been
+    accepted, so a rejected request never refreshes anything. It records the use
+    for the idle timeout and deliberately changes nothing else: no new session, no
+    rotated token, no extension of ``expires_at``.
+    """
     record = resolve_session(session, shici_session or "")
     if record is None:
         raise _unauthorized()
     user = session.get(User, record.user_id)
     if user is None or not user.is_active:
         raise _unauthorized()
+    touch_session(session, record)
     return user
 
 

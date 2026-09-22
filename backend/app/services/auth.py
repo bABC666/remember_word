@@ -4,7 +4,7 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -16,6 +16,15 @@ COOKIE_NAME = "shici_session"
 #: 32 bytes of urandom, url-safe encoded. Passed to the client as the cookie
 #: value; only its SHA-256 digest is persisted.
 TOKEN_BYTES = 32
+
+#: How stale ``last_seen_at`` may become before another request rewrites it.
+#:
+#: Every authenticated request passes through :func:`touch_session`, and SQLite
+#: serialises writers, so writing on every request would turn each read into a
+#: write transaction and contend for the database lock. The idle timeout is
+#: measured in days, so recording "last seen" to the nearest few minutes keeps
+#: the same meaning without a write per request.
+TOUCH_INTERVAL = timedelta(minutes=5)
 
 
 def normalize_username(username: str) -> str:
@@ -86,19 +95,72 @@ def create_session(
     return token, record
 
 
-def resolve_session(session: Session, token: str) -> UserSession | None:
-    """Return the live session for a raw token, or None."""
+def _as_utc(value: datetime) -> datetime:
+    """SQLite returns naive datetimes; every value in this table is UTC."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def session_idle_limit() -> timedelta | None:
+    """The configured idle timeout, or ``None`` when the idle check is off."""
+    days = get_settings().session_idle_days
+    return timedelta(days=days) if days > 0 else None
+
+
+def last_activity_at(record: UserSession) -> datetime:
+    """When this session was last used, falling back to when it was created.
+
+    A freshly issued session has no ``last_seen_at`` yet, so creation is the only
+    honest starting point for the idle clock -- otherwise a session nobody ever
+    used would count as idle for ever.
+    """
+    return _as_utc(record.last_seen_at or record.created_at)
+
+
+def session_is_live(record: UserSession, *, now: datetime | None = None) -> bool:
+    """The single definition of a usable session.
+
+    Two independent limits, both expressed over columns that already exist:
+
+    * **absolute** -- ``expires_at`` is fixed when the session is issued and is
+      never extended, so no amount of activity can keep a session past
+      ``session_days``;
+    * **idle** -- ``VOCAB_SESSION_IDLE_DAYS`` (default 7, ``0`` disables) measured
+      from the last use, so an abandoned session stops working long before its
+      absolute deadline.
+
+    A revoked session is never live. :func:`prune_sessions` deletes exactly the
+    rows this predicate rejects, which is why both live here: a cleanup that used
+    its own rule could delete a session the API would still have accepted, or keep
+    one for ever.
+    """
+    moment = now or datetime.now(UTC)
+    if record.revoked_at is not None:
+        return False
+    if _as_utc(record.expires_at) <= moment:
+        return False
+    idle = session_idle_limit()
+    if idle is None:
+        return True
+    # Strictly inside the window: at the boundary the session is already dead, and
+    # prune_sessions deletes that same boundary, so the two cannot disagree.
+    return last_activity_at(record) > moment - idle
+
+
+def resolve_session(
+    session: Session, token: str, *, now: datetime | None = None
+) -> UserSession | None:
+    """Return the live session for a raw token, or None.
+
+    Read-only on purpose: presenting a dead token must not write anything. An idle
+    session is simply not live any more, and :func:`prune_sessions` is what removes
+    the row.
+    """
     if not token:
         return None
     record = session.scalar(
         select(UserSession).where(UserSession.token_hash == hash_session_token(token))
     )
-    if record is None or record.revoked_at is not None:
-        return None
-    expires_at = record.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=UTC)
-    if expires_at <= datetime.now(UTC):
+    if record is None or not session_is_live(record, now=now):
         return None
     return record
 
@@ -109,10 +171,80 @@ def revoke_session(session: Session, record: UserSession, now: datetime | None =
     session.commit()
 
 
-def touch_session(session: Session, record: UserSession, now: datetime | None = None) -> None:
-    record.last_seen_at = now or datetime.now(UTC)
+def touch_session(
+    session: Session, record: UserSession, now: datetime | None = None
+) -> bool:
+    """Record that this session was just used.
+
+    Only ``last_seen_at`` changes: the token, the row and ``expires_at`` are left
+    alone, so touching can never extend a session's absolute lifetime. Returns
+    ``True`` when a write actually happened; a session touched less than
+    :data:`TOUCH_INTERVAL` ago is left untouched (see that constant).
+    """
+    moment = now or datetime.now(UTC)
+    previous = record.last_seen_at
+    if previous is not None and moment - _as_utc(previous) < TOUCH_INTERVAL:
+        return False
+    record.last_seen_at = moment
     session.add(record)
     session.commit()
+    return True
+
+
+def prune_sessions(session: Session, now: datetime | None = None) -> int:
+    """Delete every session that can never be used again, and report how many.
+
+    The deleted set is the exact complement of :func:`session_is_live`: revoked
+    rows, rows past their absolute ``expires_at``, and rows idle past
+    ``VOCAB_SESSION_IDLE_DAYS``. A session that is still valid is never touched --
+    including one that is simply logged in and unused, which is *not* idle until
+    the configured span has passed since it was created.
+
+    Deleting a dead row is safe in a way that deleting a live one would not be:
+    ``last_seen_at`` is only written by :func:`touch_session`, which runs only
+    after :func:`session_is_live` accepted the session, so a row this predicate
+    rejects can never be brought back to life by a later request. The worst case
+    of a request arriving in the same instant the row is deleted is that the caller
+    logs in again.
+    """
+    moment = now or datetime.now(UTC)
+    dead = [UserSession.revoked_at.is_not(None), UserSession.expires_at <= moment]
+    idle = session_idle_limit()
+    if idle is not None:
+        cutoff = moment - idle
+        # The exact complement of the idle half of ``session_is_live``, written
+        # NULL-safely: a session is dead once its last use -- or its creation, when
+        # it was never used -- is at or before the cutoff.
+        #
+        # Do NOT rewrite this as ``NOT (still_used_recently)``. ``last_seen_at`` is
+        # NULL until the first request, and in SQL ``NULL > cutoff`` is NULL, so the
+        # negation is NULL too and the row would never be selected: the one session
+        # state every account starts in would leak for ever. The two branches below
+        # guard on IS NULL / IS NOT NULL, so nothing propagates NULL.
+        dead.append(
+            or_(
+                and_(
+                    UserSession.last_seen_at.is_not(None),
+                    UserSession.last_seen_at <= cutoff,
+                ),
+                and_(
+                    UserSession.last_seen_at.is_(None),
+                    UserSession.created_at <= cutoff,
+                ),
+            )
+        )
+    result = session.execute(
+        delete(UserSession).where(or_(*dead)),
+        # The predicate is evaluated in SQL only. Letting the ORM also evaluate it
+        # in Python over any session already loaded in this Session raises
+        # "can't compare offset-naive and offset-aware datetimes" (SQLite hands
+        # back naive values). Cleanup must not depend on what the caller happens to
+        # have in memory, so the objects are expired instead.
+        execution_options={"synchronize_session": False},
+    )
+    session.expire_all()
+    session.commit()
+    return int(result.rowcount or 0)
 
 
 def revoke_all_sessions(session: Session, user: User, now: datetime | None = None) -> int:

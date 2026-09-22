@@ -57,6 +57,27 @@ class Settings:
         return value if value > 0 else 30
 
     @property
+    def session_idle_days(self) -> int:
+        """How long a session may go unused before it stops being accepted.
+
+        The idle timeout is what makes a stolen cookie expire: the absolute
+        lifetime (``session_days``) is never extended by activity, and this adds a
+        second, shorter limit measured from the last use. A freshly issued session
+        counts as used, because ``last_seen_at`` falls back to ``created_at``.
+
+        ``0`` disables the idle check and leaves the absolute lifetime alone. A
+        value larger than ``session_days`` is harmless: the absolute deadline still
+        applies and decides.
+        """
+        raw = os.getenv("VOCAB_SESSION_IDLE_DAYS", "7").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 7
+        # A negative value is treated as 0, which means "no idle check".
+        return max(0, value)
+
+    @property
     def cookie_secure(self) -> bool:
         """Secure cookies require HTTPS, so this must follow the environment.
 

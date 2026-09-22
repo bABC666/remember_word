@@ -9,7 +9,8 @@ from fastapi.staticfiles import StaticFiles
 import app.models
 from app.api import articles, auth, dashboard, imports, lexicons, settings, study, words
 from app.config import get_settings
-from app.db import verify_schema_revision
+from app.db import get_session_factory, verify_schema_revision
+from app.services.auth import prune_sessions
 from app.services.backup import create_backup
 from app.services.ocr import configure_paddle_environment
 from app.services.userdata import NotFoundError
@@ -26,6 +27,14 @@ async def lifespan(_app: FastAPI):
     if config.ocr_enabled:
         configure_paddle_environment()
     create_backup(config.database_path, config.backups_dir)
+    # Housekeeping after the backup, so the day's snapshot still contains whatever
+    # this removes. Only sessions that can never be accepted again are deleted
+    # (revoked, absolutely expired, idle past VOCAB_SESSION_IDLE_DAYS); the rule is
+    # the exact complement of the check every request goes through, so a session
+    # that is still valid is never touched. A failure here stops startup on
+    # purpose: the same policy as verify_schema_revision and create_backup above.
+    with get_session_factory()() as session:
+        prune_sessions(session)
     yield
 
 
