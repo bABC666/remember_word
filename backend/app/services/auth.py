@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import User, UserSession, UserSettings
-from app.security import UNUSABLE_PASSWORD, hash_password
+from app.security import (
+    UNUSABLE_PASSWORD,
+    dummy_password_hash,
+    hash_password,
+    password_is_usable,
+    verify_password,
+)
 from app.services.userdata import NOT_FOUND_SESSION, not_found
 
 COOKIE_NAME = "shici_session"
@@ -75,6 +81,49 @@ def generate_session_token() -> str:
 
 def hash_session_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def verify_user_password(user: User, password: str) -> bool:
+    """Check one user's own password. The single entry point for doing so.
+
+    Every caller gets the same work and the same answer, which the two previous call
+    sites did not: the login endpoint guarded the unusable-hash case with an explicit
+    ``password_is_usable`` test and equalised the cost with a dummy verification,
+    while the change-password endpoint relied on ``verify_password`` short-circuiting
+    internally. Both were safe, but a second, quieter copy of a security decision is
+    how the two drift apart later.
+
+    Three properties, all deliberate:
+
+    * **exactly one** Argon2 verification per call, whichever branch is taken, so the
+      time it takes says nothing about the account's stored hash;
+    * an account whose hash is unusable (the ``!`` sentinel, or empty) **never**
+      verifies: it is checked against :func:`dummy_password_hash` for the timing and
+      then refused regardless of the outcome;
+    * the return value is a plain bool, so nothing about *why* it failed -- no usable
+      hash, wrong password -- can leak through the caller.
+
+    Authentication is still the caller's decision: callers that must also reject a
+    disabled account check ``is_active`` themselves.
+    """
+    usable = password_is_usable(user.password_hash)
+    matched = verify_password(
+        password, user.password_hash if usable else dummy_password_hash()
+    )
+    return usable and matched
+
+
+def verify_unknown_user_password(password: str) -> None:
+    """Spend the verification an existing account would, for a username that has none.
+
+    The result is meaningless and deliberately discarded: there is no account to
+    authenticate. The work exists only so a login attempt costs the same whether the
+    username exists, which is what removed the timing side channel in Phase 2.4-a.
+
+    It lives here so that *every* password verification in the request path goes
+    through this module, and a test can therefore observe all of them with one spy.
+    """
+    verify_password(password, dummy_password_hash())
 
 
 def create_session(

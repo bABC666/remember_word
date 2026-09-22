@@ -147,18 +147,22 @@ def test_every_login_path_performs_exactly_one_password_verification(
     it an unknown username answers in about a millisecond while a known one pays
     for Argon2. The work is asserted directly (a call count), not by measuring
     clock time, so the test cannot flake.
-    """
-    import app.api.auth as auth_module
-    from app.security import dummy_password_hash
 
-    real_verify = auth_module.verify_password
+    Since Phase 2.7-d-b every verification happens inside ``app.services.auth``, so
+    one spy there observes all of them -- which is also what makes the shared entry
+    point checkable at all.
+    """
+    from app.security import dummy_password_hash
+    from app.services import auth as auth_service
+
+    real_verify = auth_service.verify_password
     calls: list[tuple[str, str]] = []
 
     def spy(password: str, password_hash: str) -> bool:
         calls.append((password, password_hash))
         return real_verify(password, password_hash)
 
-    monkeypatch.setattr(auth_module, "verify_password", spy)
+    monkeypatch.setattr(auth_service, "verify_password", spy)
     create_user(auth_db, "verified-user")
     create_user(auth_db, "verified-sentinel", password=None)
 
@@ -202,6 +206,119 @@ def test_every_login_path_performs_exactly_one_password_verification(
     # The dummy hash is never stored anywhere: it belongs to no account.
     with auth_db() as session:
         assert session.scalar(select(User).where(User.password_hash == dummy)) is None
+
+
+# --- one shared password verification (Phase 2.7-d-b) -----------------------
+
+
+def test_both_callers_verify_through_the_shared_function(auth_db, client, monkeypatch) -> None:
+    """Login and change-password must not each keep their own copy of the rule."""
+    import app.api.auth as auth_module
+
+    create_user(auth_db, "shared-entry")
+    calls: list[tuple[int, str]] = []
+    real = auth_module.verify_user_password
+
+    def spy(user, password):
+        calls.append((user.id, password))
+        return real(user, password)
+
+    monkeypatch.setattr(auth_module, "verify_user_password", spy)
+
+    assert (
+        client.post("/api/auth/login", json={"username": "shared-entry", "password": PASSWORD}).status_code
+        == 200
+    )
+    assert len(calls) == 1 and calls[0][1] == PASSWORD
+
+    calls.clear()
+    refused = client.post(
+        "/api/auth/password",
+        json={"current_password": "wrong", "new_password": "another-password-1"},
+    )
+    assert refused.status_code == 400
+    assert len(calls) == 1 and calls[0][1] == "wrong"
+
+    calls.clear()
+    accepted = client.post(
+        "/api/auth/password",
+        json={"current_password": PASSWORD, "new_password": "another-password-1"},
+    )
+    assert accepted.status_code == 200
+    assert len(calls) == 1 and calls[0][1] == PASSWORD
+
+
+def test_the_shared_verifier_costs_exactly_one_verification(monkeypatch) -> None:
+    """One Argon2 per call, whichever branch is taken -- that is the whole point."""
+    from app.security import UNUSABLE_PASSWORD, dummy_password_hash, hash_password
+    from app.services import auth as auth_service
+
+    calls: list[str] = []
+    real = auth_service.verify_password
+
+    def spy(password: str, password_hash: str) -> bool:
+        calls.append(password_hash)
+        return real(password, password_hash)
+
+    monkeypatch.setattr(auth_service, "verify_password", spy)
+
+    hashed = User(username="hashed", display_name="hashed", password_hash=hash_password(PASSWORD))
+    sentinel = User(username="sentinel", display_name="sentinel", password_hash=UNUSABLE_PASSWORD)
+    dummy = dummy_password_hash()
+
+    assert auth_service.verify_user_password(hashed, PASSWORD) is True
+    assert len(calls) == 1 and calls[0] == hashed.password_hash
+
+    calls.clear()
+    assert auth_service.verify_user_password(hashed, "wrong") is False
+    assert len(calls) == 1 and calls[0] == hashed.password_hash
+
+    # An account with no usable hash is verified against the dummy hash and refused
+    # whatever the result -- never short-circuited, never accepted.
+    calls.clear()
+    assert auth_service.verify_user_password(sentinel, PASSWORD) is False
+    assert len(calls) == 1 and calls[0] == dummy
+
+    calls.clear()
+    assert auth_service.verify_user_password(sentinel, UNUSABLE_PASSWORD) is False
+    assert len(calls) == 1, "even the sentinel value itself must not skip the work"
+
+    # An empty stored hash is the same story.
+    empty = User(username="empty", display_name="empty", password_hash="")
+    calls.clear()
+    assert auth_service.verify_user_password(empty, PASSWORD) is False
+    assert len(calls) == 1 and calls[0] == dummy
+
+
+def test_the_unknown_username_helper_spends_one_matching_verification(monkeypatch) -> None:
+    """The dummy path the login endpoint uses must cost the same as a real account."""
+    from app.security import dummy_password_hash
+    from app.services import auth as auth_service
+
+    calls: list[tuple[str, str]] = []
+    real = auth_service.verify_password
+
+    def spy(password: str, password_hash: str) -> bool:
+        calls.append((password, password_hash))
+        return real(password, password_hash)
+
+    monkeypatch.setattr(auth_service, "verify_password", spy)
+
+    assert auth_service.verify_unknown_user_password("anything") is None
+    assert calls == [("anything", dummy_password_hash())]
+
+
+def test_verify_password_is_reachable_only_through_the_auth_service() -> None:
+    """The API layer must not go back to calling the primitive directly.
+
+    A second call site is how the two previous copies of this rule came to differ
+    (the login endpoint equalised and guarded; the change-password endpoint relied on
+    an internal short-circuit).
+    """
+    from app.api import auth as auth_api
+
+    assert not hasattr(auth_api, "verify_password")
+    assert not hasattr(auth_api, "dummy_password_hash")
 
 
 def test_wrong_password_is_rejected_without_leaking_existence(auth_db, client) -> None:

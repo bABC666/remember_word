@@ -19,12 +19,7 @@ from app.schemas import (
     LoginRequest,
     UpdateUserRequest,
 )
-from app.security import (
-    dummy_password_hash,
-    hash_password,
-    password_is_usable,
-    verify_password,
-)
+from app.security import hash_password, password_is_usable
 from app.services.auth import (
     COOKIE_NAME,
     create_session,
@@ -35,6 +30,8 @@ from app.services.auth import (
     revoke_session,
     revoke_user_session,
     set_password,
+    verify_unknown_user_password,
+    verify_user_password,
 )
 from app.services.limiter import login_limiter
 
@@ -199,14 +196,12 @@ def login(
     try:
         user = find_user_by_username(session, payload.username)
         if user is None:
-            verify_password(payload.password, dummy_password_hash())
+            verify_unknown_user_password(payload.password)
             raise _refuse_login(session, client, None)
 
-        usable = password_is_usable(user.password_hash)
-        matched = verify_password(
-            payload.password, user.password_hash if usable else dummy_password_hash()
-        )
-        if not usable or not matched or not user.is_active:
+        # One shared verification of the account's own password; the account-state
+        # check that follows is authentication's business, not the verifier's.
+        if not verify_user_password(user, payload.password) or not user.is_active:
             raise _refuse_login(session, client, user)
 
         token, _record = create_session(
@@ -336,7 +331,7 @@ def read_me(session: SessionDep, user: CurrentUser) -> dict[str, object]:
 def change_password(
     payload: ChangePasswordRequest, session: SessionDep, user: CurrentUser
 ) -> dict[str, bool]:
-    if not verify_password(payload.current_password, user.password_hash):
+    if not verify_user_password(user, payload.current_password):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "当前密码不正确")
     if payload.current_password == payload.new_password:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "新密码不能与当前密码相同")

@@ -133,16 +133,18 @@ def test_a_request_refused_by_the_gate_is_never_hashed(limits, client, make_user
     """The gate has to run before Argon2, otherwise it protects nothing."""
     limits(max_concurrent=1)
     make_user("unhashed-user")
-    import app.api.auth as auth_module
+    # Since Phase 2.7-d-b every verification goes through app.services.auth, so that
+    # is where a spy sees all of them (one place, not one per call site).
+    from app.services import auth as auth_service
 
     calls: list[tuple[str, str]] = []
-    real_verify = auth_module.verify_password
+    real_verify = auth_service.verify_password
 
     def spy(password: str, password_hash: str) -> bool:
         calls.append((password, password_hash))
         return real_verify(password, password_hash)
 
-    monkeypatch.setattr(auth_module, "verify_password", spy)
+    monkeypatch.setattr(auth_service, "verify_password", spy)
     limiter = login_limiter()
     assert limiter.gate.acquire() is True
     try:
@@ -215,16 +217,16 @@ def test_failures_from_one_address_reach_the_threshold(limits, client, make_user
 def test_a_refused_address_is_never_hashed(limits, client, make_user, monkeypatch) -> None:
     limits(failures=1)
     make_user("unhashed-limited")
-    import app.api.auth as auth_module
+    from app.services import auth as auth_service
 
     calls: list[tuple[str, str]] = []
-    real_verify = auth_module.verify_password
+    real_verify = auth_service.verify_password
 
     def spy(password: str, password_hash: str) -> bool:
         calls.append((password, password_hash))
         return real_verify(password, password_hash)
 
-    monkeypatch.setattr(auth_module, "verify_password", spy)
+    monkeypatch.setattr(auth_service, "verify_password", spy)
 
     assert login(client, "unhashed-limited", WRONG).status_code == 401
     assert len(calls) == 1
