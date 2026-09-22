@@ -240,14 +240,13 @@ def test_only_admin_may_modify_the_system_lexicon(pair, make_world) -> None:
     with a.session() as session:
         system_id = session.query(Lexicon).filter(Lexicon.owner_user_id.is_(None)).first().id
 
-    # A normal user cannot write to the shared lexicon.
-    #   * PATCH goes through the write guard, which answers 404 for "not yours"
-    #     (the same rule private lexicons use), so nothing is disclosed.
-    #   * DELETE can see the lexicon because it is public, so a refused
-    #     capability there is honestly a 403.
+    # A normal user cannot write to the shared lexicon. The system lexicon is
+    # public, so its existence is not a secret and refusing the *capability* is
+    # honestly a 403 (the spec requires exactly this). Another user's PRIVATE
+    # lexicon answers 404 instead, so that existence is never disclosed.
     assert a.client.patch(
         f"/api/lexicons/{system_id}", json={"description": "defaced"}
-    ).status_code == 404
+    ).status_code == 403
     assert a.client.delete(f"/api/lexicons/{system_id}").status_code == 403
 
     admin = make_world("lexicon-admin", role="admin")

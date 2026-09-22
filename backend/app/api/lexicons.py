@@ -8,7 +8,6 @@ from app.models import Lexicon, LexiconEntry, UserLexicon
 from app.schemas import LexiconCreateRequest, LexiconUpdateRequest
 from app.services.userdata import (
     load_readable_lexicon,
-    load_writable_lexicon,
     user_lexicon,
 )
 
@@ -116,16 +115,22 @@ def update_lexicon(
 ) -> dict[str, object]:
     """Rename or re-describe a lexicon the caller may write.
 
-    A system lexicon is admin-only; another user's private lexicon is a 404 so its
-    existence is not disclosed.
+    Two different refusals, on purpose:
+
+    * a **system** lexicon is visible to every authenticated user, so refusing a
+      non-admin here is a missing *capability*: 403, which the spec requires;
+    * another user's **private** lexicon answers 404, because its existence must
+      not be disclosed.
     """
-    lexicon = load_writable_lexicon(session, user, lexicon_id)
+    lexicon = load_readable_lexicon(session, user, lexicon_id)
+    if lexicon.is_system and not user.is_admin:
+        raise HTTPException(status_code=403, detail="系统公共词库只有管理员可以修改")
+
     changes = payload.model_dump(exclude_unset=True)
     if lexicon.is_system:
-        # System content is shared; only an admin may change its metadata.
-        if not user.is_admin:
-            raise HTTPException(status_code=403, detail="系统公共词库只有管理员可以修改")
-        changes.pop("visibility", None)  # a system lexicon stays public
+        # A system lexicon is shared, so it stays public; an admin may only
+        # correct its metadata.
+        changes.pop("visibility", None)
     if "name" in changes and changes["name"] is not None:
         lexicon.name = changes["name"]
     if "description" in changes and changes["description"] is not None:
