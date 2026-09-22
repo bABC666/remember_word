@@ -13,6 +13,7 @@ application against it and proves per-user isolation end to end:
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -186,14 +187,45 @@ def start_server():
 
 
 def main() -> int:
-    print("== building a fresh staging clone ==")
-    fresh_clone()
-    migrate()
+    parser = argparse.ArgumentParser(
+        description="Two-user isolation acceptance check against staging, or against "
+        "--database if one is given (used to rehearse a migration on its clone)."
+    )
+    parser.add_argument(
+        "--database",
+        type=Path,
+        default=None,
+        help="use this database as-is instead of building a fresh clone and migrating it",
+    )
+    parser.add_argument("--report", type=Path, default=REPORT)
+    args = parser.parse_args()
+
+    global STAGING_DB
+    if args.database is not None:
+        STAGING_DB = args.database.resolve()
+
+    print("== target database ==")
+    print(f"  {STAGING_DB}")
+    if args.database is None:
+        print("== building a fresh staging clone ==")
+        fresh_clone()
+        migrate()
+    else:
+        # No clone and no migration: the caller has already produced the database
+        # whose state is under test, and rebuilding it would defeat the purpose.
+        if not STAGING_DB.exists():
+            raise AssertionError(f"database not found: {STAGING_DB}")
+        print("  used as-is (no clone, no migration)")
 
     print()
     print("== creating the two accounts on staging ==")
     staging_account("set-password", "admin", ADMIN_PASSWORD)
-    staging_account("create-user", "userb", USERB_PASSWORD, "--role", "user")
+    try:
+        staging_account("create-user", "userb", USERB_PASSWORD, "--role", "user")
+    except AssertionError:
+        # The account already exists (a --database run against a database that has
+        # userb): reset its password instead of failing.
+        staging_account("set-password", "userb", USERB_PASSWORD)
     print("  admin + userb ready")
 
     server = start_server()
@@ -326,7 +358,9 @@ def main() -> int:
             server.kill()
 
     payload = {"checks": checks, "failures": failures, "verified": not failures}
-    REPORT.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    payload["database"] = str(STAGING_DB)
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     passed = sum(1 for value in checks.values() if value["passed"])
     print()
     print("=" * 60)
@@ -337,7 +371,7 @@ def main() -> int:
             print("  -", failure)
     else:
         print("STAGING P1.3 ACCEPTANCE VERIFIED")
-    print("report:", REPORT)
+    print("report:", args.report)
     return 0 if not failures else 1
 
 
