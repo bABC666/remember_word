@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import app.models
 from app.api import articles, dashboard, imports, settings, study, words
 from app.config import get_settings
+from app.db import verify_schema_revision
 from app.services.backup import create_backup
 from app.services.ocr import configure_paddle_environment
 
@@ -20,6 +21,7 @@ async def lifespan(_app: FastAPI):
     # Schema evolves only through Alembic. Startup must never create or alter
     # tables, otherwise model edits silently pre-create columns that a later
     # migration then fails to add.
+    verify_schema_revision(config.database_path)
     if config.ocr_enabled:
         configure_paddle_environment()
     create_backup(config.database_path, config.backups_dir)

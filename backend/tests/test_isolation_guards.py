@@ -1,4 +1,4 @@
-"""Tests for the data-safety guards.
+﻿"""Tests for the data-safety guards.
 
 These tests exist because the V1.1 database was destroyed by a test fixture that
 ran ``Base.metadata.drop_all`` against the application engine after it had
@@ -9,6 +9,7 @@ not merely assumed to exist.
 from __future__ import annotations
 
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -120,7 +121,7 @@ def test_application_engine_is_bound_inside_the_test_data_directory(
     import app.db
     import app.models
 
-    resolved = database_path_from_url(str(app.db.engine.url))
+    resolved = database_path_from_url(str(app.db.get_engine().url))
     assert resolved is not None
     path = Path(resolved).resolve()
     assert path.is_relative_to(Path(test_data_dir).resolve()), (
@@ -134,7 +135,7 @@ def test_app_engine_file_is_not_the_real_database() -> None:
     """Direct string comparison, so a wrong binding can never slip through."""
     import app.db
 
-    resolved = database_path_from_url(str(app.db.engine.url))
+    resolved = database_path_from_url(str(app.db.get_engine().url))
     assert Path(resolved or "").resolve() != (REAL_DATA_DIR / "vocab.db").resolve()
 
 
@@ -144,3 +145,37 @@ def test_engine_url_parsing() -> None:
     )
     assert database_path_from_url("sqlite:///:memory:") is None
     assert database_path_from_url("postgresql://x/y") is None
+
+
+def test_schema_revision_guard_refuses_mismatched_database(tmp_path: Path) -> None:
+    """Running code against a database of the wrong revision must not start."""
+    from app.db import SchemaRevisionError, code_head_revision, verify_schema_revision
+
+    head = code_head_revision()
+    assert head, "the codebase must declare exactly one alembic head"
+
+    database = tmp_path / "app-data" / "vocab.db"
+    database.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(str(database))
+    connection.execute("create table alembic_version (version_num varchar(32) not null)")
+    connection.execute("insert into alembic_version values ('0001_initial')")
+    connection.commit()
+    connection.close()
+
+    with pytest.raises(SchemaRevisionError) as error:
+        verify_schema_revision(database)
+    assert "0001_initial" in str(error.value)
+
+    # The matching revision is accepted.
+    verify_schema_revision(database, expected="0001_initial")
+
+
+def test_schema_revision_guard_refuses_database_without_history(tmp_path: Path) -> None:
+    from app.db import SchemaRevisionError, verify_schema_revision
+
+    database = tmp_path / "app-data" / "vocab.db"
+    database.parent.mkdir(parents=True, exist_ok=True)
+    sqlite3.connect(str(database)).close()
+
+    with pytest.raises(SchemaRevisionError):
+        verify_schema_revision(database)
