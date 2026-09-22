@@ -6,30 +6,26 @@ from sqlalchemy.orm import Session
 
 from app.models import ReviewEvent, User, UserWordState
 from app.services.scheduler import calculate_schedule
-from app.services.userdata import find_user_word, not_found
+from app.services.userdata import (
+    WordView,
+    load_user_article,
+    load_user_word,
+    load_user_word_state,
+)
 
-#: The scheduling rules themselves are unchanged from V1.1. What changed in
-#: V1.2 is the input: the word must belong to the acting user, which is enforced
-#: by loading it through an owner-scoped query.
-
-
-def record_review(
-    session: Session,
-    word_id: int,
-    result: str,
-    source: str,
-    review_type: str,
-    article_id: int | None = None,
-) -> ReviewEvent:
-    """Record a review for a legacy ``word`` row without an owner check.
-
-    Kept for internal callers and tests that operate on a single-user database.
-    HTTP endpoints must use :func:`record_review_for_user`.
-    """
-    state = session.query(UserWordState).filter_by(legacy_word_id=word_id).one_or_none()
-    if state is None:
-        raise LookupError("Word not found")
-    return _apply(session, state, word_id, result, source, review_type, article_id)
+#: The scheduling rules themselves are unchanged from V1.1. What changed in V1.2
+#: is the input: the word must belong to the acting user, which is enforced by
+#: loading it through an owner-scoped query.
+#:
+#: There are two entry points, one per identifier namespace, and neither falls back
+#: to the other:
+#:
+#: * :func:`record_review_for_user` -- the legacy ``word.id``;
+#: * :func:`record_review_for_user_state` -- this user's own
+#:   ``user_word_state.id``.
+#:
+#: Both finish in :func:`_record`, which validates the referenced article's
+#: ownership **before** anything is written.
 
 
 def record_review_for_user(
@@ -41,18 +37,63 @@ def record_review_for_user(
     review_type: str,
     article_id: int | None = None,
 ) -> ReviewEvent:
-    """Record a review of the caller's own word, or raise ``LookupError``.
+    """Record a review of the caller's own word, addressed by its legacy ``word.id``.
 
-    ``word_id`` is either the legacy ``word.id`` a client already knows, or the
-    caller's own ``user_word_state.id``. Both resolve through owner-scoped
-    lookups, so neither can reach another user's word. Lookup failures surface as
-    a 404 at the API boundary: another user's id is indistinguishable from a
-    nonexistent one.
+    Raises ``NotFoundError`` for an id that does not exist *or* is not the
+    caller's, which the API turns into the same 404.
     """
-    view = find_user_word(session, user, word_id)
-    if view is None:
-        # Same error whether the id is missing or simply not the caller's.
-        raise not_found("?????")
+    return _record(
+        session,
+        user,
+        load_user_word(session, user, word_id),
+        result,
+        source,
+        review_type,
+        article_id,
+    )
+
+
+def record_review_for_user_state(
+    session: Session,
+    user: User,
+    state_id: int,
+    result: str,
+    source: str,
+    review_type: str,
+    article_id: int | None = None,
+) -> ReviewEvent:
+    """Record a review addressed by the caller's own ``user_word_state.id``.
+
+    Needed for words that have no legacy ``word`` row at all -- every word a user
+    adds from an article. The id is resolved through an owner-scoped query, so a
+    state id belonging to someone else is a 404 like any other missing row.
+    """
+    return _record(
+        session,
+        user,
+        load_user_word_state(session, user, state_id),
+        result,
+        source,
+        review_type,
+        article_id,
+    )
+
+
+def _record(
+    session: Session,
+    user: User,
+    view: WordView,
+    result: str,
+    source: str,
+    review_type: str,
+    article_id: int | None,
+) -> ReviewEvent:
+    if article_id is not None:
+        # Ownership of the referenced article is checked BEFORE the first write.
+        # Without this a review of one's own word could be attached to somebody
+        # else's article id, and the rejected request would already have moved the
+        # word's status, counters and schedule.
+        load_user_article(session, user, article_id)
     state = view.state
     return _apply(
         session, state, state.legacy_word_id, result, source, review_type, article_id
