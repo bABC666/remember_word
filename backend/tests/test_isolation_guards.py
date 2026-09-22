@@ -1,4 +1,4 @@
-﻿"""Tests for the data-safety guards.
+"""Tests for the data-safety guards.
 
 These tests exist because the V1.1 database was destroyed by a test fixture that
 ran ``Base.metadata.drop_all`` against the application engine after it had

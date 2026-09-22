@@ -1,0 +1,14 @@
+# Ruff configuration for files outside backend/ (operator tooling).
+#
+# backend/pyproject.toml holds the settings for application and test code; ruff
+# only discovers that file when it is invoked from within backend/. This root
+# config keeps the same rules for tools/ so `scripts/check.ps1` lints everything
+# without relying on the working directory.
+
+line-length = 100
+target-version = "py311"
+
+[lint]
+# B008: FastAPI's Depends()/Query() belong in argument defaults.
+# UP031: percent formatting is used deliberately for fixed-width operator output.
+ignore = ["B008", "UP031"]

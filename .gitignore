@@ -13,6 +13,8 @@ backend/.pytest-tmp/
 backend/.ruff_cache/
 backend/**/__pycache__/
 backend/**/*.py[cod]
+__pycache__/
+*.py[cod]
 
 # Secrets and local configuration
 .env

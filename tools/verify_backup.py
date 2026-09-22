@@ -1,188 +1,143 @@
-"""Backup and restore verification tooling for 拾词.
+"""Verify a SQLite database against a recorded baseline snapshot.
 
-A copy is only called a *verified backup* when :func:`verify` passes every
-check. A file that merely exists, or whose copy "succeeded", proves nothing:
-the ``pre-p1.2-*`` copy taken before the P1.2 migration was itself already
-damaged, and it was almost trusted as a safety net.
+A copy is only called a **VERIFIED BACKUP** when it passes every check against a
+baseline captured from a database that was itself verified. Hard-coded row
+counts from a single moment in time are deliberately gone: they made a healthy
+running database look broken, and worse, they would have looked "fine" for a
+database that had lost its history and been refilled.
 
 Usage::
 
-    python tools/verify_backup.py <database> [--expect-revision 0003_...]
-                                                [--no-count-check] [--json out.json]
+    # record a baseline from a database that is currently trusted
+    python tools/verify_backup.py data/vocab.db --write-baseline data/recovery/baseline.json
+
+    # verify a database or backup against that baseline
+    python tools/verify_backup.py data/backups/x.db --baseline data/recovery/baseline.json
+
+See ``tools/verified_db.py`` for the immutable / append-only classification.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
+import importlib.util
 import json
-import sqlite3
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 
-#: Row counts of the V1.1 production database after the 2026-09-22 restore.
-V1_1_EXPECTED_COUNTS = {
-    "word": 19,
-    "review_event": 10,
-    "article": 1,
-    "article_word_exposure": 16,
-    "article_word_lookup": 0,
-    "import_batch": 1,
-    "import_image": 2,
-    "import_candidate": 19,
-    "history_event": 2,
-    "app_setting": 4,
-}
+MODULE_PATH = Path(__file__).resolve().parent / "verified_db.py"
+_spec = importlib.util.spec_from_file_location("verified_db", MODULE_PATH)
+assert _spec and _spec.loader
+verified_db = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(verified_db)
 
-V1_1_REQUIRED_TABLES = set(V1_1_EXPECTED_COUNTS) | {"alembic_version"}
-
-#: Fields whose values must be non-degenerate for the data to be usable.
-FINGERPRINT_QUERIES = {
-    "word_nonempty_anchor": "select count(*) from word where anchor <> ''",
-    "word_nonempty_source_meanings": (
-        "select count(*) from word where source_meanings not in ('', '[]')"
-    ),
-    "word_nonempty_source_raw": "select count(*) from word where source_raw <> ''",
-    "word_status_distribution": "select group_concat(status || ':' || n, ',') from ("
-    "select status, count(*) as n from word group by status order by status)",
-    "review_event_results": "select group_concat(result || ':' || n, ',') from ("
-    "select result, count(*) as n from review_event group by result order by result)",
-    "article_completed": "select count(*) from article where completed = 1",
-    "article_content_length": "select coalesce(max(length(content)), 0) from article",
-    "confirmed_candidates": "select count(*) from import_candidate where confirmed = 1",
-    "candidates_linked_to_words": (
-        "select count(*) from import_candidate where word_id is not null"
-    ),
-    "exposure_distinct_words": "select count(distinct word_id) from article_word_exposure",
-    "import_batch_ocr_length": "select coalesce(max(length(raw_ocr_text)), 0) from import_batch",
-    "import_image_paths": (
-        "select group_concat(file_path, '|') from import_image order by id"
-    ),
-    "app_setting_keys": (
-        "select group_concat(key, ',') from (select key from app_setting order by key)"
-    ),
-}
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def verify(
-    database: Path,
-    *,
-    expected_revision: str | None = "0003_article_reading_tools",
-    expected_counts: dict[str, int] | None = None,
-) -> tuple[bool, dict[str, object]]:
-    counts = expected_counts if expected_counts is not None else V1_1_EXPECTED_COUNTS
-    report: dict[str, object] = {"path": str(database), "checks": {}, "failures": []}
-    checks: dict[str, object] = report["checks"]  # type: ignore[assignment]
-    failures: list[str] = report["failures"]  # type: ignore[assignment]
-
-    if not database.exists():
-        failures.append("file does not exist")
-        report["verified"] = False
-        return False, report
-
-    report["bytes"] = database.stat().st_size
-    report["sha256"] = sha256(database)
-
-    try:
-        connection = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)
-    except sqlite3.Error as error:
-        failures.append(f"cannot open: {error}")
-        report["verified"] = False
-        return False, report
-
-    try:
-        integrity = connection.execute("pragma integrity_check").fetchone()[0]
-        checks["integrity_check"] = integrity
-        if integrity != "ok":
-            failures.append(f"integrity_check = {integrity}")
-
-        foreign_keys = connection.execute("pragma foreign_key_check").fetchall()
-        checks["foreign_key_check_violations"] = len(foreign_keys)
-        if foreign_keys:
-            failures.append(f"foreign_key_check found {len(foreign_keys)} violations")
-
-        tables = {
-            row[0]
-            for row in connection.execute(
-                "select name from sqlite_master where type='table' and name not like 'sqlite_%'"
-            )
-        }
-        checks["tables"] = sorted(tables)
-        missing = sorted(V1_1_REQUIRED_TABLES - tables)
-        if missing:
-            failures.append(f"missing tables: {missing}")
-
-        if expected_revision is not None:
-            try:
-                revision = connection.execute(
-                    "select version_num from alembic_version"
-                ).fetchone()
-                checks["alembic_revision"] = revision[0] if revision else None
-                if revision is None or revision[0] != expected_revision:
-                    failures.append(
-                        f"alembic revision {checks['alembic_revision']!r} != {expected_revision!r}"
-                    )
-            except sqlite3.Error as error:
-                failures.append(f"alembic_version unreadable: {error}")
-
-        actual_counts: dict[str, int] = {}
-        for table, expected in counts.items():
-            if table not in tables:
-                actual_counts[table] = -1
-                continue
-            value = connection.execute(f'select count(*) from "{table}"').fetchone()[0]
-            actual_counts[table] = value
-            if value != expected:
-                failures.append(f"{table}: {value} != expected {expected}")
-        checks["row_counts"] = actual_counts
-
-        fingerprint: dict[str, object] = {}
-        for name, query in FINGERPRINT_QUERIES.items():
-            try:
-                fingerprint[name] = connection.execute(query).fetchone()[0]
-            except sqlite3.Error as error:
-                fingerprint[name] = f"error: {error}"
-                failures.append(f"fingerprint {name} failed: {error}")
-        checks["fingerprint"] = fingerprint
-    finally:
-        connection.close()
-
-    report["verified"] = not failures
-    return not failures, report
+DEFAULT_BASELINE = Path("data/recovery/baseline.json")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Verify a SQLite backup before trusting it")
+    parser = argparse.ArgumentParser(
+        description="Verify a database or backup against a baseline snapshot"
+    )
     parser.add_argument("database", type=Path)
-    parser.add_argument("--expect-revision", default="0003_article_reading_tools")
-    parser.add_argument("--no-count-check", action="store_true")
-    parser.add_argument("--json", type=Path, default=None)
-    parser.add_argument("--label", default="")
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=DEFAULT_BASELINE,
+        help=f"baseline snapshot to compare against (default: {DEFAULT_BASELINE})",
+    )
+    parser.add_argument(
+        "--write-baseline",
+        type=Path,
+        default=None,
+        help="record a NEW baseline from this database instead of verifying it",
+    )
+    parser.add_argument("--label", default="", help="label stored in a new baseline")
+    parser.add_argument("--notes", default="", help="free-form note stored in a new baseline")
+    parser.add_argument(
+        "--no-row-hashes",
+        action="store_true",
+        help="record counts only (weaker: cannot detect modified rows)",
+    )
+    parser.add_argument("--json", type=Path, default=None, help="write the report here")
+    parser.add_argument(
+        "--allow-revision-change",
+        action="store_true",
+        help="do not require the baseline alembic revision",
+    )
     args = parser.parse_args(argv)
 
-    verified, report = verify(
-        args.database,
-        expected_revision=args.expect_revision,
-        expected_counts=None if args.no_count_check else V1_1_EXPECTED_COUNTS,
-    )
-    report["label"] = args.label
-    report["verified_at_utc"] = datetime.now(UTC).isoformat()
-    report["verdict"] = "VERIFIED BACKUP" if verified else "NOT A VERIFIED BACKUP"
+    if args.write_baseline is not None:
+        snapshot = verified_db.capture_baseline(
+            args.database,
+            label=args.label or str(args.database),
+            notes=args.notes,
+            hash_rows=not args.no_row_hashes,
+        )
+        # Refuse to record a baseline from a database that is already unhealthy.
+        if snapshot["integrity_check"] != "ok":
+            print("REFUSING to record a baseline: integrity_check =", snapshot["integrity_check"])
+            return 1
+        if snapshot["foreign_key_check_violations"]:
+            print(
+                "REFUSING to record a baseline:",
+                snapshot["foreign_key_check_violations"],
+                "foreign key violations",
+            )
+            return 1
+        verified_db.save_baseline(snapshot, args.write_baseline)
+        print(f"baseline recorded : {args.write_baseline}")
+        print(f"database          : {snapshot['database']}")
+        print(f"bytes             : {snapshot['bytes']}")
+        print(f"sha256            : {snapshot['sha256']}")
+        print(f"alembic revision  : {snapshot['alembic_revision']}")
+        print(f"integrity_check   : {snapshot['integrity_check']}")
+        print("tables:")
+        for name, info in snapshot["tables"].items():  # type: ignore[union-attr]
+            print(
+                "  %-24s %-12s rows=%-5s"
+                % (name, info["classification"], info["rows"])
+            )
+        return 0
 
-    print(f"database : {report['path']}")
+    if not args.baseline.exists():
+        print("baseline not found:", args.baseline)
+        print("record one first with --write-baseline")
+        return 1
+
+    baseline = verified_db.load_baseline(args.baseline)
+    verified, report = verified_db.compare_against_baseline(
+        args.database,
+        baseline,
+        require_revision=not args.allow_revision_change,
+    )
+    report["verdict"] = "VERIFIED BACKUP" if verified else "NOT A VERIFIED BACKUP"
+    report["baseline_path"] = str(args.baseline)
+
+    print(f"database : {report['database']}")
     print(f"bytes    : {report.get('bytes')}")
     print(f"sha256   : {report.get('sha256')}")
-    for name, value in report["checks"].items():  # type: ignore[union-attr]
-        print(f"{name:26}: {value}")
+    print(f"baseline : {args.baseline} ({baseline.get('label')})")
+    print(f"revision : {report.get('alembic_revision')}")
+    print(f"integrity: {report.get('integrity_check')}")
+    print(f"fk_check : {report.get('foreign_key_check_violations')} violations")
+    print()
+    print("per-table status:")
+    for name, info in report.get("tables", {}).items():  # type: ignore[union-attr]
+        print(
+            "  %-24s %-12s baseline=%-5s current=%-5s %s"
+            % (
+                name,
+                info.get("classification"),
+                info.get("rows_baseline"),
+                info.get("rows_current"),
+                info.get("status"),
+            )
+        )
+    if report["growth"]:  # type: ignore[union-attr]
+        print()
+        print("legitimate growth:")
+        for item in report["growth"]:  # type: ignore[union-attr]
+            print("  +", item)
     print()
     if verified:
         print("VERDICT  : VERIFIED BACKUP")
