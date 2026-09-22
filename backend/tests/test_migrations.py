@@ -666,8 +666,19 @@ def test_v1_1_database_rolls_forward_without_data_loss(v1_1_database: Path) -> N
 
     _alembic(v1_1_database.parent, "upgrade", "head")
 
-    # Row counts for every pre-existing table are unchanged.
-    assert _counts(v1_1_database) == counts_before
+    # Every pre-existing row survives. The only permitted difference is the
+    # migration's own audit event, so nothing may decrease and the growth must be
+    # exactly that one row.
+    counts_after = _counts(v1_1_database)
+    for table, expected in counts_before.items():
+        if table == "history_event":
+            assert counts_after[table] == expected + 1, (
+                f"{table}: {counts_after[table]} != {expected} + migration audit event"
+            )
+        else:
+            assert counts_after[table] == expected, (
+                f"{table}: {counts_after[table]} != {expected}"
+            )
 
     after_connection = sqlite3.connect(v1_1_database)
     try:

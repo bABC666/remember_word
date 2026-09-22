@@ -63,6 +63,23 @@ CLASSIFICATIONS: dict[str, str] = {
 #: Tables the verifier ignores entirely (engine bookkeeping).
 IGNORED_TABLES: frozenset[str] = frozenset({"alembic_version", "sqlite_sequence"})
 
+#: Columns excluded from row identities.
+#:
+#: A migration may legitimately ADD a column to an existing table (the V1.2
+#: migration adds ``user_id`` and ``lexicon_entry_id`` bridges). Hashing
+#: ``select *`` made every existing row look "modified" for that reason alone.
+#: Row identity is therefore the recorded business columns, and these bookkeeping
+#: columns are ignored. Anything not listed is still protected: a real change to
+#: a content or learning column is caught.
+IGNORED_COLUMNS: dict[str, frozenset[str]] = {
+    "word": frozenset({"user_id", "lexicon_entry_id"}),
+    "article": frozenset({"user_id"}),
+    "review_event": frozenset({"user_id"}),
+    "import_batch": frozenset({"user_id"}),
+    "import_candidate": frozenset({"lexicon_entry_id"}),
+    "history_event": frozenset({"user_id"}),
+}
+
 BASELINE_VERSION = 1
 
 
@@ -104,23 +121,42 @@ def row_hash(values: tuple) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def identity_columns(connection: sqlite3.Connection, table: str) -> list[str]:
+    """Columns that define a row's identity for verification purposes."""
+    ignored = IGNORED_COLUMNS.get(table, frozenset())
+    columns = [
+        row[1] for row in connection.execute(f'pragma table_info("{table}")') if row[1]
+    ]
+    kept = [name for name in columns if name not in ignored]
+    return kept or columns
+
+
 def table_fingerprint(
-    connection: sqlite3.Connection, table: str, *, hash_rows: bool = True
+    connection: sqlite3.Connection,
+    table: str,
+    *,
+    hash_rows: bool = True,
+    columns: list[str] | None = None,
 ) -> dict[str, object]:
     """Row count plus a per-row hash map keyed by rowid."""
     count = connection.execute(f'select count(*) from "{table}"').fetchone()[0]
     info: dict[str, object] = {"rows": count}
     if not hash_rows:
         return info
+    selected = columns if columns is not None else identity_columns(connection, table)
+    projected = ", ".join(f'"{name}"' for name in selected)
     hashes: dict[str, str] = {}
     try:
-        for rowid, *values in connection.execute(f'select rowid, * from "{table}"'):
+        for rowid, *values in connection.execute(
+            f'select rowid, {projected} from "{table}"'
+        ):
             hashes[str(rowid)] = row_hash(tuple(values))
     except sqlite3.Error:
         # WITHOUT ROWID tables fall back to positional keys.
-        for index, row in enumerate(connection.execute(f'select * from "{table}"')):
+        for index, row in enumerate(connection.execute(f'select {projected} from "{table}"')):
             hashes[str(index)] = row_hash(tuple(row))
     info["row_hashes"] = hashes
+    info["identity_columns"] = selected
     return info
 
 
@@ -258,7 +294,11 @@ def compare_against_baseline(
                 per_table[table] = entry
                 continue
 
-            current = table_fingerprint(connection, table)
+            current = table_fingerprint(
+                connection,
+                table,
+                columns=recorded.get("identity_columns") or None,
+            )
             entry["rows_baseline"] = recorded.get("rows")
             entry["rows_current"] = current["rows"]
             entry["status"] = "ok"

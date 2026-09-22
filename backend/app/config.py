@@ -113,10 +113,17 @@ class Settings:
 def get_settings() -> Settings:
     root = _project_root()
     data_dir = Path(os.getenv("VOCAB_DATA_DIR", str(root / "data"))).resolve()
+    # An explicit database path lets operator tooling and staging clones point at
+    # a specific file without moving it, and keeps the "one data directory, one
+    # vocab.db" convention intact for the real deployment.
+    explicit_database = os.getenv("VOCAB_DATABASE_PATH", "").strip()
+    database_path = (
+        Path(explicit_database).resolve() if explicit_database else data_dir / "vocab.db"
+    )
     settings = Settings(
         project_root=root,
         data_dir=data_dir,
-        database_path=data_dir / "vocab.db",
+        database_path=database_path,
         uploads_dir=data_dir / "uploads",
         backups_dir=data_dir / "backups",
         ocr_temp_dir=data_dir / "ocr-temp",

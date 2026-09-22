@@ -203,6 +203,67 @@ def test_verifier_never_writes_to_the_database(database: Path, baseline: dict) -
     assert verified_db.sha256_file(database) == before
 
 
+def test_added_columns_do_not_look_like_modified_rows(database: Path, baseline: dict) -> None:
+    """A migration may ADD a compatibility column without that counting as data loss.
+
+    The V1.2 migration adds bridge columns such as ``user_id``. Hashing
+    ``select *`` made every existing row look modified for that reason alone,
+    which is a false alarm that would train everyone to ignore the verifier.
+    """
+    connection = sqlite3.connect(str(database))
+    connection.execute("alter table word add column user_id integer")
+    connection.execute("update word set user_id = 7")
+    connection.commit()
+    connection.close()
+
+    verified, report = verified_db.compare_against_baseline(database, baseline)
+    assert verified, report["failures"]
+    assert report["tables"]["word"]["status"] == "ok"
+
+
+def test_real_content_change_after_an_added_column_still_fails(
+    database: Path, baseline: dict
+) -> None:
+    """Ignoring bookkeeping columns must not blind the verifier to real edits."""
+    connection = sqlite3.connect(str(database))
+    connection.execute("alter table word add column user_id integer")
+    connection.execute("update word set status = 'mastered' where id = 2")
+    connection.commit()
+    connection.close()
+
+    verified, report = verified_db.compare_against_baseline(database, baseline)
+    assert not verified
+    assert any("word" in failure and "changed" in failure for failure in report["failures"])
+
+
+def test_identity_columns_exclude_only_bookkeeping_columns(database: Path) -> None:
+    connection = sqlite3.connect(str(database))
+    try:
+        connection.execute("alter table word add column user_id integer")
+        connection.execute("alter table word add column lexicon_entry_id integer")
+        wanted = verified_db.identity_columns(connection, "word")
+    finally:
+        connection.close()
+    assert "user_id" not in wanted
+    assert "lexicon_entry_id" not in wanted
+    assert {"id", "word", "status"} <= set(wanted), wanted
+    #review_event has no excluded columns in this fixture shape
+    connection = sqlite3.connect(str(database))
+    try:
+        review_columns = verified_db.identity_columns(connection, "review_event")
+    finally:
+        connection.close()
+    assert "result" in review_columns
+
+
+def test_v1_2_tables_are_classified() -> None:
+    assert verified_db.classify("lexicon_entry") == "immutable"
+    assert verified_db.classify("lexicon") == "immutable"
+    assert verified_db.classify("user_word_state") == "append_only"
+    assert verified_db.classify("review_event") == "append_only"
+    assert verified_db.classify("history_event") == "append_only"
+
+
 def test_recorded_baseline_of_the_real_project_is_usable() -> None:
     """The committed baseline must describe the restored V1.1 database."""
     path = Path(__file__).resolve().parents[2] / "data/recovery/baseline.json"
