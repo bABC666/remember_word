@@ -8,10 +8,24 @@ end to end:
 * a second user can be created and can log in;
 * the second user cannot see or touch the admin's private data;
 * both users can read the shared public lexicon.
+
+By default it builds nothing and expects the staging clone produced by
+``tools/make_staging.py`` + ``tools/staging_migration_check.py``. With
+``--database`` it instead tests that exact file, which is how the 0007 release
+runbook verifies a *migrated copy of production* without ever writing to
+production: the accounts this check creates are written into the copy.
+
+Usage::
+
+    python tools/staging_two_user_check.py
+    python tools/staging_two_user_check.py \\
+        --database data/staging/post-0007-verification.db \\
+        --report data/recovery/post-0007-two-user-report.json
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sqlite3
 import subprocess
@@ -173,6 +187,35 @@ def start_server():
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Two-user isolation acceptance check against the staging clone, "
+        "or against --database when one is given (used to verify a migrated copy)."
+    )
+    parser.add_argument(
+        "--database",
+        type=Path,
+        default=None,
+        help="test this database instead of the default staging clone",
+    )
+    parser.add_argument("--report", type=Path, default=None, help="write the report here")
+    parser.add_argument("--port", type=int, default=None, help="port for the test server")
+    args = parser.parse_args()
+
+    global STAGING_DB, STAGING_DIR, REPORT, PORT, BASE
+    if args.database is not None:
+        # Every process this check spawns resolves its data directory from the
+        # database it is given, so the clone is the only thing that can be written.
+        STAGING_DB = args.database.resolve()
+        STAGING_DIR = STAGING_DB.parent
+    if args.report is not None:
+        REPORT = args.report
+    if args.port is not None:
+        PORT = args.port
+        BASE = f"http://127.0.0.1:{PORT}"
+
+    print("== target database ==")
+    print(f"  {STAGING_DB}")
+
     if not STAGING_DB.exists():
         print("staging clone missing; run tools/make_staging.py then "
               "tools/staging_migration_check.py")
@@ -290,6 +333,7 @@ def main() -> int:
             server.kill()
 
     payload = {"checks": checks, "failures": failures, "verified": not failures}
+    REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print()
     print("=" * 60)
