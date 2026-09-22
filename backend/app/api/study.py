@@ -9,7 +9,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.models import LexiconEntry, UserWordState
 from app.schemas import ReviewRequest
-from app.services.study import record_review_for_user
+from app.services.study import record_review_for_user, record_review_for_user_state
 from app.services.userdata import WordView
 
 router = APIRouter(prefix="/api/study", tags=["study"])
@@ -57,17 +57,47 @@ def review_word(
     user: CurrentUser,
     session: SessionDep,
 ) -> dict[str, object]:
-    """Record a review of one of **this user's** words.
+    """Record a review of one of **this user's** words, addressed by ``word.id``.
+
+    This is the V1.1 route and it keeps the V1.1 meaning of the id: the legacy
+    ``word.id``. It deliberately does **not** fall back to ``user_word_state.id``;
+    a state id sent here is simply not found. Words with no legacy row are reviewed
+    through ``POST /api/study/word-states/{state_id}/review``.
 
     Phase 0 flagged this endpoint as the highest-risk IDOR entry point: it took a
     bare ``word_id`` and wrote to whatever row it matched. It now resolves the id
-    through the caller's own ``UserWordState``, so guessing another user's id
-    returns 404 and changes nothing.
+    through the caller's own row, so guessing another user's id returns 404 and
+    changes nothing.
     """
     event = record_review_for_user(
         session,
         user,
         word_id,
+        payload.result,
+        payload.source,
+        payload.review_type,
+        payload.article_id,
+    )
+    return review_dict(event)
+
+
+@router.post("/word-states/{state_id}/review")
+def review_word_state(
+    state_id: int,
+    payload: ReviewRequest,
+    user: CurrentUser,
+    session: SessionDep,
+) -> dict[str, object]:
+    """Record a review addressed by this user's own ``user_word_state.id``.
+
+    A separate route with its own namespace, for words that have no legacy ``word``
+    row. Nothing is inferred: the id must be one of the caller's own learning
+    states, or the answer is 404 and nothing changes.
+    """
+    event = record_review_for_user_state(
+        session,
+        user,
+        state_id,
         payload.result,
         payload.source,
         payload.review_type,

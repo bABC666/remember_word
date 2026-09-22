@@ -87,7 +87,14 @@ def load_user_word(
 def load_user_word_state(
     session: Session, user: User, state_id: int, *, detail: str = NOT_FOUND_WORD
 ) -> WordView:
-    """Same as :func:`load_user_word` but addressed by ``user_word_state.id``."""
+    """Resolve one of **this user's words** by ``user_word_state.id``.
+
+    A separate, explicitly named namespace: ``/api/words/state/{id}`` and
+    ``/api/study/word-states/{id}/review`` use this and nothing else. The legacy
+    routes address a word by its ``word.id`` and never fall back to this one --
+    silently accepting either identifier made it impossible to tell which row a
+    request actually reached.
+    """
     row = session.execute(
         select(UserWordState, LexiconEntry)
         .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
@@ -97,20 +104,6 @@ def load_user_word_state(
         raise not_found(detail)
     state, entry = row
     return WordView(state=state, entry=entry)
-
-
-def find_user_word(session: Session, user: User, word_id: int) -> WordView | None:
-    """``load_user_word`` / ``load_user_word_state`` without raising.
-
-    Used where a caller legitimately accepts either identifier.
-    """
-    try:
-        return load_user_word(session, user, word_id)
-    except NotFoundError:
-        try:
-            return load_user_word_state(session, user, word_id)
-        except NotFoundError:
-            return None
 
 
 def get_or_create_word_state(

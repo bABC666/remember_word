@@ -21,6 +21,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -301,8 +302,62 @@ class World:
         anchor: str = "",
         sequence: int | None = None,
     ) -> tuple[int, int]:
-        """Create a lexicon entry plus this user's state. Returns (state_id, entry_id)."""
-        from app.models import LexiconEntry, UserWordState
+        """Create a lexicon entry plus this user's state. Returns (state_id, entry_id).
+
+        The word has no legacy ``word`` row, exactly like a word added from an
+        article: it is addressed through ``word_state_id``.
+        """
+        state_id, entry_id, _legacy = self._create_word(
+            word,
+            status=status,
+            lexicon_id=lexicon_id,
+            source_meanings=source_meanings,
+            source_raw=source_raw,
+            anchor=anchor,
+            sequence=sequence,
+            legacy=False,
+        )
+        return state_id, entry_id
+
+    def add_legacy_word(
+        self,
+        word: str,
+        *,
+        status: str = "new",
+        lexicon_id: int | None = None,
+        anchor: str = "",
+    ) -> tuple[int, int, int]:
+        """A word that also has a V1.1 ``word`` row, like every migrated word.
+
+        Returns (state_id, entry_id, legacy_word_id). Only such a word can be
+        addressed through the legacy routes, which take ``word.id``.
+        """
+        state_id, entry_id, legacy_word_id = self._create_word(
+            word,
+            status=status,
+            lexicon_id=lexicon_id,
+            source_meanings=None,
+            source_raw="",
+            anchor=anchor,
+            sequence=None,
+            legacy=True,
+        )
+        assert legacy_word_id is not None, "a legacy word must have a word.id"
+        return state_id, entry_id, legacy_word_id
+
+    def _create_word(
+        self,
+        word: str,
+        *,
+        status: str,
+        lexicon_id: int | None,
+        source_meanings: list[str] | None,
+        source_raw: str,
+        anchor: str,
+        sequence: int | None,
+        legacy: bool,
+    ) -> tuple[int, int, int | None]:
+        from app.models import LexiconEntry, UserWordState, Word
 
         target = lexicon_id if lexicon_id is not None else self.lexicon()
         with self.session() as session:
@@ -317,15 +372,43 @@ class World:
             )
             session.add(entry)
             session.flush()
+            legacy_word_id = None
+            if legacy:
+                now = datetime.now(UTC).replace(tzinfo=None)
+                row = Word(
+                    word=word,
+                    phonetic="",
+                    part_of_speech="",
+                    source_meanings=[],
+                    source_raw=source_raw or word,
+                    anchor=anchor or word,
+                    semantic_note="",
+                    status=status,
+                    first_seen=now,
+                    recall_success=0,
+                    recall_fail=0,
+                    consecutive_failures=0,
+                    context_exposure=0,
+                    possible_issue=False,
+                    notes="",
+                    created_at=now,
+                    updated_at=now,
+                    user_id=self.user_id,
+                    lexicon_entry_id=entry.id,
+                )
+                session.add(row)
+                session.flush()
+                legacy_word_id = row.id
             state = UserWordState(
                 user_id=self.user_id,
                 lexicon_entry_id=entry.id,
+                legacy_word_id=legacy_word_id,
                 status=status,
                 anchor_override=anchor or word,
             )
             session.add(state)
             session.commit()
-            return state.id, entry.id
+            return state.id, entry.id, legacy_word_id
 
     def add_article(
         self,
@@ -363,11 +446,18 @@ class World:
             return batch.id
 
     def add_review(self, state_id: int, result: str = "know") -> int:
-        from app.services.study import record_review_for_user
+        """Record a review through the state-id namespace.
+
+        ``add_word`` creates words with no legacy row, so this is the only
+        namespace that can address them.
+        """
+        from app.services.study import record_review_for_user_state
 
         with self.session() as session:
             user = self.reload_user()
-            event = record_review_for_user(session, user, state_id, result, "daily", "recall")
+            event = record_review_for_user_state(
+                session, user, state_id, result, "daily", "recall"
+            )
             return event.id
 
 

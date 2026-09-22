@@ -60,7 +60,10 @@ class ArticleGenerateRequest(BaseModel):
 
 
 class ArticleJudgeRequest(BaseModel):
-    word_id: int
+    #: The caller's own ``user_word_state.id``. Explicitly the state namespace: a
+    #: legacy ``word.id`` cannot address a word that was added from an article,
+    #: because that word has no ``word`` row.
+    word_state_id: int
     user_meaning: str = Field(min_length=1, max_length=1000)
 
 

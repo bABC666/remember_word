@@ -120,27 +120,32 @@ async def judge_article_word(
     user: CurrentUser,
     session: SessionDep,
 ) -> dict[str, object]:
+    """Judge the user's own attempt at one of this article's test words.
+
+    The word is named by ``word_state_id`` -- the caller's own ``user_word_state``
+    id -- and resolved through an owner-scoped lookup. A legacy ``word.id`` is not
+    accepted here (nor silently reinterpreted): a word added from an article has no
+    legacy row at all, so that namespace cannot address every test word.
+    """
     article = load_user_article(session, user, article_id)
+    state = session.scalar(
+        select(UserWordState).where(
+            UserWordState.user_id == user.id,
+            UserWordState.id == payload.word_state_id,
+        )
+    )
+    if state is None:
+        raise not_found("本篇文章中没有这个测试词")
     exposure = session.scalar(
         select(ArticleWordExposure).where(
             ArticleWordExposure.article_id == article.id,
-            ArticleWordExposure.word_id == payload.word_id,
+            ArticleWordExposure.lexicon_entry_id == state.lexicon_entry_id,
         )
     )
     if exposure is None:
         raise not_found("本篇文章中没有这个测试词")
-    entry = (
-        session.get(LexiconEntry, exposure.lexicon_entry_id)
-        if exposure.lexicon_entry_id
-        else None
-    )
-    state = session.scalar(
-        select(UserWordState).where(
-            UserWordState.user_id == user.id,
-            UserWordState.lexicon_entry_id == exposure.lexicon_entry_id,
-        )
-    )
-    if entry is None or state is None:
+    entry = session.get(LexiconEntry, state.lexicon_entry_id)
+    if entry is None:
         raise not_found("本篇文章中没有这个测试词")
     try:
         result = await DeepSeekProvider().judge_meaning(

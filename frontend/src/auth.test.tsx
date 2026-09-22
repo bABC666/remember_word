@@ -43,7 +43,7 @@ function route(url: string, method: string, who: 'none' | 'admin' | 'userb') {
   if (url.includes('/api/words')) {
     return json(
       who === 'admin'
-        ? { total: 1, words: [{ id: 1, word: 'ADMINWORD', status: 'weak', phonetic: '', part_of_speech: '', source_meanings: ['x'], source_raw: 'x', anchor: 'x', semantic_note: '', first_seen: '', last_review: null, next_review_at: null, recall_success: 0, recall_fail: 0, context_exposure: 0, possible_issue: false, notes: '' }] }
+        ? { total: 1, words: [{ id: 1, word_state_id: 3, legacy_word_id: 1, lexicon_entry_id: 2, lexicon_id: 1, word: 'ADMINWORD', status: 'weak', phonetic: '', part_of_speech: '', source_meanings: ['x'], source_raw: 'x', anchor: 'x', semantic_note: '', first_seen: '', last_review: null, next_review_at: null, recall_success: 0, recall_fail: 0, context_exposure: 0, possible_issue: false, notes: '' }] }
         : { total: 0, words: [] },
     )
   }

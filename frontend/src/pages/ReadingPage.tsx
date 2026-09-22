@@ -68,11 +68,14 @@ function ReadingQuiz({ article }: { article: Article }) {
   const words = article.quiz_words ?? []
   const word = words[index]
   const review = useMutation({
-    mutationFn: (result: ReviewResult) => api(`/api/study/words/${word.id}/review`, { method: 'POST', body: JSON.stringify({ result, source: 'reading', review_type: 'context_recall', article_id: article.id }) }),
+    // The words in a reading quiz are the article's own test words, including ones
+    // this user added from it -- those have no legacy `word` row, so they are
+    // addressed by `word_state_id` through the route that says so.
+    mutationFn: (result: ReviewResult) => api(`/api/study/word-states/${word.word_state_id}/review`, { method: 'POST', body: JSON.stringify({ result, source: 'reading', review_type: 'context_recall', article_id: article.id }) }),
     onSuccess: () => { setIndex((value) => value + 1); setMeaning(''); setRevealed(false); setSuggestion(null) },
   })
   const judge = useMutation({
-    mutationFn: () => api<{ suggestion: string; explanation: string }>(`/api/articles/${article.id}/judge`, { method: 'POST', body: JSON.stringify({ word_id: word.id, user_meaning: meaning }) }),
+    mutationFn: () => api<{ suggestion: string; explanation: string }>(`/api/articles/${article.id}/judge`, { method: 'POST', body: JSON.stringify({ word_state_id: word.word_state_id, user_meaning: meaning }) }),
     onSuccess: setSuggestion,
   })
   if (!word) return <EmptyState title="阅读后测试已完成" description="这篇文章中实际出现的目标词都已经复习过了。" />

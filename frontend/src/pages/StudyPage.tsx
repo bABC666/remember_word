@@ -13,7 +13,9 @@ export function StudyPage() {
   const words = query.data?.words ?? []
   const current = words[index]
   const mutation = useMutation({
-    mutationFn: (result: ReviewResult) => api(`/api/study/words/${current.id}/review`, { method: 'POST', body: JSON.stringify({ result, source: 'daily', review_type: 'recall' }) }),
+    // `word_state_id`, not the legacy id: a word added from an article has no
+    // `word` row, and the legacy route deliberately does not accept a state id.
+    mutationFn: (result: ReviewResult) => api(`/api/study/word-states/${current.word_state_id}/review`, { method: 'POST', body: JSON.stringify({ result, source: 'daily', review_type: 'recall' }) }),
     onSuccess: () => { setIndex((value) => value + 1); setRevealed(false) },
   })
 

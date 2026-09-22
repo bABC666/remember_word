@@ -2,7 +2,17 @@ export type WordStatus = 'new' | 'familiar' | 'learning' | 'known' | 'weak' | 'm
 export type ReviewResult = 'know' | 'fuzzy' | 'fail'
 
 export interface Word {
-  id: number
+  /**
+   * The V1.1 `word.id`, or null for a word added in V1.2 (one added from an
+   * article has no `word` row). It is not interchangeable with `word_state_id`:
+   * the legacy routes take only this, and they never fall back to the state id.
+   */
+  id: number | null
+  /** This user's own `user_word_state.id`. Always present for a word the user has. */
+  word_state_id: number
+  legacy_word_id: number | null
+  lexicon_entry_id: number
+  lexicon_id: number
   word: string
   phonetic: string
   part_of_speech: string

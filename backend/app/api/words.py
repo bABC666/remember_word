@@ -8,12 +8,7 @@ from sqlalchemy import or_, select
 from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.models import Article, ArticleWordExposure, LexiconEntry, ReviewEvent, UserWordState
-from app.services.userdata import (
-    NotFoundError,
-    WordView,
-    load_user_word,
-    load_user_word_state,
-)
+from app.services.userdata import WordView, load_user_word, load_user_word_state
 
 router = APIRouter(prefix="/api/words", tags=["words"])
 
@@ -78,27 +73,48 @@ def list_words(
     }
 
 
+@router.get("/state/{state_id}")
+def get_word_state(
+    state_id: int, user: CurrentUser, session: SessionDep
+) -> dict[str, object]:
+    """Detail for one of this user's words, addressed by ``user_word_state.id``.
+
+    The explicit namespace for words that have no legacy ``word`` row -- every word
+    a user adds from an article. ``GET /api/words/{id}`` keeps the V1.1 meaning of
+    the id and never falls back to this one.
+    """
+    return _word_detail(session, user, load_user_word_state(session, user, state_id))
+
+
 @router.get("/{word_id}")
 def get_word(word_id: int, user: CurrentUser, session: SessionDep) -> dict[str, object]:
-    """Detail for one of **this user's** words.
+    """Detail for one of **this user's** words, addressed by legacy ``word.id``.
 
     The previous high-risk endpoint loaded ``Word`` by primary key and returned
-    whatever it found, including another user's review history. The only lookups
-    now are owner-scoped, so guessing an id yields 404.
+    whatever it found, including another user's review history. The only lookup now
+    is owner-scoped, so guessing an id yields 404.
 
-    The id may be the legacy word id a client already knows, or the caller's own
-    ``user_word_state`` id for words that have no legacy row.
+    The id means exactly what it meant in V1.1, the legacy ``word.id``. A
+    ``user_word_state.id`` sent here is not found rather than silently reinterpreted.
     """
-    try:
-        view = load_user_word(session, user, word_id)
-    except NotFoundError:
-        view = load_user_word_state(session, user, word_id)
+    return _word_detail(session, user, load_user_word(session, user, word_id))
+
+
+def _word_detail(session: SessionDep, user: CurrentUser, view: WordView) -> dict[str, object]:
+    """The user's own learning state plus the history attached to that word.
+
+    History is matched on ``lexicon_entry_id``, which every review and every
+    exposure carries (migration 0006 backfilled the existing rows). Matching on the
+    legacy ``word_id`` would compare against NULL for a word that has no legacy row,
+    and ``word_id IS NULL`` matches unrelated rows instead of none.
+    """
+    entry_id = view.state.lexicon_entry_id
 
     reviews = session.scalars(
         select(ReviewEvent)
         .where(
             ReviewEvent.user_id == user.id,
-            ReviewEvent.word_id == view.state.legacy_word_id,
+            ReviewEvent.lexicon_entry_id == entry_id,
         )
         .order_by(ReviewEvent.timestamp.desc())
     ).all()
@@ -108,7 +124,7 @@ def get_word(word_id: int, user: CurrentUser, session: SessionDep) -> dict[str, 
         .join(Article, Article.id == ArticleWordExposure.article_id)
         .where(
             Article.user_id == user.id,
-            ArticleWordExposure.word_id == view.state.legacy_word_id,
+            ArticleWordExposure.lexicon_entry_id == entry_id,
         )
         .order_by(ArticleWordExposure.last_exposed_at.desc())
     ).all()

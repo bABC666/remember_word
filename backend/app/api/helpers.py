@@ -38,18 +38,22 @@ def word_dict_from_view(view: WordView) -> dict[str, object]:
     """Serialize lexicon content plus **this user's** learning state.
 
     Content comes from the shared ``LexiconEntry``; every learning field comes
-    from the caller's own ``UserWordState``. ``id`` keeps the V1.1 meaning (the
-    legacy word id) so existing clients and URLs keep working, and the newer
-    identifiers are exposed alongside it.
+    from the caller's own ``UserWordState``.
+
+    ``id`` is the legacy ``word.id`` and nothing else, so it is ``None`` for a word
+    that never had a legacy row (every word added from an article). It is not a
+    stand-in for the state id: a client that needs to address such a word uses
+    ``word_state_id`` with the explicit routes
+    (``GET /api/words/state/{id}``, ``POST /api/study/word-states/{id}/review``).
+    Reporting one field that sometimes meant the legacy id and sometimes the state
+    id made the server accept either identifier on the same route, which is exactly
+    the ambiguity that let a request resolve to a different row than the caller
+    meant.
     """
     state = view.state
     entry = view.entry
     return {
-        # ``id`` keeps the V1.1 meaning for migrated words (the legacy word id) so
-        # existing clients and URLs keep working, and falls back to the state id
-        # for words that have no legacy row. Either value resolves through the
-        # same owner-scoped lookup.
-        "id": state.legacy_word_id if state.legacy_word_id is not None else state.id,
+        "id": state.legacy_word_id,
         "word_state_id": state.id,
         "legacy_word_id": state.legacy_word_id,
         "lexicon_entry_id": entry.id,
