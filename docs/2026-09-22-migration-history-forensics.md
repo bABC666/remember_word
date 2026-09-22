@@ -66,7 +66,11 @@
 
 也就是说，我上一轮说的“已应用即冻结”实际上只对这些文件的 **DDL 与数据语义**成立，
 对 **0005 的文件字节**并不成立。这一点必须明确记录，因为“迁移文件一旦应用就不再改动”
-正是可审计性的基础规则；我为了修一个 fail-open 缺陷而破了这条规则，且没有在报告里如实标注。
+正是可审计性的基础规则；我为了补上一个缺失的预检而破了这条规则，且没有在报告里如实标注。
+
+还有一处我必须自我纠正的描述错误：上一轮我把 0005 的改动说成“预检前移”（暗示被应用的版本里
+本来就有预检）。逐字节核对后，**被应用的那一版根本没有任何预检**——这次改动是纯新增（+63/−0）。
+详见第 4 节。
 
 ## 4. 0005 的改动
 
@@ -75,18 +79,24 @@
 | 修改前 commit | `6ad8fce58041b03977deb2a98ae668cc22eef35a`（文件自 `0d789c9` 创建后从未变过） |
 | 修改后 commit | `cfbabc62c78361cedfc8bf661b618d4471a95c95` |
 | blob | `72348b9be6…` → `5d82e5dc4a…` |
+| diff 规模 | **+63 行 / −0 行（纯新增，没有任何一行被删除或修改）** |
 
-diff 的实质（`git diff 6ad8fce HEAD -- backend/alembic/versions/0005_lexicon_and_migration.py`）：
+`git diff --numstat 6ad8fce HEAD -- backend/alembic/versions/0005_lexicon_and_migration.py`
+输出 `63  0`，即这次改动**只增加代码**：
 
-1. 新增三个**只读**函数：`_normalized_word_key()`、`find_normalized_duplicates()`、
+1. 新增三个函数：`_normalized_word_key()`、`find_normalized_duplicates()`、
    `preflight_normalized_words()`（后者只执行 `select id, word from word order by id`，
-   有冲突时 `raise RuntimeError`，无冲突时直接返回）——这些函数在应用版本中**不存在**；
-2. `_migrate_data()` 内部原本第一行的 `preflight_normalized_words(connection)` 调用被删除；
-3. `upgrade()` 第一行新增 `preflight_normalized_words(op.get_bind())`，位置在
-   `_add_compat_columns()` / `_create_lexicon_tables()` **之前**。
+   有冲突时 `raise RuntimeError`，无冲突时直接返回）；
+2. `upgrade()` 第一行新增 `preflight_normalized_words(op.get_bind())` 调用，
+   位置在 `_add_compat_columns()` / `_create_lexicon_tables()` **之前**。
 
-即：预检从「DDL 之后、任何数据写入之前」前移到「任何语句之前」。没有任何 DDL、列定义、
-增删列、数据写入或数据变换语句被改动。
+**必须纠正的一处错误描述**：上一轮我（在 `cfbabc6` 的提交信息与报告里）说“预检本来就存在，
+只是位置太靠后，现在把它前移”。**这不成立。** 经逐字节核对，**被应用的那一版 0005 里完全没有
+预检**（`Select-String -Pattern 'preflight|normalized_dup|find_normalized'` 在被应用版本中零命中）。
+真相是：预检是本次修复**新增**的能力；`cfbabc6` 是本会话中先在工作区加入预检、随后把调用点放到
+`upgrade()` 开头，两次未提交修改合并成的一次提交。因此对 0005 的正确描述是
+“**新增预检**”，而不是“前移预检”。`cfbabc6` 的提交信息与上一轮报告中的那句话应视为勘误，
+本文与 manifest 以本文为准；那条提交信息本身不重写（改写已提交的历史只会制造新的不可审计点）。
 
 ### 4.1 是否改变最终 schema —— 否，且已实测
 
@@ -108,21 +118,28 @@ diff 的实质（`git diff 6ad8fce HEAD -- backend/alembic/versions/0005_lexicon
 `PRAGMA foreign_key_list` 结果一致——这是 SQLAlchemy/SQLite 在重建表时按反射顺序输出子句造成的
 文本顺序差异，不是 schema 差异。
 
-### 4.2 是否改变数据迁移语义 —— 否，且在 production 上不可观测
+新增的 63 行全部是只读函数与一次调用，不含任何 `op.` 语句：`_add_compat_columns()`、
+`_create_lexicon_tables()` 与全部数据写入语句在两版之间逐字节相同，因此最终 schema 相同的结论
+既来自推理也来自上面的实测。
 
-* 应用版本：预检在 `_migrate_data()` 第一行，位于 `_create_lexicon_tables()` 之后、
-  **任何数据写入之前**；新版本：预检在 `upgrade()` 第一行。两版都在第一次数据写入之前执行且
-  只执行一次，因此对「无冲突」的数据库来说执行路径与结果完全相同。
-* production 无冲突：迁移后 `word` 19 行、`lexicon_entry` 19 行、`user_word_state` 19 行
-  （`normalized_word` 唯一），说明没有任何合并、删除或覆盖发生。
+### 4.2 是否改变数据迁移语义 —— 对 production 无影响，对冲突库只是中止时机
+
+* 新增的 `preflight_normalized_words()` 只做一次 `SELECT`：无冲突时立即返回，
+  对数据库没有任何写入；有冲突时抛 `RuntimeError`。它在 `upgrade()` 的最开头执行，
+  早于任何 DDL 与数据语句。
+* production 无冲突：`lexicon_entry` 19 行、`normalized_word` 去重后仍为 19、`lexicon` 1 个
+  （已实测），即迁移路径上这段新代码什么都没做，行为与应用版本完全一致。
 * 回放比对：8 张冻结内容表（`word`、`review_event`、`article`、`article_word_exposure`、
   `article_word_lookup`、`import_batch`、`import_image`、`import_candidate`）以及
   `lexicon_entry`、`user_word_state` 在回放库与 production 之间**逐行相同**。
 * 其余差异全部可解释，且都不来自 0005 的改动：`lexicon`/`user`/`user_lexicon`/`user_settings`
   只差迁移时写入的 `created_at`/`updated_at`/`started_at` 时间戳；`history_event`/`app_setting`
   是应用在迁移之后自己写入的行（+1/+3）。
-* 唯一的语义差别只出现在**有冲突**的数据库上：旧版会先建表建列、再中止；新版零改动直接中止。
-  production 不属于这种情况。
+* 唯一的语义差别只出现在**有规范化冲突**的数据库上：应用版本会在 `_ensure_user_word_state`
+  撞上 `UNIQUE(user_id, lexicon_entry_id)` 而中途失败（此时 DDL 已执行、部分数据已写入，
+  库停在“revision 仍是 0004、新表新列却已存在”的状态，二次迁移会失败）；
+  当前版本零改动直接中止并列出冲突行。production 不属于这种情况
+  （其 19 个词互不冲突，已实测）。
 
 ## 5. 如何恢复 migration history 的可审计性
 
