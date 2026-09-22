@@ -4,11 +4,35 @@ import hashlib
 import os
 import subprocess
 import tempfile
+from contextlib import contextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
+
+from PIL import Image
 
 from app.config import get_settings
 from app.services.ocr.base import OCRDocument, OCRLine, OCRProviderError
+
+
+@contextmanager
+def prepared_ocr_image(image_path: Path, max_side: int = 2200):
+    """Yield an OCR-sized copy for very large photos while preserving the source file."""
+    temporary: Path | None = None
+    with Image.open(image_path) as source:
+        if max(source.size) <= max_side:
+            yield image_path
+            return
+        resized = source.convert("RGB")
+        resized.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+        temporary = get_settings().ocr_temp_dir / f"{image_path.stem}-{uuid4().hex}.jpg"
+        temporary.parent.mkdir(parents=True, exist_ok=True)
+        resized.save(temporary, "JPEG", quality=94, optimize=True)
+    try:
+        yield temporary
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def configure_paddle_environment() -> Path:
@@ -88,10 +112,11 @@ class PaddleOCRProvider:
     def extract(self, image_path: Path) -> OCRDocument:
         engine = self._get_engine()
         try:
-            if hasattr(engine, "predict"):
-                result = list(engine.predict(str(image_path)))
-                return self._from_v3(result)
-            return self._from_legacy(engine.ocr(str(image_path), cls=True))
+            with prepared_ocr_image(image_path) as prepared:
+                if hasattr(engine, "predict"):
+                    result = list(engine.predict(str(prepared)))
+                    return self._from_v3(result)
+                return self._from_legacy(engine.ocr(str(prepared), cls=True))
         except OCRProviderError:
             raise
         except Exception as error:
@@ -134,3 +159,9 @@ class PaddleOCRProvider:
                     OCRLine(text=str(recognized[0]), confidence=float(recognized[1]), box=box)
                 )
         return OCRDocument(provider=self.name, lines=lines, raw=result or [])
+
+
+@lru_cache(maxsize=8)
+def get_paddle_provider(language: str = "en", use_gpu: bool = False) -> PaddleOCRProvider:
+    """Keep one lazily initialized Paddle engine per runtime configuration."""
+    return PaddleOCRProvider(language=language, use_gpu=use_gpu)

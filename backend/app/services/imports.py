@@ -1,9 +1,41 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import HistoryEvent, ImportBatch, ImportCandidate, Word
+from app.services.ocr.base import OCRProvider
+
+
+def process_batch_ocr(session: Session, batch: ImportBatch, provider: OCRProvider) -> None:
+    """Process only unfinished active images and rebuild the batch aggregate."""
+    documents: list[dict[str, object]] = []
+    texts: list[str] = []
+    for image in batch.images:
+        if image.is_deleted:
+            continue
+        if image.ocr_raw_json:
+            documents.append(image.ocr_raw_json)
+            if image.ocr_text:
+                texts.append(image.ocr_text)
+            continue
+        document = provider.extract(Path(image.file_path))
+        image.ocr_text = document.text
+        image.ocr_raw_json = document.model_dump(mode="json")
+        image.error_message = ""
+        documents.append(image.ocr_raw_json)
+        if image.ocr_text:
+            texts.append(image.ocr_text)
+        session.commit()
+    batch.raw_ocr_text = "\n\n".join(texts)
+    batch.raw_ocr_json = {"provider": provider.name, "documents": documents}
+    batch.status = "ocr_complete"
+    batch.stage = "ocr"
+    batch.error_stage = ""
+    batch.error_message = ""
+    session.commit()
 
 
 def confirm_candidates(session: Session, batch_id: int, candidate_ids: list[int]) -> list[Word]:

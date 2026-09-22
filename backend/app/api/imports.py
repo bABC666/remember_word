@@ -15,8 +15,8 @@ from app.db import get_session
 from app.models import AppSetting, HistoryEvent, ImportBatch, ImportCandidate, ImportImage
 from app.schemas import CandidateUpdate, ConfirmCandidatesRequest
 from app.services.ai import AIProviderError, DeepSeekProvider
-from app.services.imports import confirm_candidates, record_import_failure
-from app.services.ocr import OCRProviderError, PaddleOCRProvider
+from app.services.imports import confirm_candidates, process_batch_ocr, record_import_failure
+from app.services.ocr import OCRProviderError, get_paddle_provider
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
 
@@ -182,28 +182,12 @@ def run_ocr(batch_id: int, session: Session = Depends(get_session)) -> dict[str,
     batch = _load_batch(session, batch_id)
     language_setting = session.get(AppSetting, "ocr_language")
     gpu_setting = session.get(AppSetting, "ocr_use_gpu")
-    provider = PaddleOCRProvider(
+    provider = get_paddle_provider(
         language=language_setting.value if language_setting else "en",
         use_gpu=gpu_setting is not None and gpu_setting.value.lower() == "true",
     )
-    documents: list[dict[str, object]] = []
-    texts: list[str] = []
     try:
-        for image in batch.images:
-            document = provider.extract(Path(image.file_path))
-            image.ocr_text = document.text
-            image.ocr_raw_json = document.model_dump(mode="json")
-            image.error_message = ""
-            documents.append(document.model_dump(mode="json"))
-            texts.append(document.text)
-            session.commit()
-        batch.raw_ocr_text = "\n\n".join(texts)
-        batch.raw_ocr_json = {"provider": provider.name, "documents": documents}
-        batch.status = "ocr_complete"
-        batch.stage = "ocr"
-        batch.error_stage = ""
-        batch.error_message = ""
-        session.commit()
+        process_batch_ocr(session, batch, provider)
     except OCRProviderError as error:
         record_import_failure(session, batch.id, "ocr", error)
         raise HTTPException(503, str(error)) from error
