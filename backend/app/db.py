@@ -88,53 +88,112 @@ def get_session() -> Generator[Session, None, None]:
 
 
 class SchemaRevisionError(RuntimeError):
-    """Raised when the database revision does not match the code's head."""
+    """Raised when the database revision does not match the code's head.
+
+    Every abnormal state raises this: the application must never start on a
+    guess. A warning would let a mismatched process run against real data, which
+    is exactly the failure this guard exists to prevent.
+    """
 
 
-def code_head_revision() -> str | None:
-    """The single Alembic head revision this codebase expects."""
+def code_head_revisions() -> list[str]:
+    """Every Alembic head this codebase declares.
+
+    Normally exactly one. More than one means the migration graph has branched,
+    which is a defect in the repository, not something to paper over.
+    """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     backend_root = Path(__file__).resolve().parents[1]
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option("script_location", str(backend_root / "alembic"))
-    heads = ScriptDirectory.from_config(config).get_heads()
-    return heads[0] if len(heads) == 1 else None
+    try:
+        return sorted(ScriptDirectory.from_config(config).get_heads())
+    except Exception as error:
+        raise SchemaRevisionError(
+            f"无法读取 migration 目录以确定代码 head：{error}"
+        ) from error
 
 
-def database_revision(database_path: Path) -> str | None:
-    """The revision recorded in the database, or None when there is none."""
+def code_head_revision() -> str:
+    """The single head revision this codebase expects.
+
+    Raises rather than returning ``None`` so a caller can never mistake "cannot
+    tell" for "nothing to check". An empty or branched head set is fatal.
+    """
+    heads = code_head_revisions()
+    if len(heads) != 1:
+        raise SchemaRevisionError(
+            f"代码的 migration head 数量为 {len(heads)}（期望恰好 1 个）：{heads}。\n"
+            "多个 head 说明 migration 图出现分叉，必须先修复 migration 历史。"
+        )
+    return heads[0]
+
+
+def database_revisions(database_path: Path) -> list[str]:
+    """Every row of ``alembic_version`` in the database.
+
+    Every row is counted, including ones that are not usable strings. Alembic
+    records exactly one non-null row, so a second row -- or a row that is NULL or
+    empty -- means the version table is corrupt and the schema state is unknowable.
+    Dropping unusable rows and then finding "exactly one left" would turn a
+    corrupt table into a passing check, which is the opposite of this guard's job.
+    """
     import sqlite3
 
     if not database_path.exists():
-        return None
-    connection = sqlite3.connect(f"file:{database_path.as_posix()}?mode=ro", uri=True)
+        raise SchemaRevisionError(f"数据库文件不存在：{database_path}")
+
     try:
-        row = connection.execute("select version_num from alembic_version").fetchone()
-        return row[0] if row else None
-    except sqlite3.Error:
-        return None
+        connection = sqlite3.connect(f"file:{database_path.as_posix()}?mode=ro", uri=True)
+    except sqlite3.Error as error:
+        raise SchemaRevisionError(
+            f"无法以只读方式打开 {database_path}：{error}"
+        ) from error
+    try:
+        try:
+            rows = connection.execute("select version_num from alembic_version").fetchall()
+        except sqlite3.Error as error:
+            raise SchemaRevisionError(
+                f"无法读取 {database_path} 的 alembic_version 表：{error}\n"
+                "该数据库可能不是由 Alembic 管理的。"
+            ) from error
+        revisions = [row[0] for row in rows]
+        if len(revisions) != 1 or not isinstance(revisions[0], str) or not revisions[0]:
+            raise SchemaRevisionError(
+                f"{database_path} 的 alembic_version 表有 {len(revisions)} 行"
+                f"（期望恰好 1 行且非空）：{revisions}"
+            )
+        return revisions
     finally:
         connection.close()
 
 
-def verify_schema_revision(database_path: Path, *, expected: str | None = None) -> None:
-    """Refuse to start when the database is not at the revision the code needs.
+def database_revision(database_path: Path) -> str:
+    """The single revision recorded in the database, or raise."""
+    return database_revisions(database_path)[0]
 
-    Running mismatched code against real data is how a working application turns
-    into a confusing half-broken one: the app starts, then fails on whichever
-    query needs a column that does not exist yet.
+
+def verify_schema_revision(database_path: Path, *, expected: str | None = None) -> None:
+    """Refuse to start unless the schema state is unambiguous and matching.
+
+    All three conditions must hold:
+
+    1. the codebase declares exactly one Alembic head;
+    2. the database records exactly one revision row;
+    3. the two are equal.
+
+    Anything else -- zero or multiple code heads, zero or multiple database
+    revisions, an unreadable or missing version table, or a mismatch -- raises
+    ``SchemaRevisionError``. There is no warning path and no implicit default.
     """
-    expected = expected or code_head_revision()
-    if expected is None:
-        return
+    head = expected or code_head_revision()
     actual = database_revision(database_path)
-    if actual == expected:
-        return
-    raise SchemaRevisionError(
-        f"数据库版本是 {actual!r}，而当前代码需要 {expected!r}。\n"
-        f"数据库：{database_path}\n"
-        "请先运行迁移（backend/.venv/Scripts/python.exe -m alembic upgrade head），"
-        "或切换到与该数据库版本匹配的代码后再启动。"
-    )
+    if actual != head:
+        raise SchemaRevisionError(
+            f"数据库版本是 {actual!r}，而当前代码需要 {head!r}。\n"
+            f"数据库：{database_path}\n"
+            "请先运行迁移（backend/.venv/Scripts/python.exe -m alembic upgrade head），"
+            "或切换到与该数据库版本匹配的代码后再启动。"
+        )
