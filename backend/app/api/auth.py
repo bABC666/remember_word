@@ -5,13 +5,14 @@ from sqlalchemy import select
 
 from app.api.deps import (
     AdminUser,
+    CurrentSession,
     CurrentUser,
     SessionDep,
     ensure_user_settings,
     find_user_by_username,
 )
 from app.config import get_settings
-from app.models import HistoryEvent, User, UserSettings
+from app.models import HistoryEvent, User, UserSession, UserSettings
 from app.schemas import (
     ChangePasswordRequest,
     CreateUserRequest,
@@ -28,9 +29,11 @@ from app.services.auth import (
     COOKIE_NAME,
     create_session,
     find_session_record,
+    list_user_sessions,
     normalize_username,
     revoke_all_sessions,
     revoke_session,
+    revoke_user_session,
     set_password,
 )
 from app.services.limiter import login_limiter
@@ -249,6 +252,78 @@ def logout(request: Request, response: Response, session: SessionDep) -> dict[st
     # Deleted with the same attributes it was set with, so the deletion keeps
     # working if the cookie ever moves behind a __Host-/__Secure- prefixed name.
     response.delete_cookie(COOKIE_NAME, **_session_cookie_attributes())
+    return {"ok": True}
+
+
+def session_dict(record: UserSession, *, current_session_id: int) -> dict[str, object]:
+    """One session, as the caller's own device list needs it.
+
+    The field list is the whole contract and it stops at metadata: the raw token
+    exists only inside the HttpOnly cookie and ``token_hash`` is the verification
+    material, so neither -- nor anything derived from them -- belongs in a response.
+    """
+    return {
+        "id": record.id,
+        "current": record.id == current_session_id,
+        "created_at": record.created_at,
+        "last_seen_at": record.last_seen_at,
+        "expires_at": record.expires_at,
+        "user_agent": record.user_agent,
+    }
+
+
+@router.get("/api/auth/sessions")
+def list_sessions(
+    session: SessionDep, user: CurrentUser, current: CurrentSession
+) -> dict[str, object]:
+    """The caller's own live sessions, most recently active first.
+
+    Only rows whose ``user_id`` is the caller's are ever read, and dead ones (revoked,
+    past their absolute expiry, or idle) are left out: they cannot be used and
+    ``prune_sessions`` removes them anyway, so listing them would offer the user
+    buttons that do nothing.
+    """
+    records = list_user_sessions(session, user)
+    return {"sessions": [session_dict(record, current_session_id=current.id) for record in records]}
+
+
+@router.delete("/api/auth/sessions/{session_id}")
+def revoke_session_endpoint(
+    session_id: int,
+    response: Response,
+    session: SessionDep,
+    user: CurrentUser,
+    current: CurrentSession,
+) -> dict[str, bool]:
+    """Revoke one of the caller's own sessions.
+
+    The lookup is scoped by ``user_id``, and another user's session id answers 404
+    exactly like an id that does not exist -- so this endpoint cannot be used to
+    discover which session ids are real (the project's IDOR rule: 404, never 403).
+
+    Revoking is idempotent: a repeat request is a success that changes nothing and
+    writes no second audit event. When the session being revoked is the one making
+    the request, the cookie is deleted too -- otherwise the caller would be left
+    holding a dead cookie until the next request failed.
+    """
+    record, changed = revoke_user_session(session, user, session_id)
+    if changed:
+        # Only a revocation that actually happened is worth recording, so a repeat
+        # request adds no second event.
+        session.add(
+            HistoryEvent(
+                user_id=user.id,
+                event_type="session_revoked",
+                entity_type="user_session",
+                entity_id=record.id,
+                payload={"current": record.id == current.id},
+            )
+        )
+        session.commit()
+    if record.id == current.id:
+        # Revoking the session making the request is a logout: clear the cookie with
+        # the same attributes it was issued with.
+        response.delete_cookie(COOKIE_NAME, **_session_cookie_attributes())
     return {"ok": True}
 
 

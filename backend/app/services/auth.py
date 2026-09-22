@@ -4,12 +4,13 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import User, UserSession, UserSettings
 from app.security import UNUSABLE_PASSWORD, hash_password
+from app.services.userdata import NOT_FOUND_SESSION, not_found
 
 COOKIE_NAME = "shici_session"
 
@@ -268,6 +269,56 @@ def prune_sessions(session: Session, now: datetime | None = None) -> int:
     session.expire_all()
     session.commit()
     return int(result.rowcount or 0)
+
+
+def list_user_sessions(
+    session: Session, user: User, *, now: datetime | None = None
+) -> list[UserSession]:
+    """This user's live sessions, most recently active first.
+
+    Liveness is decided by :func:`session_is_live` rather than by a second SQL
+    predicate: the list has to agree with the check every request goes through, and
+    two definitions of "usable" is exactly how they drift apart. A user has a
+    handful of sessions, and dead rows are removed by :func:`prune_sessions`, so
+    filtering here costs nothing worth optimising.
+
+    Ordering is ``COALESCE(last_seen_at, created_at) DESC``: a session that has never
+    been used falls back to when it was issued, which is the honest answer.
+    """
+    moment = now or datetime.now(UTC)
+    records = session.scalars(
+        select(UserSession)
+        .where(UserSession.user_id == user.id)
+        .order_by(
+            func.coalesce(UserSession.last_seen_at, UserSession.created_at).desc(),
+            UserSession.id.desc(),
+        )
+    ).all()
+    return [record for record in records if session_is_live(record, now=moment)]
+
+
+def revoke_user_session(
+    session: Session, user: User, session_id: int, now: datetime | None = None
+) -> tuple[UserSession, bool]:
+    """Revoke one of this user's sessions, or raise ``NotFoundError``.
+
+    The lookup is scoped by ``user_id`` in SQL, so another user's id and an id that
+    does not exist produce the same refusal: a probe cannot tell "not yours" from
+    "not there".
+
+    Returns the row and whether *this* call is what revoked it, so the caller can
+    record an audit event for a real revocation without one for a repeat request.
+    Revoking is idempotent and keeps the original revocation time.
+    """
+    record = session.scalar(
+        select(UserSession).where(
+            UserSession.id == session_id, UserSession.user_id == user.id
+        )
+    )
+    if record is None:
+        raise not_found(NOT_FOUND_SESSION)
+    changed = revoke_session(session, record, now)
+    return record, changed
 
 
 def revoke_all_sessions(session: Session, user: User, now: datetime | None = None) -> int:

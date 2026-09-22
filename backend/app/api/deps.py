@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.models import User, UserSettings
+from app.models import User, UserSession, UserSettings
 from app.services.auth import COOKIE_NAME, resolve_session, touch_session
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -28,24 +28,40 @@ def _unauthorized(detail: str = "请先登录") -> HTTPException:
     )
 
 
-def get_current_user(
+def get_current_session(
     session: SessionDep,
     shici_session: Annotated[str | None, Cookie(alias=COOKIE_NAME)] = None,
-) -> User:
-    """The authenticated user, or 401.
+) -> UserSession:
+    """The session row this request is using, or 401.
 
     The cookie is read under :data:`app.services.auth.COOKIE_NAME` -- the same
-    constant the login endpoint writes and the logout endpoint deletes, so the
-    name has exactly one definition in the codebase.
+    constant the login endpoint writes and the logout endpoint deletes, so the name
+    has exactly one definition in the codebase.
+
+    Session management needs to know *which* of the caller's sessions is making the
+    request: to mark it ``current`` in a listing, and to clear the cookie when it is
+    the one being revoked. Authentication alone does not answer that. Routes that
+    only need the user take :data:`CurrentUser`, which depends on this -- FastAPI
+    resolves a dependency once per request, so a route asking for both still reads
+    the cookie once.
+    """
+    record = resolve_session(session, shici_session or "")
+    if record is None:
+        raise _unauthorized()
+    return record
+
+
+CurrentSession = Annotated[UserSession, Depends(get_current_session)]
+
+
+def get_current_user(session: SessionDep, record: CurrentSession) -> User:
+    """The authenticated user, or 401.
 
     ``touch_session`` runs only after the session *and* the account have been
     accepted, so a rejected request never refreshes anything. It records the use
     for the idle timeout and deliberately changes nothing else: no new session, no
     rotated token, no extension of ``expires_at``.
     """
-    record = resolve_session(session, shici_session or "")
-    if record is None:
-        raise _unauthorized()
     user = session.get(User, record.user_id)
     if user is None or not user.is_active:
         raise _unauthorized()

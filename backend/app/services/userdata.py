@@ -33,6 +33,7 @@ NOT_FOUND_WORD = "单词不存在"
 NOT_FOUND_ARTICLE = "文章不存在"
 NOT_FOUND_BATCH = "导入批次不存在"
 NOT_FOUND_LEXICON = "词库不存在"
+NOT_FOUND_SESSION = "会话不存在"
 
 
 class NotFoundError(LookupError):
