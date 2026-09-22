@@ -106,6 +106,104 @@ def test_username_is_case_insensitive(auth_db, client) -> None:
     assert response.json()["username"] == "mixed-case"
 
 
+def test_all_four_login_failures_are_indistinguishable(auth_db, client) -> None:
+    """Unknown, wrong password, no password set and disabled: one answer, word for word.
+
+    A distinct answer for any of them -- in body or in status -- tells an
+    unauthenticated caller that a username exists, is disabled, or has never been
+    given a password.
+    """
+    create_user(auth_db, "known-user")
+    create_user(auth_db, "sentinel-user", password=None)
+    create_user(auth_db, "disabled-user", is_active=False)
+
+    cases = {
+        "unknown username": {"username": "no-such-user", "password": PASSWORD},
+        "wrong password": {"username": "known-user", "password": "definitely-wrong"},
+        "no password set": {"username": "sentinel-user", "password": PASSWORD},
+        "disabled account": {"username": "disabled-user", "password": PASSWORD},
+    }
+
+    for label, payload in cases.items():
+        response = client.post("/api/auth/login", json=payload)
+        assert response.status_code == 401, label
+        assert response.json() == {"detail": "用户名或密码不正确"}, (label, response.json())
+        # The refusal must not name the account, its state, or any operator command.
+        assert "set-password" not in response.text, label
+        assert "尚未设置密码" not in response.text, label
+        assert "no-such-user" not in response.text, label
+        # And a refusal never issues a session.
+        assert "set-cookie" not in response.headers, label
+
+    assert client.get("/api/auth/me").status_code == 401
+
+
+def test_every_login_path_performs_exactly_one_password_verification(
+    auth_db, client, monkeypatch
+) -> None:
+    """The unknown-username path must do the same hashing work as a real account.
+
+    Verifying against a dummy hash is what removes the timing side channel: without
+    it an unknown username answers in about a millisecond while a known one pays
+    for Argon2. The work is asserted directly (a call count), not by measuring
+    clock time, so the test cannot flake.
+    """
+    import app.api.auth as auth_module
+    from app.security import dummy_password_hash
+
+    real_verify = auth_module.verify_password
+    calls: list[tuple[str, str]] = []
+
+    def spy(password: str, password_hash: str) -> bool:
+        calls.append((password, password_hash))
+        return real_verify(password, password_hash)
+
+    monkeypatch.setattr(auth_module, "verify_password", spy)
+    create_user(auth_db, "verified-user")
+    create_user(auth_db, "verified-sentinel", password=None)
+
+    with auth_db() as session:
+        stored = session.scalar(
+            select(User.password_hash).where(User.username == "verified-user")
+        )
+    assert stored is not None
+
+    def attempt(payload: dict[str, str]) -> int:
+        calls.clear()
+        response = client.post("/api/auth/login", json=payload)
+        assert len(calls) == 1, f"{payload['username']}: {len(calls)} verifications"
+        return response.status_code
+
+    dummy = dummy_password_hash()
+    # Unknown user: one verification, against a hash of a discarded password.
+    assert attempt({"username": "verified-missing", "password": "x"}) == 401
+    assert calls[0][1] == dummy, "the unknown-username path must pay for a verification"
+
+    # Existing accounts: one verification, against the account's own hash.
+    assert attempt({"username": "verified-user", "password": "wrong"}) == 401
+    assert calls[0][1] == stored
+    assert attempt({"username": "verified-user", "password": PASSWORD}) == 200
+    assert calls[0][1] == stored
+
+    # An account with no password has no usable hash, so it verifies against the
+    # dummy as well -- and is refused even if that verification were to match.
+    assert attempt({"username": "verified-sentinel", "password": PASSWORD}) == 401
+    assert calls[0][1] == dummy
+
+    # A disabled account is verified like any other before being refused.
+    create_user(auth_db, "verified-disabled", is_active=False)
+    with auth_db() as session:
+        disabled_hash = session.scalar(
+            select(User.password_hash).where(User.username == "verified-disabled")
+        )
+    assert attempt({"username": "verified-disabled", "password": PASSWORD}) == 401
+    assert calls[0][1] == disabled_hash
+
+    # The dummy hash is never stored anywhere: it belongs to no account.
+    with auth_db() as session:
+        assert session.scalar(select(User).where(User.password_hash == dummy)) is None
+
+
 def test_wrong_password_is_rejected_without_leaking_existence(auth_db, client) -> None:
     create_user(auth_db, "existing-user")
     wrong = client.post(
@@ -162,6 +260,130 @@ def test_logout_revokes_the_session_and_clears_the_cookie(auth_db, client) -> No
         ).all()
     assert revoked, "logout must revoke the session row"
     assert client.get("/api/auth/me").status_code == 401
+
+
+#: How a valueless attribute (``HttpOnly``, ``Secure``) is recorded by ``parse_cookie``.
+FLAG = "<flag>"
+
+
+def parse_cookie(header: str) -> dict[str, str]:
+    """One Set-Cookie header as {name, attribute: value} with lowercased keys.
+
+    Attributes are always present in the result: absent is ``""``, a valueless
+    attribute is :data:`FLAG`. That makes "the two headers agree" a plain dict
+    comparison instead of a membership test that silently passes when a typo'd key
+    is missing from both.
+    """
+    parts = [part.strip() for part in header.split(";")]
+    attributes = {
+        "name": parts[0].split("=", 1)[0],
+        "path": "",
+        "secure": "",
+        "httponly": "",
+        "samesite": "",
+        "max-age": "",
+    }
+    for part in parts[1:]:
+        key, _, value = part.partition("=")
+        attributes[key.strip().lower()] = value.strip().lower() if value else FLAG
+    return attributes
+
+
+def test_logout_deletes_the_cookie_with_the_attributes_it_was_set_with(
+    auth_db, client
+) -> None:
+    """Set and delete must agree, so the deletion keeps working as the cookie evolves.
+
+    Browsers match a deletion on name and path, but a later move behind a
+    ``__Host-``/``__Secure-`` prefixed name requires the deletion to carry
+    ``Secure`` too -- which is exactly what the two calls used to disagree about.
+    """
+    create_user(auth_db, "cookie-attributes")
+    login = client.post(
+        "/api/auth/login", json={"username": "cookie-attributes", "password": PASSWORD}
+    )
+    assert login.status_code == 200, login.text
+    logout = client.post("/api/auth/logout")
+    assert logout.status_code == 200, logout.text
+
+    issued = parse_cookie(login.headers["set-cookie"])
+    deleted = parse_cookie(logout.headers["set-cookie"])
+
+    assert issued["name"] == deleted["name"] == COOKIE_NAME
+    for attribute in ("path", "secure", "httponly", "samesite"):
+        assert deleted[attribute] == issued[attribute], (attribute, issued, deleted)
+    assert deleted["path"] == "/"
+    assert deleted["max-age"] == "0"
+    # The hardened attributes are on the deletion, not merely absent from both.
+    assert deleted["httponly"] == FLAG, deleted
+    assert deleted["samesite"] == "lax", deleted
+
+
+def test_the_deletion_cookie_is_secure_when_the_session_cookie_is(
+    auth_db, client, monkeypatch
+) -> None:
+    """The attribute that varies by configuration must match on both calls."""
+    from app.config import get_settings
+
+    monkeypatch.setenv("VOCAB_COOKIE_SECURE", "true")
+    get_settings.cache_clear()
+    create_user(auth_db, "cookie-secure")
+    login = client.post(
+        "/api/auth/login", json={"username": "cookie-secure", "password": PASSWORD}
+    )
+    assert login.status_code == 200, login.text
+    issued = parse_cookie(login.headers["set-cookie"])
+    assert issued["secure"] == FLAG, issued
+
+    # httpx will not send a Secure cookie over the test client's http:// origin, so
+    # the token is re-set without the flag. What is under test is the attributes the
+    # *server* emits, not the browser's transport rule.
+    client.cookies.clear()
+    token = login.headers["set-cookie"].split(";")[0].split("=", 1)[1]
+    client.cookies.set(COOKIE_NAME, token)
+    logout = client.post("/api/auth/logout")
+    assert logout.status_code == 200, logout.text
+    deleted = parse_cookie(logout.headers["set-cookie"])
+
+    assert deleted["secure"] == FLAG, deleted
+    assert deleted["httponly"] == issued["httponly"] == FLAG, (issued, deleted)
+    assert deleted["path"] == issued["path"] == "/", (issued, deleted)
+    assert deleted["samesite"] == issued["samesite"] == "lax", (issued, deleted)
+
+
+def test_auth_responses_are_never_cached(auth_db, client) -> None:
+    """Every /api/auth/* answer carries Cache-Control: no-store, refusals included."""
+    create_user(auth_db, "cache-user")
+
+    responses = {
+        "login failure": client.post(
+            "/api/auth/login", json={"username": "cache-missing", "password": "x"}
+        ),
+        "login success": client.post(
+            "/api/auth/login", json={"username": "cache-user", "password": PASSWORD}
+        ),
+        "me": client.get("/api/auth/me"),
+        "password failure": client.post(
+            "/api/auth/password",
+            json={"current_password": "wrong", "new_password": "another-password-1"},
+        ),
+        "logout": client.post("/api/auth/logout"),
+        "me after logout": client.get("/api/auth/me"),
+    }
+    statuses = {label: response.status_code for label, response in responses.items()}
+    assert statuses == {
+        "login failure": 401,
+        "login success": 200,
+        "me": 200,
+        "password failure": 400,
+        "logout": 200,
+        "me after logout": 401,
+    }, statuses
+    for label, response in responses.items():
+        assert response.headers.get("cache-control") == "no-store", (label, dict(response.headers))
+
+    # Scoped to the auth routes: nothing else gained a header.
+    assert "cache-control" not in client.get("/api/health").headers
 
 
 def test_expired_session_is_rejected(auth_db, client) -> None:

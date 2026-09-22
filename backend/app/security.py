@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import secrets
 from enum import Enum
+from functools import lru_cache
 
 from pwdlib import PasswordHash
 
@@ -40,6 +42,24 @@ def verify_password(password: str, password_hash: str) -> bool:
         return _PASSWORD_HASH.verify(password, password_hash)
     except (UnknownHashError, ValueError):
         return False
+
+
+@lru_cache(maxsize=1)
+def dummy_password_hash() -> str:
+    """A hash of a password that nobody knows, for constant-work login failures.
+
+    Verifying the supplied password against this makes a login attempt for an
+    unknown username cost the same as one for a known username, so response time
+    cannot be used to enumerate accounts. The plaintext is generated here and
+    discarded: it is never stored, never logged and never accepted, because every
+    caller that verifies against this hash refuses the login regardless of the
+    result.
+
+    Computed on first use (one Argon2 hash, once per process) rather than at
+    import time, so tools and migrations that merely import this module do not pay
+    for it.
+    """
+    return hash_password(secrets.token_urlsafe(32))
 
 
 class Role(str, Enum):

@@ -18,7 +18,12 @@ from app.schemas import (
     LoginRequest,
     UpdateUserRequest,
 )
-from app.security import hash_password, password_is_usable, verify_password
+from app.security import (
+    dummy_password_hash,
+    hash_password,
+    password_is_usable,
+    verify_password,
+)
 from app.services.auth import (
     COOKIE_NAME,
     create_session,
@@ -51,16 +56,43 @@ def user_payload(user: User, settings: UserSettings) -> dict[str, object]:
     }
 
 
+def _invalid_credentials() -> HTTPException:
+    """The one refusal every failed login gets, whatever went wrong.
+
+    Whether the username exists, is disabled, or has no password yet is not the
+    caller's business: answering any of those differently -- in the body or in how
+    long the answer takes -- is an account enumeration oracle. An operator can
+    still see which accounts lack a password through ``GET /api/users`` (the
+    ``password_configured`` field) and ``python -m app.cli list-users``, so nothing
+    is lost by keeping the public answer uniform.
+    """
+    return HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_CREDENTIALS)
+
+
+def _session_cookie_attributes() -> dict[str, object]:
+    """The attributes the session cookie is issued with, as one definition.
+
+    Deleting a cookie has to repeat the attributes it was set with (name, path,
+    secure, httponly, samesite): browsers match on name and path, and a later move
+    to a ``__Host-``/``__Secure-`` prefixed name would silently stop deleting if
+    the deletion omitted ``Secure``. Sharing the values is what keeps the set and
+    the delete from drifting apart.
+    """
+    return {
+        "path": "/",
+        "secure": get_settings().cookie_secure,
+        "httponly": True,
+        "samesite": "lax",
+    }
+
+
 def _set_session_cookie(response: Response, token: str) -> None:
     settings = get_settings()
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         max_age=settings.session_days * 24 * 3600,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        path="/",
+        **_session_cookie_attributes(),
     )
 
 
@@ -68,19 +100,32 @@ def _set_session_cookie(response: Response, token: str) -> None:
 def login(
     payload: LoginRequest, request: Request, response: Response, session: SessionDep
 ) -> dict[str, object]:
+    """Sign in, or answer one indistinguishable 401.
+
+    Every failing path performs exactly one password verification and returns the
+    same status and body:
+
+    * an unknown username is verified against :func:`dummy_password_hash`, whose
+      result is discarded -- there is no account to authenticate, the work only
+      exists so the response time matches a real verification;
+    * an account whose hash is the ``!`` sentinel verifies against the same dummy
+      hash and is refused by ``password_is_usable`` regardless of the outcome, so
+      the sentinel can never be logged into;
+    * a disabled account is verified like any other and then refused.
+
+    No branch reports *why* it refused, and none of them issues a session.
+    """
     user = find_user_by_username(session, payload.username)
-    if user is None or not user.is_active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_CREDENTIALS)
-    if not password_is_usable(user.password_hash):
-        # Bootstrap accounts keep the "!" sentinel until an operator runs the
-        # CLI, so they must never accept a login.
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "该账号尚未设置密码，请在服务器上运行 python -m app.cli set-password "
-            f"{user.username}",
-        )
-    if not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_CREDENTIALS)
+    if user is None:
+        verify_password(payload.password, dummy_password_hash())
+        raise _invalid_credentials()
+
+    usable = password_is_usable(user.password_hash)
+    matched = verify_password(
+        payload.password, user.password_hash if usable else dummy_password_hash()
+    )
+    if not usable or not matched or not user.is_active:
+        raise _invalid_credentials()
 
     token, _record = create_session(
         session, user, user_agent=request.headers.get("user-agent", "")
@@ -105,7 +150,9 @@ def logout(
     record = resolve_session(session, request.cookies.get(COOKIE_NAME, ""))
     if record is not None and record.user_id == user.id:
         revoke_session(session, record)
-    response.delete_cookie(COOKIE_NAME, path="/")
+    # Deleted with the same attributes it was set with, so the deletion keeps
+    # working if the cookie ever moves behind a __Host-/__Secure- prefixed name.
+    response.delete_cookie(COOKIE_NAME, **_session_cookie_attributes())
     return {"ok": True}
 
 
