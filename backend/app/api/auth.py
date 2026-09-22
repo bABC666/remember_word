@@ -33,12 +33,17 @@ from app.services.auth import (
     revoke_session,
     set_password,
 )
+from app.services.limiter import login_limiter
 
 router = APIRouter(tags=["auth"])
 
 #: Deliberately identical for "no such user" and "wrong password" so the
 #: endpoint cannot be used to enumerate accounts.
 INVALID_CREDENTIALS = "用户名或密码不正确"
+
+#: Advertised when the concurrency gate is saturated. Verification slots turn over
+#: in well under a second, so this is a "come back shortly", not a lockout.
+BUSY_RETRY_AFTER_SECONDS = 1
 
 
 def user_payload(user: User, settings: UserSettings) -> dict[str, object]:
@@ -67,6 +72,32 @@ def _invalid_credentials() -> HTTPException:
     is lost by keeping the public answer uniform.
     """
     return HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_CREDENTIALS)
+
+
+def _too_many_login_attempts(retry_after: int) -> HTTPException:
+    """The one refusal the abuse guards give, whichever guard fired.
+
+    One message for both guards, and a message that says nothing about the
+    username: being refused must not become a way to learn which usernames are
+    real. ``Retry-After`` is the only detail, and it is about time, not identity.
+    """
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="登录尝试过于频繁，请稍后再试",
+        headers={"Retry-After": str(max(1, retry_after))},
+    )
+
+
+def _refuse_login(session: SessionDep, client: str, user: User | None) -> HTTPException:
+    """Both records of a refused login, then the refusal itself.
+
+    The audit event and the per-address counter are written together so a failure
+    can never be counted without being recorded, and the refusal is returned rather
+    than raised so every caller ends in the same ``raise`` line.
+    """
+    _record_login_failure(session, user)
+    login_limiter().failures.record_failure(client)
+    return _invalid_credentials()
 
 
 def _session_cookie_attributes() -> dict[str, object]:
@@ -143,38 +174,60 @@ def login(
     No branch reports *why* it refused, and none of them issues a session. Each one
     does leave a ``login_failed`` audit event, for the same reason a success leaves
     a ``user_login`` one.
+
+    Two abuse guards run first, both before any hashing so that being refused costs
+    the server nothing:
+
+    * the address has already used up its failures inside the window -> 429;
+    * every verification slot is busy -> 429, without waiting for one (see
+      :mod:`app.services.limiter`).
+
+    The address check comes first because it can refuse without taking a slot, and a
+    request that is going to be refused should not be able to occupy one.
     """
-    user = find_user_by_username(session, payload.username)
-    if user is None:
-        verify_password(payload.password, dummy_password_hash())
-        _record_login_failure(session, None)
-        raise _invalid_credentials()
+    client = request.client.host if request.client is not None else ""
+    limiter = login_limiter()
 
-    usable = password_is_usable(user.password_hash)
-    matched = verify_password(
-        payload.password, user.password_hash if usable else dummy_password_hash()
-    )
-    if not usable or not matched or not user.is_active:
-        _record_login_failure(session, user)
-        raise _invalid_credentials()
+    if limiter.failures.is_limited(client):
+        raise _too_many_login_attempts(limiter.failures.retry_after(client))
 
-    token, _record = create_session(
-        session, user, user_agent=request.headers.get("user-agent", "")
-    )
-    _set_session_cookie(response, token)
-    session.add(
-        HistoryEvent(
-            # Attributed to the account, so a login can be found by user rather than
-            # only by the name written inside the payload.
-            user_id=user.id,
-            event_type="user_login",
-            entity_type="user",
-            entity_id=user.id,
-            payload={"username": user.username},
+    if not limiter.gate.acquire():
+        raise _too_many_login_attempts(BUSY_RETRY_AFTER_SECONDS)
+    try:
+        user = find_user_by_username(session, payload.username)
+        if user is None:
+            verify_password(payload.password, dummy_password_hash())
+            raise _refuse_login(session, client, None)
+
+        usable = password_is_usable(user.password_hash)
+        matched = verify_password(
+            payload.password, user.password_hash if usable else dummy_password_hash()
         )
-    )
-    session.commit()
-    return user_payload(user, ensure_user_settings(session, user))
+        if not usable or not matched or not user.is_active:
+            raise _refuse_login(session, client, user)
+
+        token, _record = create_session(
+            session, user, user_agent=request.headers.get("user-agent", "")
+        )
+        _set_session_cookie(response, token)
+        session.add(
+            HistoryEvent(
+                # Attributed to the account, so a login can be found by user rather
+                # than only by the name written inside the payload.
+                user_id=user.id,
+                event_type="user_login",
+                entity_type="user",
+                entity_id=user.id,
+                payload={"username": user.username},
+            )
+        )
+        session.commit()
+        # Signing in successfully forgives this address its earlier failures.
+        limiter.failures.clear(client)
+        return user_payload(user, ensure_user_settings(session, user))
+    finally:
+        # Released on every path, including the refusals raised above.
+        limiter.gate.release()
 
 
 @router.post("/api/auth/logout")

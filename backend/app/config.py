@@ -78,6 +78,52 @@ class Settings:
         return max(0, value)
 
     @property
+    def login_max_concurrent(self) -> int:
+        """How many password verifications may run at the same time.
+
+        Argon2id costs 64 MiB of memory per verification at the current parameters,
+        so this is the knob that bounds the process during a burst of login attempts.
+        A request above the limit is refused immediately rather than queued: waiting
+        would fill the thread pool with sleepers instead of protecting anything.
+
+        A value below 1 falls back to the default rather than to a limit that would
+        make signing in impossible.
+        """
+        raw = os.getenv("VOCAB_LOGIN_MAX_CONCURRENT", "8").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 8
+        return max(1, value)
+
+    @property
+    def login_ip_failures(self) -> int:
+        """Failed logins allowed per client address inside the window.
+
+        ``0`` disables the check, leaving only the concurrency gate.
+        """
+        raw = os.getenv("VOCAB_LOGIN_IP_FAILURES", "10").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 10
+        return max(0, value)
+
+    @property
+    def login_ip_window_seconds(self) -> int:
+        """The rolling window the per-address failure count is measured over.
+
+        A value below 1 falls back to the default: a zero-length window would count
+        nothing, which is indistinguishable from a broken limit.
+        """
+        raw = os.getenv("VOCAB_LOGIN_IP_WINDOW_SECONDS", "300").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 300
+        return value if value > 0 else 300
+
+    @property
     def cookie_secure(self) -> bool:
         """Secure cookies require HTTPS, so this must follow the environment.
 
