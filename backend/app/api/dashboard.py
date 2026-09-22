@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
 
-from app.db import get_session
-from app.models import Article, ReviewEvent, Word
+from app.api.deps import CurrentUser, SessionDep
+from app.models import Article, ReviewEvent, UserWordState
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -18,37 +17,66 @@ def _day_bounds(day: date) -> tuple[datetime, datetime]:
 
 
 @router.get("")
-def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
+def dashboard(user: CurrentUser, session: SessionDep) -> dict[str, object]:
+    """Learning statistics for **the authenticated user only**.
+
+    Every count is scoped by ``user_id`` inside the query. Two users sharing a
+    public lexicon therefore have completely independent numbers.
+    """
     today = datetime.now(UTC).date()
     start, end = _day_bounds(today)
+    now = datetime.now(UTC)
+
     new_count = (
         session.scalar(
             select(func.count())
-            .select_from(Word)
-            .where(Word.first_seen >= start, Word.first_seen < end)
+            .select_from(UserWordState)
+            .where(
+                UserWordState.user_id == user.id,
+                UserWordState.first_seen >= start,
+                UserWordState.first_seen < end,
+            )
         )
         or 0
     )
     due_count = (
         session.scalar(
             select(func.count())
-            .select_from(Word)
-            .where(or_(Word.next_review_at <= datetime.now(UTC), Word.status == "weak"))
+            .select_from(UserWordState)
+            .where(
+                UserWordState.user_id == user.id,
+                or_(
+                    UserWordState.next_review_at <= now,
+                    UserWordState.status == "weak",
+                ),
+            )
         )
         or 0
     )
     weak_count = (
-        session.scalar(select(func.count()).select_from(Word).where(Word.status == "weak")) or 0
+        session.scalar(
+            select(func.count())
+            .select_from(UserWordState)
+            .where(UserWordState.user_id == user.id, UserWordState.status == "weak")
+        )
+        or 0
     )
     article = session.scalar(
         select(Article)
-        .where(Article.created_at >= start, Article.created_at < end)
+        .where(
+            Article.user_id == user.id,
+            Article.created_at >= start,
+            Article.created_at < end,
+        )
         .order_by(Article.created_at.desc())
     )
 
     activity_dates = set()
     for timestamp in session.scalars(
-        select(ReviewEvent.timestamp).order_by(ReviewEvent.timestamp.desc()).limit(1000)
+        select(ReviewEvent.timestamp)
+        .where(ReviewEvent.user_id == user.id)
+        .order_by(ReviewEvent.timestamp.desc())
+        .limit(1000)
     ):
         activity_dates.add(timestamp.date())
     streak = 0
@@ -58,6 +86,7 @@ def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
     while cursor in activity_dates:
         streak += 1
         cursor -= timedelta(days=1)
+
     return {
         "today_new": new_count,
         "due_reviews": due_count,

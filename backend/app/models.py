@@ -3,7 +3,18 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -195,21 +206,52 @@ class Article(Base):
 
 
 class ArticleWordExposure(Base):
+    """A word's real appearance in one of the user's articles.
+
+    Ownership is derived from the article; this table deliberately carries no
+    ``user_id`` so a parent and child can never disagree about the owner.
+    """
+
     __tablename__ = "article_word_exposure"
-    __table_args__ = (UniqueConstraint("article_id", "word_id", name="uq_article_word"),)
+    # Uniqueness is enforced by two partial indexes in migration 0006: one per
+    # legacy word, one per lexicon entry, because a word added from reading by a
+    # new user has no legacy word row.
+    __table_args__ = (
+        Index(
+            "uq_article_word",
+            "article_id",
+            "word_id",
+            unique=True,
+            sqlite_where=text("word_id is not null"),
+        ),
+        Index(
+            "uq_article_entry",
+            "article_id",
+            "lexicon_entry_id",
+            unique=True,
+            sqlite_where=text("lexicon_entry_id is not null"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     article_id: Mapped[int] = mapped_column(
         ForeignKey("article.id", ondelete="CASCADE"), index=True
     )
-    word_id: Mapped[int] = mapped_column(ForeignKey("word.id", ondelete="CASCADE"), index=True)
+    #: Legacy word row, when the word predates V1.2.
+    word_id: Mapped[int | None] = mapped_column(
+        ForeignKey("word.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    #: Lexicon entry, always known. Compatibility bridge from migration 0006.
+    lexicon_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lexicon_entry.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     context: Mapped[str] = mapped_column(Text, default="")
     exposure_count: Mapped[int] = mapped_column(Integer, default=1)
     first_exposed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_exposed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     article: Mapped[Article] = relationship(back_populates="exposures")
-    word: Mapped[Word] = relationship(back_populates="exposures")
+    word: Mapped[Word | None] = relationship(back_populates="exposures")
 
 
 class ArticleWordLookup(Base):
@@ -250,7 +292,14 @@ class ReviewEvent(Base):
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    word_id: Mapped[int] = mapped_column(ForeignKey("word.id", ondelete="CASCADE"), index=True)
+    #: Legacy word row, when the word predates V1.2.
+    word_id: Mapped[int | None] = mapped_column(
+        ForeignKey("word.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    #: Lexicon entry the review belongs to, always known.
+    lexicon_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lexicon_entry.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     result: Mapped[str] = mapped_column(String(16))
     source: Mapped[str] = mapped_column(String(24))

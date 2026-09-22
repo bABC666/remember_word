@@ -9,6 +9,7 @@ from app.models import (
     ReviewEvent,
     Word,
 )
+from app.services.userdata import WordView
 
 
 def word_dict(word: Word) -> dict[str, object]:
@@ -30,6 +31,48 @@ def word_dict(word: Word) -> dict[str, object]:
         "context_exposure": word.context_exposure,
         "possible_issue": word.possible_issue,
         "notes": word.notes,
+    }
+
+
+def word_dict_from_view(view: WordView) -> dict[str, object]:
+    """Serialize lexicon content plus **this user's** learning state.
+
+    Content comes from the shared ``LexiconEntry``; every learning field comes
+    from the caller's own ``UserWordState``. ``id`` keeps the V1.1 meaning (the
+    legacy word id) so existing clients and URLs keep working, and the newer
+    identifiers are exposed alongside it.
+    """
+    state = view.state
+    entry = view.entry
+    return {
+        # ``id`` keeps the V1.1 meaning for migrated words (the legacy word id) so
+        # existing clients and URLs keep working, and falls back to the state id
+        # for words that have no legacy row. Either value resolves through the
+        # same owner-scoped lookup.
+        "id": state.legacy_word_id if state.legacy_word_id is not None else state.id,
+        "word_state_id": state.id,
+        "legacy_word_id": state.legacy_word_id,
+        "lexicon_entry_id": entry.id,
+        "lexicon_id": entry.lexicon_id,
+        "word": entry.word,
+        "phonetic": entry.phonetic,
+        "part_of_speech": entry.part_of_speech,
+        "source_meanings": entry.source_meanings,
+        "source_raw": entry.source_raw,
+        # The user's override wins; the reviewed lexicon anchor is the fallback.
+        "anchor": view.anchor,
+        "semantic_note": view.semantic_note,
+        "default_anchor": entry.default_anchor,
+        "anchor_is_override": bool(state.anchor_override),
+        "status": state.status,
+        "first_seen": state.first_seen,
+        "last_review": state.last_review,
+        "next_review_at": state.next_review_at,
+        "recall_success": state.recall_success,
+        "recall_fail": state.recall_fail,
+        "context_exposure": state.context_exposure,
+        "possible_issue": state.possible_issue,
+        "notes": state.notes,
     }
 
 

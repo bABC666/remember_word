@@ -4,32 +4,31 @@ import hashlib
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from PIL import Image
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
+from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import batch_dict, candidate_dict
 from app.config import get_settings
-from app.db import get_session
 from app.models import AppSetting, HistoryEvent, ImportBatch, ImportCandidate, ImportImage
 from app.schemas import CandidateUpdate, ConfirmCandidatesRequest
 from app.services.ai import AIProviderError, DeepSeekProvider
 from app.services.imports import confirm_candidates, process_batch_ocr, record_import_failure
 from app.services.ocr import OCRProviderError, get_paddle_provider
+from app.services.userdata import load_user_batch
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
 
 
-def _load_batch(session: Session, batch_id: int) -> ImportBatch:
-    batch = session.scalar(
-        select(ImportBatch)
-        .where(ImportBatch.id == batch_id, ImportBatch.is_deleted.is_(False))
-        .options(selectinload(ImportBatch.images), selectinload(ImportBatch.candidates))
-    )
-    if batch is None:
-        raise HTTPException(404, "导入批次不存在")
-    return batch
+def _load_batch(session: Session, user, batch_id: int) -> ImportBatch:
+    """Load a batch only if the caller owns it, else 404.
+
+    Import history is personal even though OCR is being retired for the cloud
+    deployment: one user must never read another's uploaded images or OCR text.
+    """
+    return load_user_batch(session, user, batch_id)
 
 
 async def _save_uploads(
@@ -67,25 +66,28 @@ async def _save_uploads(
 
 @router.post("")
 async def create_import(
-    files: list[UploadFile] = File(...), session: Session = Depends(get_session)
+    user: CurrentUser,
+    session: SessionDep,
+    files: list[UploadFile] = File(...),
 ) -> dict[str, object]:
     if not files:
         raise HTTPException(400, "请选择至少一张图片")
-    batch = ImportBatch(status="uploaded", stage="upload")
+    batch = ImportBatch(status="uploaded", stage="upload", user_id=user.id)
     session.add(batch)
     session.flush()
     await _save_uploads(batch, files, session)
     session.commit()
-    return batch_dict(_load_batch(session, batch.id))
+    return batch_dict(_load_batch(session, user, batch.id))
 
 
 @router.post("/{batch_id}/images")
 async def append_import_images(
     batch_id: int,
+    user: CurrentUser,
+    session: SessionDep,
     files: list[UploadFile] = File(...),
-    session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    batch = _load_batch(session, batch_id)
+    batch = _load_batch(session, user, batch_id)
     if batch.status == "confirmed" or batch.candidates:
         raise HTTPException(409, "已进入词条校对，不能再追加图片；请新建导入批次")
     if not files:
@@ -96,7 +98,7 @@ async def append_import_images(
     batch.error_stage = ""
     batch.error_message = ""
     session.commit()
-    return batch_dict(_load_batch(session, batch.id))
+    return batch_dict(_load_batch(session, user, batch.id))
 
 
 def _rebuild_batch_ocr(batch: ImportBatch) -> None:
@@ -114,9 +116,9 @@ def _rebuild_batch_ocr(batch: ImportBatch) -> None:
 
 @router.delete("/{batch_id}/images/{image_id}")
 def remove_import_image(
-    batch_id: int, image_id: int, session: Session = Depends(get_session)
+    batch_id: int, image_id: int, user: CurrentUser, session: SessionDep
 ) -> dict[str, object]:
-    batch = _load_batch(session, batch_id)
+    batch = _load_batch(session, user, batch_id)
     if batch.status == "confirmed" or batch.candidates:
         raise HTTPException(409, "已进入词条校对，不能单独删除原图；可取消候选或放弃批次")
     image = next(
@@ -128,6 +130,7 @@ def remove_import_image(
     _rebuild_batch_ocr(batch)
     session.add(
         HistoryEvent(
+            user_id=user.id,
             event_type="import_image_removed",
             entity_type="import_image",
             entity_id=image.id,
@@ -135,19 +138,18 @@ def remove_import_image(
         )
     )
     session.commit()
-    return batch_dict(_load_batch(session, batch.id))
+    return batch_dict(_load_batch(session, user, batch.id))
 
 
 @router.delete("/{batch_id}")
-def abandon_import(
-    batch_id: int, session: Session = Depends(get_session)
-) -> dict[str, str]:
-    batch = _load_batch(session, batch_id)
+def abandon_import(batch_id: int, user: CurrentUser, session: SessionDep) -> dict[str, str]:
+    batch = _load_batch(session, user, batch_id)
     if any(candidate.confirmed for candidate in batch.candidates):
         raise HTTPException(409, "已有词条正式入库，不能移除这个批次")
     batch.is_deleted = True
     session.add(
         HistoryEvent(
+            user_id=user.id,
             event_type="import_batch_removed",
             entity_type="import_batch",
             entity_id=batch.id,
@@ -159,10 +161,10 @@ def abandon_import(
 
 
 @router.get("")
-def list_imports(session: Session = Depends(get_session)) -> list[dict[str, object]]:
+def list_imports(user: CurrentUser, session: SessionDep) -> list[dict[str, object]]:
     batches = session.scalars(
         select(ImportBatch)
-        .where(ImportBatch.is_deleted.is_(False))
+        .where(ImportBatch.user_id == user.id, ImportBatch.is_deleted.is_(False))
         .order_by(ImportBatch.created_at.desc())
         .limit(30)
     ).all()
@@ -173,13 +175,16 @@ def list_imports(session: Session = Depends(get_session)) -> list[dict[str, obje
 
 
 @router.get("/{batch_id}")
-def get_import(batch_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
-    return batch_dict(_load_batch(session, batch_id))
+def get_import(batch_id: int, user: CurrentUser, session: SessionDep) -> dict[str, object]:
+    return batch_dict(_load_batch(session, user, batch_id))
 
 
 @router.post("/{batch_id}/ocr")
-def run_ocr(batch_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
-    batch = _load_batch(session, batch_id)
+def run_ocr(batch_id: int, user: CurrentUser, session: SessionDep) -> dict[str, object]:
+    config = get_settings()
+    if not config.ocr_enabled:
+        raise HTTPException(503, "当前实例已关闭 OCR（VOCAB_ENABLE_OCR=false）")
+    batch = _load_batch(session, user, batch_id)
     language_setting = session.get(AppSetting, "ocr_language")
     gpu_setting = session.get(AppSetting, "ocr_use_gpu")
     provider = get_paddle_provider(
@@ -191,14 +196,14 @@ def run_ocr(batch_id: int, session: Session = Depends(get_session)) -> dict[str,
     except OCRProviderError as error:
         record_import_failure(session, batch.id, "ocr", error)
         raise HTTPException(503, str(error)) from error
-    return batch_dict(_load_batch(session, batch.id))
+    return batch_dict(_load_batch(session, user, batch.id))
 
 
 @router.post("/{batch_id}/structure")
 async def structure_import(
-    batch_id: int, session: Session = Depends(get_session)
+    batch_id: int, user: CurrentUser, session: SessionDep
 ) -> dict[str, object]:
-    batch = _load_batch(session, batch_id)
+    batch = _load_batch(session, user, batch_id)
     if not batch.raw_ocr_text.strip():
         raise HTTPException(409, "请先完成 OCR")
     try:
@@ -216,7 +221,7 @@ async def structure_import(
     except AIProviderError as error:
         record_import_failure(session, batch.id, "ai", error)
         raise HTTPException(503, str(error)) from error
-    return batch_dict(_load_batch(session, batch.id))
+    return batch_dict(_load_batch(session, user, batch.id))
 
 
 @router.patch("/{batch_id}/candidates/{candidate_id}")
@@ -224,11 +229,13 @@ def update_candidate(
     batch_id: int,
     candidate_id: int,
     payload: CandidateUpdate,
-    session: Session = Depends(get_session),
+    user: CurrentUser,
+    session: SessionDep,
 ) -> dict[str, object]:
+    batch = _load_batch(session, user, batch_id)
     candidate = session.scalar(
         select(ImportCandidate).where(
-            ImportCandidate.id == candidate_id, ImportCandidate.batch_id == batch_id
+            ImportCandidate.id == candidate_id, ImportCandidate.batch_id == batch.id
         )
     )
     if candidate is None:
@@ -244,10 +251,11 @@ def update_candidate(
 
 @router.post("/{batch_id}/confirm")
 def confirm_import(
-    batch_id: int, payload: ConfirmCandidatesRequest, session: Session = Depends(get_session)
+    batch_id: int,
+    payload: ConfirmCandidatesRequest,
+    user: CurrentUser,
+    session: SessionDep,
 ) -> dict[str, object]:
-    try:
-        created = confirm_candidates(session, batch_id, payload.candidate_ids)
-    except LookupError as error:
-        raise HTTPException(404, str(error)) from error
-    return {"created": len(created), "word_ids": [word.id for word in created]}
+    batch = _load_batch(session, user, batch_id)
+    created = confirm_candidates(session, user, batch.id, payload.candidate_ids)
+    return {"created": len(created), "entry_ids": [entry.id for entry in created]}

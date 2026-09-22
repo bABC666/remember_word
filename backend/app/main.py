@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import app.models
-from app.api import articles, auth, dashboard, imports, settings, study, words
+from app.api import articles, auth, dashboard, imports, lexicons, settings, study, words
 from app.config import get_settings
 from app.db import verify_schema_revision
 from app.services.backup import create_backup
 from app.services.ocr import configure_paddle_environment
+from app.services.userdata import NotFoundError
 
 
 @asynccontextmanager
@@ -35,7 +36,16 @@ app.include_router(imports.router)
 app.include_router(study.router)
 app.include_router(words.router)
 app.include_router(articles.router)
+app.include_router(lexicons.router)
 app.include_router(settings.router)
+
+
+@app.exception_handler(NotFoundError)
+async def _not_found_handler(_request: Request, error: NotFoundError) -> JSONResponse:
+    """A resource that is missing and one that belongs to somebody else both
+    answer 404 with the same message, so responses cannot be compared to probe
+    for the existence of another user's data."""
+    return JSONResponse(status_code=404, content={"detail": str(error)})
 
 
 @app.get("/api/health")

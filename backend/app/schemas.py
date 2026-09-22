@@ -105,3 +105,14 @@ class UpdateUserRequest(BaseModel):
     is_active: bool | None = None
     role: Literal["admin", "user"] | None = None
     password: str | None = Field(default=None, min_length=8, max_length=256)
+
+
+class LexiconCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+
+class LexiconUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    visibility: Literal["public", "private"] | None = None
