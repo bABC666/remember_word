@@ -1,30 +1,32 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-22  
-> 当前阶段：**数据恢复后的 V1.1 安全基线**（V1.2 开发已暂停，见第 13 节）  
-> 当前分支：`recovery/v1.1-guarded`  
-> 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全地继续维护项目。
+> 更新日期：2026-09-22（本轮更新对应 **Phase 2.7-d-d** 完成）
+> 当前分支：`feat/v1.2-phase1-safe`　HEAD：`043e221`
+> 当前阶段：**V1.2 Phase 2（多用户认证、会话治理、防滥用）基本完成**；前端设备管理页、配额与部署尚未开始
+> 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
+> 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
 
-## 0. 必读：2026-09-22 数据丢失事故与恢复
+---
 
-在 V1.2 Phase 1 期间，`data/vocab.db` 的全部业务表被删除。原因：**测试夹具对应用模块级 engine 执行了 `Base.metadata.drop_all(engine)`，而该 engine 实际绑定到了真实数据库。**
+## 0. 必读：2026-09-22 数据事故与仍然生效的安全规则
 
-已恢复，但**有永久性数据丢失**。任何接手者请先读：
+V1.2 Phase 1 期间，`data/vocab.db` 的全部业务表曾被删除。原因：**测试夹具对应用模块级 engine 执行了 `Base.metadata.drop_all(engine)`，而该 engine 实际绑定到了真实数据库。**
 
-- `_INCIDENT-20260922/README.md`（本地保留的事故现场，**不入 Git**）
+已恢复，但**有永久性数据丢失**（`review_event` 10 条、`article_word_lookup` 5 条、文章译文、`history_event` 6 条、`app_setting.onboarding_seen`、9 个词的 status 推进）。任何接手者请先读：
+
+- `_INCIDENT-20260922/README.md`（本地事故现场，**不入 Git**）
 - `data/recovery/*.json`（恢复与校验证据）
-- `docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`（V1.2 设计基线，仍然有效）
+- `docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`（V1.2 设计基线）
 
-**永久丢失（禁止伪造补齐）**：`review_event` 10 条、`article_word_lookup` 5 条、文章译文 1089 字、`history_event` 6 条、`app_setting.onboarding_seen`、9 个词的 status 推进与对应 `next_review_at`。
+**当前生效的安全规则（全部有代码或工具兜底）**：
 
-**当前生效的安全规则**：
-
-1. 测试进程**不得**触碰真实 `data/`。`backend/app/testing_guards.py` 会对「绑定 engine / 解析设置 / 破坏性 schema 操作」做 fail-fast。
-2. `drop_all` 出现在任何测试夹具中都是禁止的。
-3. 破坏性操作只允许发生在带测试标识的临时目录内。
-4. Alembic 测试必须在子进程里跑，并显式传 `-x db_url=`，且事后校验真正被迁移的文件。
-5. 「备份」只有在通过 `tools/verify_backup.py` 的全部校验后才可称为 **verified backup**。复制成功 ≠ 备份可信（本次事故中 `pre-p1.2-*` 副本本身就是损坏的）。
-6. 应用启动会校验数据库 alembic revision 与代码 head 是否一致，不一致直接拒绝启动。
+1. 测试进程**不得**触碰真实 `data/`：`backend/app/testing_guards.py` 对「绑定 engine / 解析设置 / 破坏性 schema 操作」做 fail-fast。
+2. `drop_all` 出现在任何测试夹具中都是禁止的（`tests/test_static_guards.py` 静态拦截）。
+3. 破坏性操作只允许发生在带测试标识的临时目录或 `data/staging/` 副本内。
+4. Alembic 测试必须在子进程里跑，显式传 `-x db_url=`，事后校验真正被迁移的文件。
+5. 「备份」只有通过 `tools/verify_backup.py` 全部校验后才可称为 **verified backup**（复制成功 ≠ 可信备份）。
+6. 应用启动会校验数据库 revision 与代码 head 是否一致，不一致**直接拒绝启动**（失败关闭，无警告路径）。
+7. `alembic downgrade` 只允许对一次性副本执行（`alembic/env.py` 在 DBAPI 连接建立时校验最终解析路径）。
 
 自查命令：
 
@@ -32,7 +34,7 @@
 backend\.venv\Scripts\python.exe tools\verify_backup.py <database>
 backend\.venv\Scripts\python.exe tools\prove_test_isolation.py   # 证明 pytest 不碰 data/
 backend\.venv\Scripts\python.exe tools\compare_with_source.py    # 实盘与恢复源逐字段比对
-powershell -File scripts\check.ps1                               # 全量检查（隔离取证为必过项）
+powershell -File scripts\check.ps1                               # 全量检查（见 §8 的已知例外）
 ```
 
 ## 0.1 三级数据库环境（强制）
@@ -40,221 +42,214 @@ powershell -File scripts\check.ps1                               # 全量检查�
 | 级别 | 位置 | 用途 | 规则 |
 |---|---|---|---|
 | **Level 1** | pytest 临时目录 | 单元 / API / migration 测试 | 只允许存在于 pytest 临时目录 |
-| **Level 2** | `data/staging/v1.1-realdata-migration-test.db` | 用**真实数据内容**演练迁移 | 唯一允许拿真实数据做迁移演练的地方；可随时删除重建；不是生产 |
-| **Level 3** | `data/vocab.db` | 生产 | 开发期间**禁止迁移** |
+| **Level 2** | `data/staging/*.db` | 用**真实数据内容**演练迁移与双用户验收 | 唯一允许拿真实数据做演练的地方；可随时删除重建；不是生产 |
+| **Level 3** | `data/vocab.db` | 生产 | 开发期间**禁止迁移、禁止写入** |
 
 Level 2 工作流：
 
 ```powershell
-backend\.venv\Scripts\python.exe tools\make_staging.py                  # 从已验证 V1.1 源克隆 + 记录迁移前基线
+backend\.venv\Scripts\python.exe tools\make_staging.py                  # 从已验证源克隆 + 记录迁移前基线
 backend\.venv\Scripts\python.exe tools\staging_migration_check.py       # 0003 → head 并逐项断言真实数据未损坏
 backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实启动应用指向 staging，双用户验证
 ```
 
-迁移等级由 `VOCAB_DATABASE_PATH` 显式指定数据库文件；`VOCAB_DATA_DIR` 仍决定 uploads / backups / config 的位置。
+迁移等级由 `VOCAB_DATABASE_PATH` 显式指定数据库文件；`VOCAB_DATA_DIR` 决定 uploads / backups / config 的位置。
 
-## 0.2 分支与当前状态（2026-09-22）
+## 0.2 分支与本轮进度
 
-- `recovery/v1.1-guarded`：事故后的安全基线（V1.1 + 全部护栏）。
-- `feat/v1.2-phase1-safe`：**当前开发分支**，从安全基线建立。已含 P1.0（迁移地基）、P1.1（用户体系）、P1.2（词库模型 + staging 演练）。
-- `wip/v1.2-phase1-code` / `codex/vocab-ux-reading-v2` / `stash@{0}`：事故前工作，**仅作参考**。其 conftest 改动包含 `drop_all`，**禁止直接套用**。
-- **生产库仍是 V1.1（revision 0003）**，sha256 `c8be615d…f67944`。V1.2 代码面对它会因版本护栏拒绝启动——这是正确行为。
-- 尚未实施：P1.3（按用户隔离全部业务 API）、前端登录页、PWA、部署。
+分支 `feat/v1.2-phase1-safe`（从事故后的安全基线 `recovery/v1.1-guarded` 建立）。本轮完成的 commit：
+
+| Commit | 内容 |
+|---|---|
+| `cad5271` | Phase 2.1：删除词库会连带删除学习进度 → 加 409 守卫 |
+| `39b036b` | Phase 2.2：Session 生命周期治理（活跃更新、闲置超时、启动/CLI 清理） |
+| `dc1b9b4` | Phase 2.3：认证流程审计（只读，产出审计文档） |
+| `abac842` | Phase 2.4-a：统一登录失败语义、消除时间侧信道、删除 Cookie 属性对齐、auth 响应 `no-store` |
+| `3e7f0f4` | Phase 2.4-b：`logout` 幂等且匿名安全；登录审计补 `user_id`、新增 `login_failed` |
+| `a53b7a4` | Phase 2.5：登录防滥用设计（只读） |
+| `6b0e60b` | Phase 2.6-a：并发闸门 + 按 IP 失败窗口 |
+| `5213b3d` | Phase 2.7-a：Session 管理设计（只读） |
+| `0f32b07` | Phase 2.7-b/c：`GET /api/auth/sessions`、`DELETE /api/auth/sessions/{id}` |
+| `3b6ca5c` | Phase 2.7-d-a：敏感操作二次认证设计（只读） |
+| `b096d4b` | Phase 2.7-d-b：统一密码校验入口 `verify_user_password` |
+| `0256039` | Phase 2.7-d-c：`_require_password` 守卫（预算 + 共享闸门 + `reauth_failed` 审计） |
+| `043e221` | Phase 2.7-d-d：`POST /api/auth/sessions/revoke`（退出其它/全部设备） |
+
+更早的 0007 生产迁移相关提交：`86c1d5c`（迁移预演）、`4f536e5`（runbook 拆分）、`5ea1233`（runbook 定稿）、`f6d4da4`（启动脚本修复）。
+
+---
 
 ## 1. 一句话概况
 
-拾词是一个 Windows 优先、浏览器使用的本地英语词汇学习应用。React/Vite 前端由 FastAPI 托管，SQLite 是唯一事实来源；应用已走通单词书图片导入、真实 PaddleOCR、DeepSeek 结构化、人工校对、复习调度、阅读生成、阅读后测试、点词解释、全文翻译、查词记录、生词入库、备份和重启持久化。
-
-项目不是 Demo。日常入口是桌面“拾词”快捷方式或根目录 `start-vocab.bat`。
+拾词是一个 Windows 优先、浏览器使用的英语词汇学习应用，现已支持**多用户与登录**：React/Vite 前端由 FastAPI 托管，SQLite 是唯一事实来源；已走通单词书图片导入 → PaddleOCR → DeepSeek 结构化 → 人工校对 → 复习调度 → 阅读生成 → 阅读后测试 → 点词解释 → 全文翻译 → 生词入库 → 备份 → 重启持久化，并新增了**账号、会话、权限隔离与登录防滥用**。
 
 ## 2. 技术栈与运行方式
 
 - 前端：React 19、Vite、TypeScript、React Router、TanStack Query、Lucide、自定义 CSS。
-- 后端：FastAPI、SQLAlchemy 2、Pydantic v2、Alembic、httpx。
-- 数据库：SQLite。
-- OCR：PaddleOCR/PaddlePaddle，当前已在 Windows CPU 环境真实运行。
-- AI：DeepSeek OpenAI-compatible API；默认 API 模型名 `deepseek-flash`，界面显示 `DeepSeek V4.1-Flash`。
-- 生产形态：FastAPI 在 `127.0.0.1:8000` 同时提供 API 和 `frontend/dist`。
-
-Windows 日常启动：
+- 后端：FastAPI 0.141、SQLAlchemy 2、Pydantic v2、Alembic、httpx、pwdlib(Argon2id)。
+- 数据库：SQLite（WAL）。
+- OCR：PaddleOCR/PaddlePaddle（本地能力，云端应设 `VOCAB_ENABLE_OCR=false`）。
+- AI：DeepSeek OpenAI 兼容 API，默认模型名 `deepseek-flash`。
+- 生产形态：`scripts/start-vocab.ps1` 以 **单 worker** 启动 uvicorn，监听 `127.0.0.1:8000`，同时提供 API 与 `frontend/dist`。
 
 ```powershell
-.\start-vocab.bat
+.\start-vocab.bat    # 构建前端 + alembic upgrade head + 启动 + 打开浏览器
+.\stop-vocab.bat     # 停止（用端口与进程证明已停止）
 ```
-
-停止：
-
-```powershell
-.\stop-vocab.bat
-```
-
-启动脚本会刷新桌面快捷方式、构建前端、执行 `alembic upgrade head`、启动 FastAPI 并打开浏览器。构建或迁移失败时会停止，不会继续运行旧页面。
 
 ## 3. 不可破坏的数据原则
-
-这是项目最重要的维护约束：
 
 1. SQLite 是唯一真实数据源。
 2. Source、Learning、History 必须保持分离。
 3. `source_raw`、`source_meanings`、逐图 OCR JSON、批次 OCR 文本和原始图片不能被 AI 覆盖。
 4. AI 只能生成候选值、anchor、semantic note、文章、翻译和辅助判断。
-5. `import_candidate` 未经人工确认，绝不能自动进入 `word`。
+5. `import_candidate` 未经人工确认，绝不能自动进入词库。
 6. 每次复习必须写 `review_event`；累计数字只是缓存。
-7. Schema 变化必须新增 Alembic migration，不能要求用户删除数据库重建。
+7. Schema 变化必须新增 Alembic migration，不能要求用户删库重建。
 8. API Key、数据库、图片、备份和本机配置不能提交到 Git，也不能放进普通源码交接包。
+9. **（本轮新增）认证不变量**：明文口令永不落库（只有 Argon2id 哈希）；会话 token 只存 SHA-256，明文仅在 HttpOnly Cookie；失败登录/敏感操作失败**不得**把口令、token 或 `token_hash` 写进任何审计或响应。
 
-## 4. 当前已完成能力
+## 4. 当前数据库真实状态（2026-09-22 实测，只读）
 
-### 首页
+| 项 | 实测值 |
+|---|---|
+| alembic revision | `0007_bridge_foreign_keys` |
+| 表数 | 18 |
+| 物理外键 | **26**（`PRAGMA foreign_key_check` = 0 违规） |
+| 用户 | 1 个：`admin`（role=admin，is_active=1，Argon2id 已设密码） |
+| 会话 | 1 条（1 条存活） |
+| 业务数据 | `word` 19、`lexicon` 1（系统公共，`migrated_v11`）、`lexicon_entry` 19、`user_word_state` 19、`article` 2、`article_word_exposure` 16、`review_event` 10、`history_event` 8、`import_batch` 1、`import_candidate` 19 |
 
-- 今日新词、待复习、weak 数量、今日阅读、连续学习天数。
-- 开始今日学习和下一步提示。
+迁移历史与内容哈希证据：`docs/2026-09-22-migration-history-forensics.md`、`data/recovery/`。
 
-### 单词导入
+## 5. 认证与权限模型现状（本轮核心，接手必读）
 
-- 多图选择和连续拖入会累加，不再互相覆盖，并按文件信息去重。
-- 上传前可以移除单张图片。
-- 未确认批次可以继续追加图片、软删除错误图片或放弃批次。
-- OCR、AI 任一步失败都会保留批次、图片、原始结果和用户修改。
-- PaddleOCR 引擎按配置复用；手机超大图只对临时副本缩放，原图不变。
-- 重试时只识别新增或失败图片。
-- DeepSeek 负责候选结构化、噪声清理、音标保留、义项拆分和 anchor 生成。
-- 所有候选必须人工检查并确认后才正式入库。
+### 5.1 登录 / 会话 / 生命周期
 
-### 今日学习
+- **登录**：`POST /api/auth/login`。四种失败（用户不存在 / 口令错误 / 未设置密码 / 账号停用）返回**完全相同**的 `401 {"detail":"用户名或密码不正确"}`；未知用户也执行一次 dummy Argon2 校验以消除时间侧信道（实测时间比 **1.0×**）。
+- **Cookie**：`shici_session`，`HttpOnly` + `SameSite=lax` + `Path=/` + `Max-Age=30d`，`Secure` 由 `VOCAB_COOKIE_SECURE` 控制，无 `Domain`（host-only）。名称唯一定义于 `services/auth.py::COOKIE_NAME`。
+- **生命周期**：绝对过期（`VOCAB_SESSION_DAYS`，签发时固定、**永不续期**）+ 闲置超时（`VOCAB_SESSION_IDLE_DAYS`，默认 7 天）。`last_seen_at` 由 `touch_session` 写入（节流 5 分钟）。启动与 `python -m app.cli prune-sessions` 会删除"永不可再用"的会话行。
+- **登出**：`POST /api/auth/logout` **幂等且匿名安全**——无 cookie / 已撤销 / 已过期 / 未知 token 一律 `200 {"ok":true}` 并返回删除 Cookie；重复调用不改写首次 `revoked_at`。
+- **会话判定**：`services/auth.py::session_is_live` 是唯一"可用"定义，`prune_sessions` 删除的正是它的补集。
 
-- 一次一个英文单词，默认隐藏中文。
-- 空格显示答案；1/2/3 对应不会、模糊、会。
-- 先显示 anchor，再显示逐行排列的完整原书释义。
-- 每次作答写完整 review event，并更新状态和 `next_review_at`。
+### 5.2 权限模型
 
-### 阅读
+- 归属**只来自会话**，任何端点都不接受客户端 `user_id`。
+- `CurrentUser`（已认证）/ `AdminUser`（管理员）；资源不属于调用者时一律 **404**（不泄露存在性），能力缺失时才 **403**。
+- 未登录访问受保护端点 → **401**（响应体一致，不透露会话状态）。
+- 管理员端点：`GET/POST /api/users`、`PATCH /api/users/{id}`、`POST /api/settings/backup`。
+- **⚠️ 已知缺口（有意保留，待产品决策）**：管理员修改他人密码/角色、停用账号、创建账号（含新建管理员）目前**无需二次输入口令**，仅凭管理员会话。详见 `docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md` §1.2 与 §3.1。
 
-- weak、失败词、新词和久未出现词优先参与选词。
-- DeepSeek 生成英文文章，后端验证 `actual_used_words` 确实属于目标词且出现在正文。
-- 完成阅读后只测试实际出现的目标词，最终评分由用户确认；AI 判断不是强依赖。
-- 正文单词可以点击。词库已有词优先用本地数据，不调用 AI；未知词才请求 AI。
-- 点词结果保存在 `article_word_lookup`，重复点击读取 SQLite 缓存。
-- 全文翻译按需生成并保存，重启后仍存在。
-- 未知词可加入词库；真实文章句子写入 `source_raw`，AI 中文解释只写 Learning 字段，并标记 `possible_issue`。
-- 阅读暴露通过 `article_word_exposure` 显式关联。
+### 5.3 受口令保护的敏感操作（`_require_password`）
 
-### 词库与设置
+顺序固定：**预算检查 → 共享并发闸门 → 一次 `verify_user_password` → 审计/计数 →（通过后）执行业务动作**。
 
-- 搜索、状态筛选、weak、最近加入、长期未复习。
-- 单词详情包含 Source、Learning、统计缓存、完整复习历史和文章暴露。
-- 设置支持 DeepSeek Key/Base URL/Model、每日新词数、文章长度和 OCR 配置。
-- Key 不返回明文。
-- 首次使用说明状态保存在 SQLite；侧栏可随时重新打开。
-- 每日自动备份和手动备份均已实现。
+- 口令错误 → `400 {"detail":"当前密码不正确"}`，并写 `reauth_failed`（含 `payload.action` 固定枚举），同时记一次**按账号**的失败。
+- 连续失败达 `VOCAB_REAUTH_FAILURES`（默认 5）→ `429 {"detail":"密码校验尝试过于频繁，请稍后再试"}` + `Retry-After`，**不写任何事件**。
+- 成功 → 清零该账号失败计数。
+- 目前受保护的端点：`POST /api/auth/password`、`POST /api/auth/sessions/revoke`。
 
-## 5. 数据模型与迁移
+### 5.4 防滥用与资源保护
 
-核心表：
+| 机制 | 键 | 默认 | 行为 |
+|---|---|---|---|
+| 并发闸门 `LoginGate` | 全局 | `VOCAB_LOGIN_MAX_CONCURRENT=8` | **非阻塞**；满了立即 429（`Retry-After: 1`），绝不排队。所有口令校验（登录 + 敏感操作）共用，上限约 512 MiB 内存 |
+| 登录失败窗口 | 客户端 IP | `VOCAB_LOGIN_IP_FAILURES=10` / `VOCAB_LOGIN_IP_WINDOW_SECONDS=300` | 达阈值 → 429；成功登录清零；`0` 关闭 |
+| 二次认证预算 | 用户 | `VOCAB_REAUTH_FAILURES=5` / `VOCAB_REAUTH_WINDOW_SECONDS=300` | 同上；与 IP 窗口**互相独立** |
 
-- `word`：Source 与当前 Learning 状态。
-- `import_batch`、`import_image`、`import_candidate`：可恢复导入流程。
-- `review_event`：每次主动回忆历史。
-- `history_event`：导入、备份、查词等通用行为历史。
-- `article`：文章、目标词、实际用词、完成状态和译文。
-- `article_word_exposure`：文章与真实出现词的显式关联。
-- `article_word_lookup`：阅读点词结果与加入词库状态。
-- `app_setting`：非敏感本地设置与 onboarding 状态。
+计数全部在**内存**中（`app/services/limiter.py`，键有上限 + LRU），**不写数据库、不需要 schema**；重启清零。
 
-当前数据库迁移版本：`0003_article_reading_tools`。
+### 5.5 会话管理 API
 
-截至 2026-09-22，本机实际数据仅作状态参考：19 个正式词、1 个导入批次、19 个候选、10 条复习事件、1 篇文章、16 条文章暴露、1 条查词记录。交接源码包不包含这些用户数据。
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/auth/sessions` | 列出**自己**的存活会话（`id/current/created_at/last_seen_at/expires_at/user_agent`），按最近活动倒序；**绝不返回 token 或 `token_hash`** |
+| `DELETE` | `/api/auth/sessions/{session_id}` | 撤销自己的某个会话；他人的 id 与不存在的 id **都返回同一个 404**；重复调用幂等；撤销当前会话时同时删除 Cookie |
+| `POST` | `/api/auth/sessions/revoke` | `{"scope":"others"\|"all","current_password":"…"}` → `{"ok":true,"revoked":N}`；`others` 保留当前会话且不动 Cookie，`all` 连当前一起撤销并删除 Cookie；**必须带口令**（走 5.3 的守卫）；每个被撤销会话写一条 `session_revoked` |
 
-## 6. 代码导航
+### 5.6 与认证相关的环境变量（详见 `.env.example`）
 
-- `backend/app/models.py`：SQLAlchemy 模型。
-- `backend/app/api/`：FastAPI 路由。
-- `backend/app/services/imports.py`：导入确认、失败保存和 OCR 批处理。
-- `backend/app/services/ocr/`：可替换 OCR provider。
-- `backend/app/services/ai/`：可替换 AI provider和 Pydantic 输出模型。
-- `backend/app/services/scheduler.py`：透明、可测试的第一版调度规则。
-- `backend/app/services/reading.py`：选词、暴露、点词、翻译和文章生词入库。
-- `backend/app/prompts/`：所有 DeepSeek prompt。
-- `backend/alembic/versions/`：迁移历史。
-- `frontend/src/pages/`：六个 V1 页面。
-- `frontend/src/components/HelpCenter.tsx`：首次说明和永久入口。
-- `scripts/start-vocab.ps1`：生产构建、迁移、启动和快捷方式刷新。
+`VOCAB_SESSION_DAYS`、`VOCAB_SESSION_IDLE_DAYS`、`VOCAB_COOKIE_SECURE`、`VOCAB_BOOTSTRAP_USERNAME`、`VOCAB_LOGIN_MAX_CONCURRENT`、`VOCAB_LOGIN_IP_FAILURES`、`VOCAB_LOGIN_IP_WINDOW_SECONDS`、`VOCAB_REAUTH_FAILURES`、`VOCAB_REAUTH_WINDOW_SECONDS`；数据与安全相关：`VOCAB_DATA_DIR`、`VOCAB_DATABASE_PATH`、`VOCAB_REAL_DATA_DIR`、`VOCAB_ENABLE_OCR`。
 
-更细的设计依据：
+## 6. 已完成能力（业务）
 
-- `docs/superpowers/specs/2026-09-21-vocab-learning-v1-design.md`
-- `docs/superpowers/specs/2026-09-22-vocab-ux-reading-v2-design.md`
-- `docs/superpowers/plans/2026-09-21-vocab-learning-v1.md`
-- `docs/superpowers/plans/2026-09-22-vocab-ux-reading-v2.md`
+- **首页**：今日新词、待复习、weak、今日阅读、连续天数。
+- **导入**：多图/连续拖入、去重、软删除、失败保留、PaddleOCR 复用与缩图、DeepSeek 结构化、**必须人工确认**才入库到本人私有词库。
+- **学习**：一次一词、空格揭晓、1/2/3 评分、写完整 `review_event` 并更新排期。
+- **阅读**：weak/失败/新词优先选词、AI 生成 + `actual_used_words` 后端校验、完成后测试、点词（词库优先、未知词才走 AI）、全文翻译并保存、查词缓存、生词入库。
+- **词库**：搜索/状态筛选/weak/最近/陈旧、单词详情（Source + Learning + 复习历史 + 文章暴露）；**删除含学习记录的词库会被 409 拒绝**（Phase 2.1）。
+- **设置**：DeepSeek Key/Base URL/Model（实例级，管理员）、每日新词数、文章长度、OCR 配置、onboarding 状态；Key 只回掩码。
+- **账号与安全**：登录/登出、会话列表与撤销、退出其它/全部设备、改密（撤销全部会话）、管理员用户管理、登录防滥用、失败审计。
 
-## 7. Git 状态与重要提交
+## 7. 代码导航
 
-- `7dc8d7d`：V1 架构与计划。
-- `8216a4c`：本地词汇学习 V1。
-- `1cd82d6`：品牌图标和桌面启动入口。
-- `ebb072f`：可恢复的多图导入。
-- `b5fb373`：OCR 引擎复用、缩图和断点续识别。
-- `2b465c9`：模型说明、首次帮助、阅读点词、全文翻译和持久化。
+- `backend/app/models.py`：SQLAlchemy 模型（Source / Learning / History / 用户与会话）。
+- `backend/app/api/`：`auth.py`（登录、会话、用户管理）、`deps.py`（**`CurrentSession` / `CurrentUser` / `AdminUser`**，归属判定的唯一入口）、业务路由。
+- `backend/app/services/`：`auth.py`（会话与口令策略）、**`limiter.py`（并发闸门 + 两个失败窗口）**、`userdata.py`（owner-scoped 数据访问与统一 404）、`study.py`、`reading.py`、`imports.py`、`scheduler.py`、`backup.py`、`ai/`、`ocr/`。
+- `backend/app/security.py`：Argon2id 原语 + `dummy_password_hash()`。
+- `backend/app/config.py`：全部 `VOCAB_*` 配置项（含会话、限流、二次认证）。
+- `backend/alembic/versions/`：0001–0007（**0007 为当前 head**）。
+- `backend/tests/`：29 个测试文件（312 个用例），其中认证相关为 `test_auth.py`、`test_authz.py`、`test_session_lifecycle.py`、`test_session_management.py`、`test_session_revoke_all.py`、`test_login_limiter.py`、`test_reauth_guard.py`、`test_isolation_guards.py`、`test_static_guards.py`。
+- `frontend/src/`：`pages/`（6 个应用页 + `LoginPage`）、`auth.tsx`（登录态与缓存清理）、`session.ts`（401 回调）、`api.ts`（统一 401/`credentials:'same-origin'`）。
+- 设计/审计文档：`docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`、`docs/V1.2-PHASE2.3-AUTH-FLOW-AUDIT.md`、`docs/V1.2-PHASE2.5-LOGIN-ABUSE-PROTECTION-DESIGN.md`、`docs/V1.2-PHASE2.7-A-SESSION-MANAGEMENT-DESIGN.md`、`docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`。
+- 迁移资料：`docs/0007-production-migration-runbook.md`、`...-checklist.md`、`docs/2026-09-22-migration-history-forensics.md`。
+- 工具：`tools/`（staging、备份校验、隔离取证、迁移预演、事故取证）、`scripts/`（启动/停止/全量检查）。
 
-`main` 当前停在基础 V1，最新功能位于 `codex/vocab-ux-reading-v2`。接手者不要误以为 `main` 已包含 V1.1。
+## 8. 验收基线与复验命令（2026-09-22 实测）
 
-## 8. 最近一次验证证据
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **312 passed** |
+| 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests` | All checks passed |
+| 前端测试 | `cd frontend; npm test` | **19 passed / 4 files** |
+| 前端类型/构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 通过 |
+| 测试隔离取证 | `backend\.venv\Scripts\python.exe tools\prove_test_isolation.py` | `data/` 93 个文件零变化 + 全量测试通过 |
+| 生产库 | 只读抽样 | revision 0007、26 外键、`foreign_key_check` = 0 |
 
-2026-09-22 的最终验收：
+**已知例外（不要误判）**：`scripts/check.ps1` 的最后一步 `tools/verify_backup.py` 会失败，因为验收基线 `data/recovery/baseline.json` 仍冻结在 `0003_article_reading_tools`（label 为 "restored V1.1 verified source"），而生产库已是 0007。这是**既有问题**（Phase 2 审计的 B6），与代码质量无关；修法是在 0007 生产库上**有意识地重建基线**（保留旧基线作历史），并把工具里硬编码的 `0003` 参数化。
 
-- 后端 pytest：31 项通过。
-- Ruff：通过。
-- 前端 Vitest：7 项通过。
-- TypeScript typecheck：通过。
-- ESLint：通过。
-- Vite production build：通过。
-- 在线健康检查：`/api/health` 返回 `ok`。
-- Alembic：`0003_article_reading_tools (head)`。
-- 浏览器实测：首次说明、导入页、已完成文章、词库优先点词、全文翻译显示。
-- 实际重启后恢复：1089 字译文、1 条查词记录、文章完成状态和 16 个阅读测试词。
-- 当日自动备份已生成，桌面快捷方式目标和图标已验证。
+## 9. 已知限制与未完成项
 
-复验命令：
+**安全 / 认证**
 
-```powershell
-backend\.venv\Scripts\python.exe -m ruff check backend\app backend\tests
-backend\.venv\Scripts\python.exe -m pytest backend\tests -q
-cd frontend
-npm test
-npm run typecheck
-npm run lint
-npm run build
-```
+1. **CSRF 纵深防御缺失**（B2）：全仓库无 `Origin`/`Referer` 校验、无 CORS 中间件。当前依赖 `SameSite=Lax`（跨站写请求不带 Cookie → 401）。
+2. **管理员敏感操作无二次认证**（2.7-d-e）：改他人密码/角色/停用/建号仅凭管理员会话，见 §5.2。
+3. **恢复路径可被短暂封锁**：持被窃会话者可烧掉 re-auth 预算，使合法用户在窗口（默认 300 s）内无法执行敏感操作；缓解=短窗口 + 登录不受影响 + CLI `set-password` 逃生口 + 失败审计。
+4. **限流状态在内存**：重启清零；**若改为多 worker，每个 worker 各有一份计数（等效阈值×worker 数）**。IP 判定依赖部署层——置于反向代理后必须配置 `uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`，否则所有用户共用一个计数桶。
+5. **`history_event` 无保留策略**（append-only，实测约 129 字节/行）：登录失败与审计会持续增长。
 
-## 9. 已知限制与真实边界
+**功能未完成**
 
-- CPU PaddleOCR 首次运行仍需要加载/下载模型；缓存和缩图优化降低了后续等待，但没有承诺固定耗时。
-- 全文翻译、文章生成和未知词解释需要可用的 DeepSeek Key 与网络；本地复习、已有文章、已有点词记录和词库不依赖 AI 在线状态。
-- 当前是单用户本地应用，没有账号、云同步、Electron、移动 App 或多人权限。
-- 调度是透明的规则式 V1，不是 FSRS/Anki 算法。
-- 阅读加入的陌生词没有“原书中文释义”；文章原句是 Source，AI 解释属于 Learning，并会提示人工核对。
-- 点击词形目前以表面词和 AI 返回原形为主，尚未实现完整的本地词形还原器。
+6. **前端"登录设备"页面**（2.7-f）：后端能力已全部就绪（列表/单撤销/批量撤销），前端尚未接线。
+7. **会话数量上限**（2.7-e，设计已给出"最旧未活动优先淘汰"的建议）。
+8. **无 `revoke_reason`**：UI 无法解释某设备为何被登出（需 migration 0008，可选）。
+9. **无自服务改密 UI**：`POST /api/auth/password` 存在但前端无入口；改密成功会撤销全部会话（含当前），调用方需重新登录（代码注释与行为需一并修正）。
+10. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
+11. `word` 表已无写入方，`helpers.word_dict`、`services/words.py`、`schemas.py::WordSummary` 属**遗留死代码**；`POST /api/words/quick-add`（Phase 0 规划）未实现。
+12. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
+13. **PWA / 移动端**：无 manifest/SW/图标；Phase 0 §8.3 记录的移动端缺陷（≤900px 隐藏单词详情面板等）仍在。
+14. **公网部署未开始**：当前只监听回环地址。
 
-## 10. 建议的下一步
+## 10. 建议的下一步（按优先级）
 
-1. 增加 OCR“速度优先/精度优先”选项，并在真实手机照片集上做可重复基准。
-2. 增加按段落对齐的中英对照模式，以及译文隐藏/分段展开偏好。
-3. 增加本地词形还原、发音音频和更可靠的派生词归并。
+1. **前端设备管理页**（2.7-f）：收益最大、纯前端、后端已就绪；复用同一个口令确认对话框并展示 429 的 `Retry-After`。
+2. **重建验收基线**（B6）：让 `scripts/check.ps1` 重新可用。
+3. **CSRF 同源校验**（B2）：对 `/api/**` 写操作统一校验 `Origin`/`Referer`。
+4. **管理员操作二次认证**（2.7-d-e，需产品决策）+ 把 re-auth 失败预算同时应用到所有"校验当前口令"的端点。
+5. **`history_event` 保留策略**与**会话数量上限**（2.7-e）。
+6. 部署前置：反向代理头配置、`VOCAB_COOKIE_SECURE=true`、HTTPS、备份定时器（Phase 0 §9.4）。
 
-## 11. 给接手 AI 的工作规则
+## 11. 给接手 AI / 开发者的工作规则
 
-开始任何修改前：
-
-1. 先读本文、README 和对应设计规格。
-2. 先检查 Git 状态，保留用户已有改动；当前工作区可能保留用户主动删除 `.env.example` 的状态。
+1. 先读本文、`README.md` 与相应设计文档；改动认证相关代码前**必读** `docs/V1.2-PHASE2.3-AUTH-FLOW-AUDIT.md` 与 `docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`。
+2. 动手前先 `git status`，保留他人未提交/未跟踪的文件（例如本机那份未跟踪的状态文档）。
 3. 不读取、输出或打包 `data/config/settings.json`、`.env` 等密钥文件。
-4. 不删除或重建 `data/vocab.db`；先备份，再通过 Alembic 迁移。
-5. 涉及 Source 的任何修改都要证明 AI 不会覆盖原始数据。
-6. 新功能先补测试，完成后跑完整后端和前端验收。
-7. 每次更换启动入口或图标时，同步更新 `scripts/install-shortcut.ps1`；正常功能迭代不需要改变快捷方式，因为它稳定指向 `start-vocab.bat`。
+4. 不删除或重建 `data/vocab.db`；先备份，再通过 Alembic 迁移；开发期不要迁移生产库（Level 3 规则）。
+5. 涉及 Source 的修改要证明 AI 不会覆盖原始数据。
+6. 新功能先补测试；完成后跑完整后端 + 前端验收（§8），并跑 `tools/prove_test_isolation.py`。
+7. 认证相关改动必须保持三条不变量：**响应不泄露账号/会话状态**、**审计不含口令与 token**、**限流判定不依赖账号是否存在**（否则会把已修复的枚举旁路重新引入）。
+8. 安全类改动遵循"先设计文档、再实现、后回归"的既有节奏（本仓库的 Phase 2.x 全部如此）。
 
 ## 12. 安全交接建议
 
-推荐发送生成的源码交接 ZIP。它只包含 Git 跟踪的代码、迁移、prompt、测试和文档，不包含数据库、图片、备份、模型缓存、API Key、虚拟环境或 `node_modules`。
-
-如果另一个 AI 也必须查看真实学习数据，应单独复制某个 SQLite 备份，并明确这是个人学习数据；不要把 `data/` 整目录和源码包混在一起发送。
+推荐发送生成的源码交接 ZIP：只包含 Git 跟踪的代码、迁移、prompt、测试和文档，不含数据库、图片、备份、模型缓存、API Key、虚拟环境或 `node_modules`。若另一位 AI 必须查看真实学习数据，应单独复制某个已验证备份，并明确这是个人学习数据；不要把整目录 `data/` 与源码包混在一起发送。
