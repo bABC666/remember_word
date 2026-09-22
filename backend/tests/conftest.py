@@ -199,18 +199,21 @@ def pin_data_dir(isolated_application_engine) -> None:
 
 @pytest.fixture(autouse=True)
 def reset_login_limiter_between_tests() -> None:
-    """Start every test with empty login-abuse counters.
+    """Start every test with empty abuse counters.
 
-    The limiter is process-wide state, and every test client shares the same client
-    address ("testclient"): without this, failures recorded by one test would start
-    refusing another test's logins once the threshold is reached, which would look
-    like a flaky suite rather than a leak between tests.
+    The limiters are process-wide state, and every test client shares the same client
+    address ("testclient") while the shared database reuses user ids after a test's
+    world is deleted: without this, one test's recorded failures would refuse another
+    test's logins or password checks, which would look like a flaky suite rather than
+    a leak between tests.
     """
-    from app.services.limiter import reset_login_limiter
+    from app.services.limiter import reset_login_limiter, reset_reauth_limiter
 
     reset_login_limiter()
+    reset_reauth_limiter()
     yield
     reset_login_limiter()
+    reset_reauth_limiter()
 
 
 @pytest.fixture()

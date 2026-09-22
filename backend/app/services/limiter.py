@@ -236,3 +236,42 @@ def reset_login_limiter() -> None:
     global _limiter
     with _limiter_lock:
         _limiter = None
+
+
+_reauth: LoginFailureWindow | None = None
+_reauth_lock = threading.Lock()
+
+
+def reauth_limiter() -> LoginFailureWindow:
+    """The failure budget for re-authentication, keyed by user id.
+
+    Deliberately a *separate* instance from the login window:
+
+    * the keys differ -- login failures are anonymous and counted per client address,
+      these are authenticated and counted per account, because the question here is
+      which account's password is being guessed;
+    * sharing one budget would let a login flood from a shared address lock a
+      legitimate user out of their own settings page, and would let a fumbled
+      password there eat into their login allowance.
+
+    The concurrency gate is *not* duplicated: ``login_limiter().gate`` bounds every
+    password verification in the process, whichever endpoint asks for one, because
+    the memory it protects does not care who is asking.
+    """
+    global _reauth
+    if _reauth is None:
+        with _reauth_lock:
+            if _reauth is None:
+                settings = get_settings()
+                _reauth = LoginFailureWindow(
+                    threshold=settings.reauth_failures,
+                    window_seconds=settings.reauth_window_seconds,
+                )
+    return _reauth
+
+
+def reset_reauth_limiter() -> None:
+    """Drop the re-auth budget so the next call rebuilds it (tests, config reload)."""
+    global _reauth
+    with _reauth_lock:
+        _reauth = None

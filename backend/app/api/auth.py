@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import select
 
@@ -33,7 +35,7 @@ from app.services.auth import (
     verify_unknown_user_password,
     verify_user_password,
 )
-from app.services.limiter import login_limiter
+from app.services.limiter import login_limiter, reauth_limiter
 
 router = APIRouter(tags=["auth"])
 
@@ -44,6 +46,11 @@ INVALID_CREDENTIALS = "用户名或密码不正确"
 #: Advertised when the concurrency gate is saturated. Verification slots turn over
 #: in well under a second, so this is a "come back shortly", not a lockout.
 BUSY_RETRY_AFTER_SECONDS = 1
+
+#: Which sensitive operation a re-auth attempt belonged to. A closed set: the value
+#: ends up in an audit payload, so it must never be caller-supplied text.
+ReauthAction = Literal["change_password"]
+CHANGE_PASSWORD_ACTION: ReauthAction = "change_password"
 
 
 def user_payload(user: User, settings: UserSettings) -> dict[str, object]:
@@ -98,6 +105,80 @@ def _refuse_login(session: SessionDep, client: str, user: User | None) -> HTTPEx
     _record_login_failure(session, user)
     login_limiter().failures.record_failure(client)
     return _invalid_credentials()
+
+
+def _too_many_reauth_attempts(retry_after: int) -> HTTPException:
+    """The refusal for a sensitive operation whose password check may not run.
+
+    Wording differs from the login refusal on purpose -- the user is signed in and
+    acting in their own settings, so "登录尝试" would be misleading -- but the shape
+    is the same 429 with ``Retry-After``, and like the login one it says nothing
+    about the account.
+    """
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="密码校验尝试过于频繁，请稍后再试",
+        headers={"Retry-After": str(max(1, retry_after))},
+    )
+
+
+def _require_password(
+    session: SessionDep, user: User, password: str, *, action: ReauthAction
+) -> None:
+    """Gate a sensitive operation behind the account's own password.
+
+    The order of the four steps is the design:
+
+    1. **The budget is checked first, before the gate.** An attempt that is going to
+       be refused must not occupy a verification slot, and must not cost a
+       verification either -- otherwise a refused attempt is still a way to spend the
+       server's CPU.
+    2. **One verification, inside the shared gate.** :func:`verify_user_password`
+       always spends exactly one Argon2, and the gate bounds how many run at once
+       across the whole process, so this endpoint cannot be used to exhaust memory
+       through a path the login limiter does not watch.
+    3. **A failure is recorded twice**: an audit event attributed to the account, and
+       one failure in that account's budget. The response is the same 400 the
+       endpoint returned before this existed, so nothing new is disclosed.
+    4. **A success clears the budget**, so a user who fumbles and then gets it right
+       is not left one attempt from a refusal.
+
+    The 429 paths write nothing: a refusal is not an event worth storing, and storing
+    it would make the limiter itself a write path for an authenticated caller.
+
+    ``action`` is a closed set of literals rather than a free string, so no
+    caller-supplied text can ever reach an audit payload.
+    """
+    budget = reauth_limiter()
+    key = str(user.id)
+
+    if budget.is_limited(key):
+        raise _too_many_reauth_attempts(budget.retry_after(key))
+
+    verifications = login_limiter()
+    if not verifications.gate.acquire():
+        raise _too_many_reauth_attempts(BUSY_RETRY_AFTER_SECONDS)
+    try:
+        matched = verify_user_password(user, password)
+    finally:
+        # Released on every path, including an exception raised inside the check.
+        verifications.gate.release()
+
+    if not matched:
+        session.add(
+            HistoryEvent(
+                user_id=user.id,
+                event_type="reauth_failed",
+                entity_type="user",
+                entity_id=user.id,
+                payload={"action": action},
+            )
+        )
+        session.commit()
+        budget.record_failure(key)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "当前密码不正确")
+
+    budget.clear(key)
 
 
 def _session_cookie_attributes() -> dict[str, object]:
@@ -331,8 +412,14 @@ def read_me(session: SessionDep, user: CurrentUser) -> dict[str, object]:
 def change_password(
     payload: ChangePasswordRequest, session: SessionDep, user: CurrentUser
 ) -> dict[str, bool]:
-    if not verify_user_password(user, payload.current_password):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "当前密码不正确")
+    """Change the caller's own password, behind the shared re-auth guard.
+
+    A wrong current password is still a 400 and a successful change still returns
+    ``{"ok": true}``; what is new is that repeated wrong attempts now spend the
+    account's re-auth budget and are refused with 429 once it runs out, and that a
+    correct password clears it.
+    """
+    _require_password(session, user, payload.current_password, action=CHANGE_PASSWORD_ACTION)
     if payload.current_password == payload.new_password:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "新密码不能与当前密码相同")
     set_password(session, user, payload.new_password)

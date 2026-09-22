@@ -124,6 +124,36 @@ class Settings:
         return value if value > 0 else 300
 
     @property
+    def reauth_failures(self) -> int:
+        """Wrong-password attempts allowed per account before re-auth is refused.
+
+        Sensitive operations (changing the password today, revoking other sessions
+        next) ask for the account's password again. This is the budget for guessing
+        it, counted per user rather than per address: the caller is already
+        authenticated, so the question is which account is being probed.
+
+        ``0`` disables the check. The window is deliberately short so a legitimate
+        user who fumbles their password, or an attacker burning the budget to keep
+        them out, is not locked out of their own settings for long.
+        """
+        raw = os.getenv("VOCAB_REAUTH_FAILURES", "5").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 5
+        return max(0, value)
+
+    @property
+    def reauth_window_seconds(self) -> int:
+        """The rolling window the per-account re-auth budget is measured over."""
+        raw = os.getenv("VOCAB_REAUTH_WINDOW_SECONDS", "300").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 300
+        return value if value > 0 else 300
+
+    @property
     def cookie_secure(self) -> bool:
         """Secure cookies require HTTPS, so this must follow the environment.
 
