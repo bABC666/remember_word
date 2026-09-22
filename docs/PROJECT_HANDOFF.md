@@ -1,9 +1,38 @@
 # 拾词项目交接说明
 
 > 更新日期：2026-09-22  
-> 当前阶段：可日常使用的本地 V1.1  
-> 当前分支：`codex/vocab-ux-reading-v2`  
+> 当前阶段：**数据恢复后的 V1.1 安全基线**（V1.2 开发已暂停，见第 13 节）  
+> 当前分支：`recovery/v1.1-guarded`  
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全地继续维护项目。
+
+## 0. 必读：2026-09-22 数据丢失事故与恢复
+
+在 V1.2 Phase 1 期间，`data/vocab.db` 的全部业务表被删除。原因：**测试夹具对应用模块级 engine 执行了 `Base.metadata.drop_all(engine)`，而该 engine 实际绑定到了真实数据库。**
+
+已恢复，但**有永久性数据丢失**。任何接手者请先读：
+
+- `_INCIDENT-20260922/README.md`（本地保留的事故现场，**不入 Git**）
+- `data/recovery/*.json`（恢复与校验证据）
+- `docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`（V1.2 设计基线，仍然有效）
+
+**永久丢失（禁止伪造补齐）**：`review_event` 10 条、`article_word_lookup` 5 条、文章译文 1089 字、`history_event` 6 条、`app_setting.onboarding_seen`、9 个词的 status 推进与对应 `next_review_at`。
+
+**当前生效的安全规则**：
+
+1. 测试进程**不得**触碰真实 `data/`。`backend/app/testing_guards.py` 会对「绑定 engine / 解析设置 / 破坏性 schema 操作」做 fail-fast。
+2. `drop_all` 出现在任何测试夹具中都是禁止的。
+3. 破坏性操作只允许发生在带测试标识的临时目录内。
+4. Alembic 测试必须在子进程里跑，并显式传 `-x db_url=`，且事后校验真正被迁移的文件。
+5. 「备份」只有在通过 `tools/verify_backup.py` 的全部校验后才可称为 **verified backup**。复制成功 ≠ 备份可信（本次事故中 `pre-p1.2-*` 副本本身就是损坏的）。
+6. 应用启动会校验数据库 alembic revision 与代码 head 是否一致，不一致直接拒绝启动。
+
+自查命令：
+
+```powershell
+backend\.venv\Scripts\python.exe tools\verify_backup.py <database>
+backend\.venv\Scripts\python.exe tools\prove_test_isolation.py   # 证明 pytest 不碰 data/
+backend\.venv\Scripts\python.exe tools\compare_with_source.py    # 实盘与恢复源逐字段比对
+```
 
 ## 1. 一句话概况
 
