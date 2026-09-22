@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from app.testing_guards import assert_not_real_data
+
 
 def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -94,5 +96,8 @@ def get_settings() -> Settings:
         config_dir=data_dir / "config",
         frontend_dist=root / "frontend" / "dist",
     )
+    # A test process must never resolve to the real user database. This is a
+    # hard stop, not a warning: the V1.1 database was destroyed by exactly this.
+    assert_not_real_data(settings.database_path, action="resolve the settings for")
     settings.ensure_directories()
     return settings

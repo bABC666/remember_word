@@ -29,3 +29,8 @@ data/
 *.log
 .DS_Store
 Thumbs.db
+
+# Incident evidence (local forensic archive: contains damaged database copies)
+_INCIDENT-20260922/
+.pytest-tmp/
+.pytest_cache/

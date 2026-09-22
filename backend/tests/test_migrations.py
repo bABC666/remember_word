@@ -49,8 +49,24 @@ V1_1_ADDED_ARGUMENTS: set[str] = {"INDEX(is_deleted)"}
 
 
 def _alembic(tmp_root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    """Run alembic against an isolated data directory."""
+    """Run alembic against an isolated temporary database.
+
+    The guard refuses any temporary root that does not look like test scratch
+    space, so this helper cannot be pointed at the real ``data/`` directory by
+    accident. It also verifies afterwards that the database file alembic wrote
+    is the one that was requested, so an ignored ``-x db_url`` override can
+    never silently migrate the production database.
+    """
+    from app.testing_guards import (
+        assert_not_real_data,
+        assert_safe_for_destructive_operation,
+    )
+
     database = tmp_root / "vocab.db"
+    assert_safe_for_destructive_operation(database, action="run alembic against")
+    assert_not_real_data(tmp_root, action="use as an alembic data directory")
+
+    before = _revision(database)
     result = subprocess.run(
         [
             sys.executable,
@@ -66,12 +82,79 @@ def _alembic(tmp_root: Path, *arguments: str) -> subprocess.CompletedProcess[str
         capture_output=True,
         text=True,
         check=False,
+        env=_isolated_env(tmp_root),
     )
     if result.returncode != 0:
         raise AssertionError(
             f"alembic {' '.join(arguments)} failed:\n{result.stdout}\n{result.stderr}"
         )
+
+    # Proof that the migration really targeted the requested file: the recorded
+    # revision must reflect the requested revision, and must have changed when
+    # the command was an upgrade or downgrade.
+    assert database.exists(), (
+        f"alembic {' '.join(arguments)} did not create {database}; "
+        "the db_url override was probably ignored"
+    )
+    after = _revision(database)
+    if arguments:
+        command = arguments[0]
+        if command == "upgrade":
+            assert after is not None, (
+                f"{database} has no recorded revision after 'upgrade "
+                f"{' '.join(arguments[1:])}', so the migration did not run"
+            )
+            if before != after:
+                pass  # revision advanced: the requested file was migrated
+            else:
+                assert before == _head_revision(), (
+                    f"alembic upgrade did not change the revision of {database} "
+                    f"(still {after}) and it is not at head"
+                )
+        elif command == "downgrade":
+            assert before != after, (
+                f"alembic downgrade did not change the revision of {database}"
+            )
+    assert_not_real_data(database, action="verify the migration target")
     return result
+
+
+def _revision(database: Path) -> str | None:
+    """Read the alembic revision recorded in a database, or None."""
+    if not database.exists():
+        return None
+    connection = sqlite3.connect(str(database))
+    try:
+        row = connection.execute("select version_num from alembic_version").fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+
+
+def _isolated_env(tmp_root: Path) -> dict[str, str]:
+    """Environment for alembic children.
+
+    ``VOCAB_DATA_DIR`` and ``VOCAB_REAL_DATA_DIR`` both point at the temporary
+    root, so even if the ``-x db_url`` override were dropped the child would
+    still resolve to a temporary database and the guard would fire rather than
+    touching real data.
+    """
+    import os
+
+    env = dict(os.environ)
+    env["VOCAB_DATA_DIR"] = str(tmp_root)
+    env["VOCAB_REAL_DATA_DIR"] = str(tmp_root)
+    return env
+
+
+@pytest.fixture()
+def guarded_data_root(tmp_path: Path) -> Path:
+    """A clearly-marked temporary data directory with a nested name pattern."""
+    root = tmp_path / "app-data"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def _alembic_url(tmp_root: Path) -> str:
@@ -555,10 +638,10 @@ def _counts(database: Path) -> dict[str, int]:
 
 
 @pytest.fixture()
-def v1_1_database(tmp_path: Path) -> Path:
-    _alembic(tmp_path, "upgrade", "0003_article_reading_tools")
-    _seed_v1_1(tmp_path / "vocab.db")
-    return tmp_path / "vocab.db"
+def v1_1_database(guarded_data_root: Path) -> Path:
+    _alembic(guarded_data_root, "upgrade", "0003_article_reading_tools")
+    _seed_v1_1(guarded_data_root / "vocab.db")
+    return guarded_data_root / "vocab.db"
 
 
 def test_v1_1_database_rolls_forward_without_data_loss(v1_1_database: Path) -> None:

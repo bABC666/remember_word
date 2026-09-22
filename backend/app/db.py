@@ -6,13 +6,29 @@ from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
+from app.testing_guards import assert_not_real_data
 
 
 class Base(DeclarativeBase):
     pass
 
 
+def database_path_from_url(url: str) -> str | None:
+    """Extract the on-disk file from a SQLAlchemy SQLite URL."""
+    if not url.startswith("sqlite"):
+        return None
+    _, _, tail = url.partition(":///")
+    if not tail or tail.startswith(":memory:"):
+        return None
+    return tail
+
+
 def make_engine(url: str) -> Engine:
+    # Guard the *final resolved* path, not an environment variable that is
+    # merely expected to be set.
+    database_file = database_path_from_url(url)
+    if database_file is not None:
+        assert_not_real_data(database_file, action="bind an engine to")
     connect_args: dict[str, object] = {}
     if url.startswith("sqlite"):
         connect_args = {"check_same_thread": False, "timeout": 5.0}
