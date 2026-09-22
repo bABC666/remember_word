@@ -25,6 +25,7 @@ data/
 
 # Generated / local artifacts
 .superpowers/
+/handoff/
 *.log
 .DS_Store
 Thumbs.db

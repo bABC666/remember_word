@@ -29,7 +29,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\install-shortcut
 ```dotenv
 DEEPSEEK_API_KEY=your-key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MODEL=deepseek-flash
 ```
 
 也可以在设置页面保存 Key。本地配置保存在 `data/config/settings.json`，不会被 Git 跟踪；设置接口只返回掩码。
@@ -95,3 +95,7 @@ npm run build
 ## 数据原则
 
 AI 不会更新 `source_raw`、`source_meanings` 或 OCR 原始结果。未经人工确认的 `import_candidate` 不会进入 `word`。每次复习写入独立 `review_event`；每次真实文章暴露写入 `article_word_exposure`。
+
+## 项目交接
+
+需要把项目交给另一个开发者或 AI 时，先阅读 [`docs/PROJECT_HANDOFF.md`](docs/PROJECT_HANDOFF.md)。该文档汇总当前版本、架构边界、数据库状态、已完成能力、测试证据、已知限制和后续建议。
