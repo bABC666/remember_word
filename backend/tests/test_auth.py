@@ -292,6 +292,7 @@ def test_cli_sets_passwords_without_printing_them(auth_db, monkeypatch, capsys) 
 
     create_user(auth_db, "cli-sentinel", password=None)
     monkeypatch.setattr(cli, "_open_session", lambda: auth_db())
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "cli-set-secret")
 
     assert cli.main(["list-users"]) == 0
     output = capsys.readouterr().out
@@ -299,7 +300,8 @@ def test_cli_sets_passwords_without_printing_them(auth_db, monkeypatch, capsys) 
     assert "未设置" in output
 
     new_password = "cli-set-secret"
-    assert cli.main(["set-password", "cli-sentinel", "--password", new_password]) == 0
+    # The password is prompted for; there is no --password option by design.
+    assert cli.main(["set-password", "cli-sentinel"]) == 0
     assert new_password not in capsys.readouterr().out
 
     with auth_db() as session:
@@ -313,11 +315,13 @@ def test_cli_rejects_duplicates_and_short_passwords(auth_db, monkeypatch, capsys
 
     create_user(auth_db, "cli-existing")
     monkeypatch.setattr(cli, "_open_session", lambda: auth_db())
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "another-secret")
 
-    assert cli.main(["create-user", "cli-existing", "--password", "another-secret"]) == 1
+    assert cli.main(["create-user", "cli-existing"]) == 1
     assert "已存在" in capsys.readouterr().err
 
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "short")
     with pytest.raises(SystemExit):
-        cli.main(["create-user", "cli-new-user", "--password", "short"])
+        cli.main(["create-user", "cli-new-user"])
     with auth_db() as session:
         assert session.scalar(select(User).where(User.username == "cli-new-user")) is None

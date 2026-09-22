@@ -22,6 +22,7 @@ import urllib.request
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
+PROJECT_ROOT = TOOLS.parent
 STAGING_DIR = Path("data/staging").resolve()
 STAGING_DB = STAGING_DIR / "v1.1-realdata-migration-test.db"
 REPORT = Path("data/recovery/staging-two-user-report.json")
@@ -82,44 +83,56 @@ def staging_env() -> dict[str, str]:
 
 
 def seed_passwords() -> None:
-    """Set real passwords for the staging accounts via the CLI."""
-    env = staging_env()
-    # admin exists from the migration; userb is created below, then given a password.
-    for username, password in (("admin", ADMIN_PASSWORD),):
-        result = subprocess.run(
-            [sys.executable, "-m", "app.cli", "set-password", username, "--password", password],
-            cwd="backend",
-            capture_output=True,
-            text=True,
-            check=False,
-            env=env,
-        )
-        if result.returncode != 0:
-            raise AssertionError(f"set-password failed for {username}: {result.stderr}")
+    """Set a real password for the staging admin account.
 
-
-def create_userb() -> None:
-    env = staging_env()
+    Through ``tools/staging_accounts.py``, not the operator CLI: that CLI reads
+    passwords with ``getpass`` only, and on Windows ``getpass`` reads the console
+    through msvcrt even when stdin is redirected, so a scripted caller blocks. The
+    helper takes the password on stdin, so it never appears in argv.
+    """
     result = subprocess.run(
-        [sys.executable, "-m", "app.cli", "create-user", "userb", "--password", USERB_PASSWORD],
-        cwd="backend",
+        [sys.executable, "-m", "tools.staging_accounts", "set-password", "admin"],
+        cwd=PROJECT_ROOT,
+        input=f"{ADMIN_PASSWORD}\n",
         capture_output=True,
         text=True,
         check=False,
-        env=env,
+        env=staging_env(),
+    )
+    if result.returncode != 0:
+        raise AssertionError(f"set-password failed for admin: {result.stderr}")
+
+
+def create_userb() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "tools.staging_accounts",
+            "create-user",
+            "userb",
+            "--role",
+            "user",
+        ],
+        cwd=PROJECT_ROOT,
+        input=f"{USERB_PASSWORD}\n",
+        capture_output=True,
+        text=True,
+        check=False,
+        env=staging_env(),
     )
     print("   create-user:", (result.stdout or result.stderr).strip().splitlines()[-1])
 
 
 def seed_userb_password() -> None:
-    env = staging_env()
     result = subprocess.run(
-        [sys.executable, "-m", "app.cli", "set-password", "userb", "--password", USERB_PASSWORD],
-        cwd="backend",
+        [sys.executable, "-m", "tools.staging_accounts", "set-password", "userb"],
+        cwd=PROJECT_ROOT,
+        input=f"{USERB_PASSWORD}\n",
         capture_output=True,
         text=True,
         check=False,
-        env=env,
+        env=staging_env(),
     )
     if result.returncode != 0:
         raise AssertionError(f"set-password failed for userb: {result.stderr}")

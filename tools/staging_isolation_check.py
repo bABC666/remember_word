@@ -22,6 +22,7 @@ import urllib.request
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
+PROJECT_ROOT = TOOLS.parent
 STAGING_DIR = Path("data/staging").resolve()
 STAGING_DB = Path("data/staging/v1.3-acceptance.db").resolve()
 REPORT = Path("data/recovery/staging-p13-isolation-report.json")
@@ -103,17 +104,27 @@ def migrate() -> None:
     print("  0003 -> head migration complete")
 
 
-def cli(*arguments: str) -> str:
+def staging_account(command: str, username: str, password: str, *extra: str) -> str:
+    """Create or update a staging account without putting the password in argv.
+
+    ``app.cli`` prompts with ``getpass`` and accepts a password from nowhere else,
+    which is right but cannot be scripted on Windows (msvcrt reads the console even
+    when stdin is redirected). ``tools/staging_accounts.py`` is that scripted path:
+    it takes the password on stdin and calls the same ``app.cli`` functions.
+    """
     result = subprocess.run(
-        [sys.executable, "-m", "app.cli", *arguments],
-        cwd="backend",
+        [sys.executable, "-m", "tools.staging_accounts", command, username, *extra],
+        cwd=PROJECT_ROOT,
+        input=f"{password}\n",
         capture_output=True,
         text=True,
         check=False,
         env=staging_env(),
     )
     if result.returncode != 0:
-        raise AssertionError(f"cli {' '.join(arguments)} failed: {result.stderr}")
+        raise AssertionError(
+            f"staging account {command} {username} failed: {result.stderr}"
+        )
     return result.stdout.strip()
 
 
@@ -181,8 +192,8 @@ def main() -> int:
 
     print()
     print("== creating the two accounts on staging ==")
-    cli("set-password", "admin", "--password", ADMIN_PASSWORD)
-    cli("create-user", "userb", "--password", USERB_PASSWORD)
+    staging_account("set-password", "admin", ADMIN_PASSWORD)
+    staging_account("create-user", "userb", USERB_PASSWORD, "--role", "user")
     print("  admin + userb ready")
 
     server = start_server()
