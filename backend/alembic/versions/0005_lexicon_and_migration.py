@@ -201,8 +201,64 @@ def _admin_user_id(connection) -> int | None:
     return row[0] if row else None
 
 
+def _normalized_word_key(value: str | None) -> str:
+    return (value or "").strip().casefold()
+
+
+def find_normalized_duplicates(word_rows) -> dict[str, list[tuple[int, str]]]:
+    """Group legacy words whose normalized form collides.
+
+    V1.1 never constrained ``word.word`` after ``strip().casefold()``, but the
+    V1.2 model keys lexicon entries on exactly that normalized value. Two rows
+    that normalize identically would make the second ``UserWordState`` violate
+    ``UNIQUE(user_id, lexicon_entry_id)`` and abort the migration halfway.
+    """
+    grouped: dict[str, list[tuple[int, str]]] = {}
+    for row in word_rows:
+        grouped.setdefault(_normalized_word_key(row["word"]), []).append(
+            (row["id"], row["word"])
+        )
+    return {key: rows for key, rows in grouped.items() if len(rows) > 1}
+
+
+def preflight_normalized_words(connection) -> None:
+    """Fail loudly before touching any data if legacy words collide.
+
+    Silently merging, dropping or picking a winner would lose a distinct word the
+    user reviewed, so this refuses and reports the exact rows for a human to
+    resolve. It runs before the first write of the migration.
+    """
+    word_rows = (
+        connection.execute(
+            sa.text("select id, word from word order by id")
+        )
+        .mappings()
+        .all()
+    )
+    duplicates = find_normalized_duplicates(word_rows)
+    if not duplicates:
+        return
+
+    lines = [
+        "迁移中止：legacy word 表中存在规范化后重复的词条。",
+        "规范化规则为 strip().casefold()；V1.1 未对该结果做唯一性约束，",
+        "而 V1.2 的 LexiconEntry 以该值为键，继续迁移会触发",
+        "UNIQUE(user_id, lexicon_entry_id) 冲突并中途失败。",
+        "",
+        "请人工决定如何处理以下冲突（本迁移不会自动合并、删除或覆盖任何词条）：",
+    ]
+    for key, rows in sorted(duplicates.items()):
+        detail = ", ".join(f"id={row_id} word={value!r}" for row_id, value in rows)
+        lines.append(f"  normalized={key!r} -> {detail}")
+    lines.append("")
+    lines.append("处理方式：在 word 表中改写其中一个词形（保留其 id 与全部历史），")
+    lines.append("或先导出再删除重复行；随后重新运行迁移。")
+    raise RuntimeError("\n".join(lines))
+
+
 def _migrate_data() -> None:
     connection = op.get_bind()
+
     admin_id = _admin_user_id(connection)
     if admin_id is None:
         # No admin means there is nothing to attribute single-user history to;
@@ -485,6 +541,13 @@ def _record_audit(connection, admin_id: int, lexicon_id: int, words: int, now: s
 
 
 def upgrade() -> None:
+    # Preflight before the first statement of any kind. A migration that fails
+    # after it has already added columns and created tables leaves the database
+    # in a state that is neither 0004 nor 0005: the revision still says 0004, so
+    # re-running fails on the objects that already exist. Checking the legacy data
+    # first means the duplicate-word case aborts with zero changes made.
+    preflight_normalized_words(op.get_bind())
+
     _add_compat_columns()
     _create_lexicon_tables()
     _migrate_data()
