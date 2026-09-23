@@ -1,9 +1,10 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-23（本轮更新对应 **Phase 2.8 S-2（CSRF 写请求同源校验）** 完成）
-> 当前分支：`feat/v1.2-phase1-safe`　HEAD：`10dcfa5`
-> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7 已交付、S-2 已完成；**剩余 S-1 管理员二次认证**与会话上限/审计保留等收尾项）
+> 更新日期：2026-09-23（本轮更新对应 **Phase 2.8 S-1（管理员敏感操作二次认证）** 完成）
+> 当前分支：`feat/v1.2-phase1-safe`；最近功能代码 `10dcfa5`（S-2）与 **`c3a6106`（S-1，本地，未 push）**，规划修订起点 `0d20a51`；实时 HEAD 以 Git 为准。
+> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1** 已交付；剩余 G5 会话上限、G6 审计保留、G8「每日新词数」、T8 三账号副本验收、T11–T17 卫生项）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
+> **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
 
 ---
@@ -16,13 +17,13 @@
 |---|---|
 | HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
 | 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`，**ahead 0 / behind 0** |
-| 最近完成 | **S-2 CSRF 写请求同源校验**（`backend/app/csrf.py` + `main.py` 中间件 + 45 项测试 + 设计文档） |
-| 上一批 | Batch 1：F-1 登录设备管理、F-7 自助改密；Batch 0.5：`verified_db` 行身份口径修正；Batch 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
-| 本批关闭的任务 | **S-2**（登记册 §4.1）、**T4**、**G4** |
-| 门禁 | `scripts/check.ps1` **exit 0**；后端 **365 passed** / 前端 **29 passed** |
-| 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录 |
-| 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`） |
-| 下一步 | **S-1 管理员二次认证**（`POST /api/users`、`PATCH /api/users/{id}` 目前仅凭管理员会话）；需先定调"是否全部管理员敏感操作都要求口令" |
+| 最近完成 | **S-1 管理员敏感操作二次认证**（`backend/app/api/auth.py` 复用 `_require_password` + `schemas.py` 必填 `current_password` + `main.py` 的 `no-store` 覆盖 `/api/users` + `backend/tests/test_admin_reauth.py` 27 项 + 设计文档；提交 **`c3a6106`**，**本地未 push**） |
+| 上一批 | Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1 登录设备管理、F-7 自助改密；Batch 0.5：`verified_db` 行身份口径修正；Batch 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
+| 本批关闭的任务 | **S-1**（登记册 §4.1）、**G3**、**T3** |
+| 门禁 | `scripts/check.ps1` **exit 0**；后端 **392 passed** + ruff 全通过 / 前端 **29 passed** |
+| 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
+| 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 S-1 提交 `c3a6106`：S-1 的代码与测试已完成并提交，但尚未在此进程生效。** 让它生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
+| 下一步 | Phase 2.8 剩余：**G5 会话数量上限、G6 `history_event` 保留策略、G8「每日新词数」生效、T8 三账号副本验收、T11–T17 卫生项**；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -159,7 +160,8 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - `CurrentUser`（已认证）/ `AdminUser`（管理员）；资源不属于调用者时一律 **404**（不泄露存在性），能力缺失时才 **403**。
 - 未登录访问受保护端点 → **401**（响应体一致，不透露会话状态）。
 - 管理员端点：`GET/POST /api/users`、`PATCH /api/users/{id}`、`POST /api/settings/backup`。
-- **⚠️ 已知缺口（有意保留，待产品决策）**：管理员修改他人密码/角色、停用账号、创建账号（含新建管理员）目前**无需二次输入口令**，仅凭管理员会话。详见 `docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md` §1.2 与 §3.1。
+- **已关闭（2026-09-23，Phase 2.8 S-1）**：`POST /api/users` 与 `PATCH /api/users/{id}` 现在**每次调用都要求管理员输入自己的当前口令**，仅凭管理员会话不再能改他人密码/角色、停用账号或建号（含新建管理员）。原缺口记录见 `docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md` §1.2 与 §3.1；实现与验收见 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`。
+- **未关闭**：`PUT /api/settings` 的**实例级**字段（DeepSeek Key/Base URL/Model、OCR 配置）仍只需管理员会话，**无二次认证**（有意不在本批范围：该端点同时服务普通用户保存自己的偏好，无条件加口令会打断普通用户；条件加口令需另行设计）。
 
 ### 5.3 受口令保护的敏感操作（`_require_password`）
 
@@ -168,8 +170,18 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - 口令错误 → `400 {"detail":"当前密码不正确"}`，并写 `reauth_failed`（含 `payload.action` 固定枚举），同时记一次**按账号**的失败。
 - 连续失败达 `VOCAB_REAUTH_FAILURES`（默认 5）→ `429 {"detail":"密码校验尝试过于频繁，请稍后再试"}` + `Retry-After`，**不写任何事件**。
 - 成功 → 清零该账号失败计数。
-- 目前受保护的端点：`POST /api/auth/password`、`POST /api/auth/sessions/revoke`（`others` / `all`）、**`DELETE /api/auth/sessions/{id}`（2026-09-23 起，Phase 2.8 F-1）**。
-  - 后者是对 Phase 2.7-d-a 设计矩阵的**扩展**：该矩阵只列了"退出其它/全部设备"，但它自己的判据（设计文档 §3.2：「会改变认证材料、会话集合、账号权限或安全设置的操作」）同样覆盖"撤销单台设备"。扩展的收益是具体的：**被窃 Cookie 不能再用来把真实用户的其他设备踢下线**。
+- 目前受保护的端点（**5 个**）：
+  1. `POST /api/auth/password`（改自己的密码）
+  2. `POST /api/auth/sessions/revoke`（`others` / `all`）
+  3. `DELETE /api/auth/sessions/{id}`（2026-09-23 起，Phase 2.8 F-1）
+  4. **`POST /api/users`（2026-09-23 起，Phase 2.8 S-1）**
+  5. **`PATCH /api/users/{id}`（同上）**
+- **S-1 的请求契约（本批新增，对调用方是破坏性变更）**：两个管理员端点的请求体新增**必填** `current_password`（1–256 字符，指**调用者自己的**口令）。它与 `PATCH` 的 `password`（**目标账号的新口令**）是两个不同的秘密，因此不同名。缺字段 / 空串 / `null` → **422**；口令错 → **400**；预算耗尽 → **429** + `Retry-After`。**校验通过前不读取目标、不写任何业务行**（唯一写入是失败时那条 `reauth_failed`），因此"目标 id 是否存在"在校验失败时不可观察（有逐字节比对响应体的测试）。
+- 两条顺序保证：**能力先于契约**（非管理员即使不带口令也得到 **403**，不是 422）；**口令先于读写**（口令错时连目标用户都不查）。
+- 两处对 Phase 2.7-d-a 设计矩阵的**扩展**（都命中该矩阵自己的判据「会改变认证材料、会话集合、账号权限或安全设置的操作」）：
+  - 「撤销单台设备」（F-1）：**被窃 Cookie 不能再用来把真实用户的其他设备踢下线**；
+  - 「管理员用户管理」（S-1）：**被窃 Cookie 不能再建持久后门管理员、不能再改他人密码/角色或停用账号**。
+- 成功后在既有事件上留痕（`user_created` / `user_updated`，`payload.by` 为管理员用户名）；`user_updated` 的 `fields` 只列**账号字段**，`current_password` 被显式排除，绝不出现在审计里。
 
 ### 5.4 防滥用与资源保护
 
@@ -215,7 +227,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - **阅读**：weak/失败/新词优先选词、AI 生成 + `actual_used_words` 后端校验、完成后测试、点词（词库优先、未知词才走 AI）、全文翻译并保存、查词缓存、生词入库。
 - **词库**：搜索/状态筛选/weak/最近/陈旧、单词详情（Source + Learning + 复习历史 + 文章暴露）；**删除含学习记录的词库会被 409 拒绝**（Phase 2.1）。
 - **设置**：DeepSeek Key/Base URL/Model（实例级，管理员）、每日新词数、文章长度、OCR 配置、onboarding 状态；Key 只回掩码。
-- **账号与安全**：登录/登出、会话列表与撤销、退出其它/全部设备、改密（撤销全部会话）、管理员用户管理、登录防滥用、失败审计、**写请求同源校验（S-2，2026-09-23）**；**设置页的「登录设备」区（F-1，2026-09-23）**列出每台设备的 `user_agent`/最近活动/登录时间/到期时间，当前设备不可在此撤销，单设备与"其它全部设备"两处撤销都要求输入当前口令；**设置页的「修改密码」区（F-7，2026-09-23）**校验当前口令与两次新口令一致，成功后全部会话被撤销并回到登录页（登录页会说明原因）。
+- **账号与安全**：登录/登出、会话列表与撤销、退出其它/全部设备、改密（撤销全部会话）、**管理员用户管理（改他人密码/角色/停用/建号，2026-09-23 起每次调用都要求管理员输入自己的当前口令，S-1）**、登录防滥用、失败审计、**写请求同源校验（S-2，2026-09-23）**；**设置页的「登录设备」区（F-1，2026-09-23）**列出每台设备的 `user_agent`/最近活动/登录时间/到期时间，当前设备不可在此撤销，单设备与"其它全部设备"两处撤销都要求输入当前口令；**设置页的「修改密码」区（F-7，2026-09-23）**校验当前口令与两次新口令一致，成功后全部会话被撤销并回到登录页（登录页会说明原因）。**注意**：管理员用户管理**只有 API/CLI 入口**，前端没有对应页面（见 §9.13）。
 
 ## 7. 代码导航
 
@@ -226,9 +238,9 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - `backend/app/csrf.py`：**写请求同源校验的纯函数**（`authority_of` / `request_authority` / `request_origin` / `write_is_allowed`）；无数据库、无网络、无状态。挂载点见 `main.py::_same_origin_write_check`。
 - `backend/app/config.py`：全部 `VOCAB_*` 配置项（含会话、限流、二次认证、CSRF）。
 - `backend/alembic/versions/`：0001–0007（**0007 为当前 head**）。
-- `backend/tests/`：30 个测试文件（365 个用例），其中认证相关为 `test_auth.py`、`test_authz.py`、`test_session_lifecycle.py`、`test_session_management.py`、`test_session_revoke_all.py`、`test_login_limiter.py`、`test_reauth_guard.py`、`test_csrf.py`、`test_isolation_guards.py`、`test_static_guards.py`。
+- `backend/tests/`：**31 个测试文件（392 个用例）**，其中认证相关为 `test_auth.py`、`test_authz.py`、`test_session_lifecycle.py`、`test_session_management.py`、`test_session_revoke_all.py`、`test_login_limiter.py`、`test_reauth_guard.py`、**`test_admin_reauth.py`（S-1，27 项）**、`test_csrf.py`、`test_isolation_guards.py`、`test_static_guards.py`。
 - `frontend/src/`：`pages/`（6 个应用页 + `LoginPage`）、`auth.tsx`（登录态与缓存清理）、`session.ts`（401 回调）、`api.ts`（统一 401/`credentials:'same-origin'`）。
-- 设计/审计文档：`docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`、`docs/V1.2-PHASE2.3-AUTH-FLOW-AUDIT.md`、`docs/V1.2-PHASE2.5-LOGIN-ABUSE-PROTECTION-DESIGN.md`、`docs/V1.2-PHASE2.7-A-SESSION-MANAGEMENT-DESIGN.md`、`docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`、`docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`。
+- 设计/审计文档：`docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`、`docs/V1.2-PHASE2.3-AUTH-FLOW-AUDIT.md`、`docs/V1.2-PHASE2.5-LOGIN-ABUSE-PROTECTION-DESIGN.md`、`docs/V1.2-PHASE2.7-A-SESSION-MANAGEMENT-DESIGN.md`、`docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`、`docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`（S-2）、**`docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`（S-1；编号字母取自安全条目序号 S-1/S-2，不是时间顺序——批次顺序是 Batch 2A → Batch 3）**。
 - 接手/协作入口（2026-09-23 新增）：**`docs/PROJECT_STATUS_CURRENT.md`**（项目当前状态，接手第一阅读文件）、**`docs/AI_DEVELOPMENT_GUIDE.md`**（AI 协作开发规范：必读清单、设计门槛、测试与文档与 Git 要求、禁止事项）。
 - 迁移资料：`docs/0007-production-migration-runbook.md`、`...-checklist.md`、`docs/2026-09-22-migration-history-forensics.md`。
 - 工具：`tools/`（staging、备份校验、隔离取证、迁移预演、事故取证）、`scripts/`（启动/停止/全量检查）。
@@ -237,7 +249,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **365 passed** |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **392 passed**（31 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项） |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests` | All checks passed |
 | 前端测试 | `cd frontend; npm test` | **29 passed / 5 files** |
 | 前端类型/构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 通过 |
@@ -290,7 +302,8 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 **安全 / 认证**
 
-1. **管理员敏感操作无二次认证**（2.7-d-e，也是 S-1）：改他人密码/角色/停用/建号仅凭管理员会话，见 §5.2。
+1. ~~**管理员敏感操作无二次认证**（2.7-d-e，也是 S-1）：改他人密码/角色/停用/建号仅凭管理员会话~~ → ✅ **已于 2026-09-23（Batch 3）关闭**：`POST /api/users` 与 `PATCH /api/users/{id}` 的**每一次调用**都要求管理员输入**自己的当前口令**，校验通过前不改账号与会话。见 §5.2、§5.3 与 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`。
+1a. **`PUT /api/settings` 的实例级字段仍无二次认证**（随 S-1 一并登记）：管理员可改 DeepSeek Key / Base URL / Model 与 OCR 配置；把 `deepseek_base_url` 指向攻击者端点即可外泄后续请求内容。**有意不在 S-1 范围**——该端点同时服务普通用户保存自己的偏好，无条件加口令会打断日常保存；理由见设计文档 §2.4。
 2. **恢复路径可被短暂封锁**：持被窃会话者可烧掉 re-auth 预算，使合法用户在窗口（默认 300 s）内无法执行敏感操作；缓解=短窗口 + 登录不受影响 + CLI `set-password` 逃生口 + 失败审计。
 3. **限流状态在内存**：重启清零；**若改为多 worker，每个 worker 各有一份计数（等效阈值×worker 数）**。IP 判定依赖部署层——置于反向代理后必须配置 `uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`，否则所有用户共用一个计数桶（与 §5.7 的 scheme 推导是同一处配置）。
 4. **`history_event` 无保留策略**（append-only，实测约 129 字节/行）：登录失败与审计会持续增长。
@@ -304,13 +317,14 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 9. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
 10. **PWA / 移动端**：无 manifest/SW/图标；Phase 0 §8.3 记录的移动端缺陷（≤900px 隐藏单词详情面板等）仍在。
 11. **公网部署未开始**：当前只监听回环地址。
+13. **管理员用户管理没有前端入口**：`frontend/src/` 全仓库无 `/api/users` 调用，创建/停用/改角色只能经 API 或 CLI（`python -m app.cli create-user|promote|set-password`）。S-1 让这两个端点必须二次输入口令后，**将来若建页面，必须复用 `frontend/src/components/PasswordConfirmDialog.tsx`**（已支持 400 文案与 429 的 `Retry-After` 倒计时）。**本批不建页面**。
 12. **CSRF 的天然边界**：同源校验不防 XSS（同源脚本可同时伪造请求与请求头）；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说，避免"上了 CSRF 就安全"的错觉。
 
-> **2026-09-23 关闭的三项**（见 §5.7 与 §6）：CSRF 纵深防御缺失（S-2）、前端"登录设备"页面（2.7-f）、自服务改密入口（F-7）。
+> **2026-09-23 关闭的四项**（见 §5.2、§5.3、§5.7 与 §6）：**管理员敏感操作无二次认证（S-1，Batch 3）**、CSRF 纵深防御缺失（S-2）、前端"登录设备"页面（2.7-f）、自服务改密入口（F-7）。
 
 ## 10. 建议的下一步（按优先级）
 
-1. **管理员操作二次认证**（S-1 / 2.7-d-e，需产品决策）：把 `_require_password` 扩展到 `POST /api/users` 与 `PATCH /api/users/{id}`；这是当前唯一"高影响 + 仅凭会话"的写端点，同源校验不能替代它。
+1. ✅ **已完成（2026-09-23，Batch 3）** ~~管理员操作二次认证（S-1 / 2.7-d-e，需产品决策）~~：`_require_password` 已扩展到 `POST /api/users` 与 `PATCH /api/users/{id}`（见 §5.3）。**以下为 Phase 2.8 的剩余待办**：
 2. **`history_event` 保留策略**与**会话数量上限**（2.7-e）。
 3. **`/api/**` 未知路径返回 404 JSON**（T-3）、死代码清理、版本号（E-4）、staging 残留清理（S-5）。
 4. 部署前置：反向代理头配置、`VOCAB_COOKIE_SECURE=true`、HTTPS、备份定时器（Phase 0 §9.4）。
