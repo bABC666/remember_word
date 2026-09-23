@@ -30,7 +30,7 @@ export function ImportPage() {
     },
     onSuccess: async (value) => { setBatch(value); setFiles([]); await queryClient.invalidateQueries({ queryKey: ['imports'] }) },
   })
-  const ocr = useMutation({ mutationFn: () => api<ImportBatch>(`/api/imports/${batch!.id}/ocr`, { method: 'POST' }), onSuccess: setBatch })
+  const ocr = useMutation({ mutationFn: () => api<ImportBatch>(`/api/imports/${batch!.id}/ocr`, { method: 'POST' }, { timeoutMs: 600_000 }), onSuccess: setBatch })
   const structure = useMutation({ mutationFn: () => api<ImportBatch>(`/api/imports/${batch!.id}/structure`, { method: 'POST' }), onSuccess: setBatch })
   const appendImages = useMutation({
     mutationFn: async (incoming: File[]) => {

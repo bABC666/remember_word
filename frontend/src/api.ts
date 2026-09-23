@@ -15,17 +15,23 @@ export class ApiError extends Error {
 /** How long a single request may take before it is treated as a failure. */
 const REQUEST_TIMEOUT_MS = 120_000
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit, options?: { timeoutMs?: number }): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
 
   // Same-origin requests must carry the session cookie; the session itself lives
   // only in an HttpOnly cookie and is never read or stored by JavaScript.
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response: Response
   try {
     response = await fetch(path, { credentials: 'same-origin', ...init, headers, signal: controller.signal })
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new ApiError('请求超时，请稍后刷新页面查看处理结果。', 0)
+    }
+    throw error
   } finally {
     clearTimeout(timer)
   }
