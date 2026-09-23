@@ -23,15 +23,20 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
+import os
 import sys
+from pathlib import Path
 
 from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.db import get_session_factory, verify_schema_revision
+from app.history_retention_preview import preview_history_retention
 from app.models import User, UserSession, UserSettings
 from app.security import hash_password, password_is_usable
 from app.services.auth import normalize_username, prune_sessions
+from app.testing_guards import assert_not_real_data
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -174,6 +179,35 @@ def command_prune_sessions(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _preview_database_path() -> Path:
+    """Resolve the database without get_settings(), which creates directories."""
+    project_root = Path(__file__).resolve().parents[2]
+    data_dir = Path(os.getenv("VOCAB_DATA_DIR", str(project_root / "data"))).resolve()
+    explicit = os.getenv("VOCAB_DATABASE_PATH", "").strip()
+    path = Path(explicit).resolve() if explicit else data_dir / "vocab.db"
+    assert_not_real_data(path, action="preview history retention in")
+    return path
+
+
+def command_history_retention_preview(args: argparse.Namespace) -> int:
+    report = preview_history_retention(args.database_path)
+    print("G6 history_event 保留策略预览：365 天及四类事件均为待确认方案")
+    print(f"UTC cutoff: {report['cutoff_utc']}; 仅选严格早于 cutoff 的事件")
+    print(f"总数: {report['total_count']}; 候选: {report['candidate_count']}")
+    print(f"候选 ID 集合 SHA-256: {report['candidate_ids_sha256']}")
+    for event_type, counts in report["event_counts"].items():
+        print(f"{event_type}: 总数 {counts['total']}, 候选 {counts['candidate']}")
+    print("跳过原因: " + ", ".join(f"{key}={value}" for key, value in report["skipped"].items()))
+    print(f"始终保留的最高 ID: {report['max_history_event_id']}")
+    if args.json_path is not None:
+        # Exclusive creation is atomic and refuses to overwrite previous evidence.
+        with args.json_path.open("x", encoding="utf-8") as target:
+            json.dump(report, target, ensure_ascii=False, indent=2)
+            target.write("\n")
+        print(f"JSON 报告已写入: {args.json_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli", description="拾词管理命令（不开放公众注册）"
@@ -203,12 +237,22 @@ def build_parser() -> argparse.ArgumentParser:
     prune = sub.add_parser("prune-sessions", help="清理已撤销／已过期／闲置超时的会话")
     prune.set_defaults(func=command_prune_sessions)
 
+    retention = sub.add_parser("history-retention", help="history_event 保留策略（待确认）")
+    retention_sub = retention.add_subparsers(dest="retention_command", required=True)
+    preview = retention_sub.add_parser("preview", help="只读预览候选事件，不执行清理")
+    preview.add_argument("--json", dest="json_path", type=Path, help="写入新 JSON 文件，拒绝覆盖")
+    preview.set_defaults(func=command_history_retention_preview, read_only_preview=True)
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "read_only_preview", False):
+        args.database_path = _preview_database_path()
+        verify_schema_revision(args.database_path)
+        return int(args.func(args))
     settings = get_settings()
     settings.ensure_directories()
     # Refuse to operate on a database whose schema does not match this code:
