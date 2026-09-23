@@ -7,31 +7,8 @@ from app.models import (
     ImportCandidate,
     ImportImage,
     ReviewEvent,
-    Word,
 )
 from app.services.userdata import WordView
-
-
-def word_dict(word: Word) -> dict[str, object]:
-    return {
-        "id": word.id,
-        "word": word.word,
-        "phonetic": word.phonetic,
-        "part_of_speech": word.part_of_speech,
-        "source_meanings": word.source_meanings,
-        "source_raw": word.source_raw,
-        "anchor": word.anchor,
-        "semantic_note": word.semantic_note,
-        "status": word.status,
-        "first_seen": word.first_seen,
-        "last_review": word.last_review,
-        "next_review_at": word.next_review_at,
-        "recall_success": word.recall_success,
-        "recall_fail": word.recall_fail,
-        "context_exposure": word.context_exposure,
-        "possible_issue": word.possible_issue,
-        "notes": word.notes,
-    }
 
 
 def word_dict_from_view(view: WordView) -> dict[str, object]:

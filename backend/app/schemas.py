@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,26 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
-
-class WordSummary(ORMModel):
-    id: int
-    word: str
-    phonetic: str
-    part_of_speech: str
-    source_meanings: list[str]
-    source_raw: str
-    anchor: str
-    semantic_note: str
-    status: str
-    first_seen: datetime
-    last_review: datetime | None
-    next_review_at: datetime | None
-    recall_success: int
-    recall_fail: int
-    context_exposure: int
-    possible_issue: bool
-    notes: str
 
 
 class ReviewRequest(BaseModel):
