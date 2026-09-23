@@ -116,6 +116,14 @@ class Recorder(BaseHTTPRequestHandler):
     seen: ClassVar[list[dict[str, str]]] = []
 
     def _record(self) -> None:
+        # Drain the body before answering. This handler speaks HTTP/1.0 and reads no
+        # body, so the response could close the connection while the client was still
+        # writing the JSON: Windows answers that with a reset, and the client's next
+        # read raises ConnectionAbortedError (WinError 10053). It only bit under load,
+        # which made the whole gate look flaky, and it is not the contract under test.
+        length = int(self.headers.get("Content-Length") or 0)
+        if length:
+            self.rfile.read(length)
         Recorder.seen.append(
             {"method": self.command, "origin": self.headers.get("Origin", ""), "path": self.path}
         )
@@ -159,6 +167,24 @@ def test_writes_carry_the_same_origin_and_reads_do_not_need_one(recorded_server:
         {"method": "PUT", "origin": recorded_server, "path": "/api/settings"},
         {"method": "PUT", "origin": "http://evil.example", "path": "/api/settings"},
         {"method": "PUT", "origin": "", "path": "/api/settings"},
+    ]
+
+
+def test_the_recorder_reads_the_body_before_it_answers(recorded_server: str) -> None:
+    """A body big enough that the reply would otherwise beat the client's write.
+
+    With the handler answering first, this request is reset rather than served
+    (WinError 10053), which under load made the whole gate look flaky. The size is
+    what turns an occasional race into a deterministic failure.
+    """
+    client = checker.Client(recorded_server)
+
+    status, body = client.request("PUT", "/api/settings", {"payload": "x" * (4 * 1024 * 1024)})
+
+    assert status == 200
+    assert body == {}
+    assert Recorder.seen == [
+        {"method": "PUT", "origin": recorded_server, "path": "/api/settings"}
     ]
 
 
