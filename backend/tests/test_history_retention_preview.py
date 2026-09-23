@@ -48,7 +48,10 @@ def test_preview_filters_times_types_and_max_id_across_users(tmp_path):
     ]
     db = _database(tmp_path, rows)
     report = preview_history_retention(db, now=NOW)
-    assert report["policy_status"] == "proposal_unconfirmed"
+    # The retention window is confirmed (2026-09-23); a *production run* is a separate
+    # approval, and the report has to keep those two facts apart.
+    assert report["policy_status"] == "confirmed"
+    assert report["production_run_approved"] is False
     assert report["cutoff_utc"] == "2025-09-23T12:00:00Z"
     assert report["candidate_count"] == 3
     assert report["candidate_ids_sha256"] == hashlib.sha256(b"[1,2,8]").hexdigest()
@@ -96,7 +99,8 @@ def test_cli_preview_defaults_to_stdout_and_json_is_exclusive(tmp_path, monkeypa
     before = _sha(db)
     assert cli.main(["history-retention", "preview"]) == 0
     output = capsys.readouterr().out
-    assert "待确认" in output
+    assert "已确认" in output
+    assert "生产执行未批准" in output
     assert "secret" not in output and "password" not in output
     assert sorted(p.name for p in tmp_path.iterdir()) == ["preview.db"]
 

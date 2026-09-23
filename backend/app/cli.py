@@ -189,10 +189,38 @@ def _preview_database_path() -> Path:
     return path
 
 
+def _default_baseline_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "data" / "recovery" / "baseline.json"
+
+
+def _read_plan(path: Path) -> dict:
+    from app.history_retention import RetentionError, load_plan
+
+    try:
+        return load_plan(path)
+    except RetentionError:
+        raise
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        raise SystemExit(f"计划文件无法读取：{path}（{error}）")
+
+
 def command_history_retention_preview(args: argparse.Namespace) -> int:
-    report = preview_history_retention(args.database_path)
-    print("G6 history_event 保留策略预览：365 天及四类事件均为待确认方案")
-    print(f"UTC cutoff: {report['cutoff_utc']}; 仅选严格早于 cutoff 的事件")
+    """Read-only preview. ``--plan`` additionally writes the locked candidate plan."""
+    from datetime import UTC, datetime
+
+    from app.history_retention import RetentionError, retention_policy
+
+    policy = retention_policy()
+    # One instant for both artifacts: the summary an operator reads and the plan the
+    # apply flow must match have to describe the same cutoff.
+    moment = datetime.now(UTC)
+    report = preview_history_retention(
+        args.database_path, now=moment, retention_days=policy.retention_days
+    )
+    print("G6 history_event 保留策略：在线保留 365 天（已确认），仅四类事件可归档")
+    print("生产执行未批准：本命令只读；apply 需要负责人针对具体计划与运行 ID 另行批准")
+    print(f"窗口: {report['retention_days']} 天；UTC cutoff: {report['cutoff_utc']}（严格早于）")
+    print(f"数据库: {args.database_path}")
     print(f"总数: {report['total_count']}; 候选: {report['candidate_count']}")
     print(f"候选 ID 集合 SHA-256: {report['candidate_ids_sha256']}")
     for event_type, counts in report["event_counts"].items():
@@ -205,6 +233,85 @@ def command_history_retention_preview(args: argparse.Namespace) -> int:
             json.dump(report, target, ensure_ascii=False, indent=2)
             target.write("\n")
         print(f"JSON 报告已写入: {args.json_path}")
+    if args.plan_path is not None:
+        from app.history_retention_preview import build_plan, write_plan
+
+        try:
+            plan = build_plan(
+                args.database_path,
+                baseline_path=args.baseline,
+                now=moment,
+                retention_days=policy.retention_days,
+            )
+            write_plan(plan, args.plan_path)
+        except RetentionError as error:
+            print(f"无法生成计划：{error}", file=sys.stderr)
+            return 1
+        print()
+        print(f"候选计划已写入: {args.plan_path}")
+        print(f"运行 ID（apply --confirm 需要原样输入）: {plan['run_id']}")
+        print(f"计划摘要 SHA-256: {plan['plan_sha256']}")
+        print(f"候选 ID: {plan['candidate_ids']}")
+    elif report["candidate_count"]:
+        print()
+        print("提示：加 --plan <新文件> 生成可复核的候选计划；apply 只接受计划文件。")
+    return 0
+
+
+def command_history_retention_apply(args: argparse.Namespace) -> int:
+    """Archive and then remove exactly the planned rows, on an explicit confirmation."""
+    from app.history_retention import RetentionError, apply_plan
+
+    plan = _read_plan(args.plan_path)
+    run_id = plan["run_id"]
+    print("G6 history_event 保留策略 apply（归档 + 按明确 ID 清理）")
+    print(f"计划: {args.plan_path}")
+    print(f"运行 ID: {run_id}")
+    print(f"目标数据库: {args.database_path}")
+    print(f"cutoff: {plan['cutoff_utc']}；窗口: {plan['retention_days']} 天")
+    print(f"本次将删除 {plan['candidate_count']} 行: {plan['candidate_ids']}")
+    if not args.confirm:
+        # Nothing runs without the operator typing the run ID: this command is never
+        # started by a timer, a script or an automatic path.
+        print()
+        print(
+            "拒绝执行：缺少 --confirm <运行 ID>。请核对上面的计划后，"
+            f"原样输入 --confirm {run_id}"
+        )
+        return 1
+    if args.confirm != run_id:
+        print()
+        print(
+            "拒绝执行：--confirm 与计划中的运行 ID 不一致。"
+            "计划未被执行，数据库未改动。"
+        )
+        return 1
+    evidence_dir = args.evidence_dir or args.baseline.parent / "history-retention"
+    try:
+        result = apply_plan(
+            args.database_path,
+            plan,
+            baseline_path=args.baseline,
+            evidence_dir=evidence_dir,
+            drafts_dir=args.drafts_dir,
+            allow_production=args.allow_production,
+            log=print,
+        )
+    except RetentionError as error:
+        print()
+        print(f"本次运行已停止且未提交清理：{error}", file=sys.stderr)
+        print(
+            "故障关闭：不要把这次失败当作完成。若上面提示事务已提交但凭证未发布，"
+            "请先停止写入，再从该次运行的 <运行 ID>.before.db 恢复到隔离副本并核验。",
+            file=sys.stderr,
+        )
+        return 1
+    print()
+    print(f"已发布并核验完成：删除 {result['deleted']} 行，run {result['run_id']}")
+    print(f"清理前备份: {result['pre_backup']}")
+    print(f"归档: {result['archive']}")
+    print(f"committed 凭证: {result['committed_manifest']}")
+    print("核验方式: python tools/verify_backup.py <database> --baseline <baseline.json>")
     return 0
 
 
@@ -237,11 +344,43 @@ def build_parser() -> argparse.ArgumentParser:
     prune = sub.add_parser("prune-sessions", help="清理已撤销／已过期／闲置超时的会话")
     prune.set_defaults(func=command_prune_sessions)
 
-    retention = sub.add_parser("history-retention", help="history_event 保留策略（待确认）")
+    retention = sub.add_parser("history-retention", help="history_event 保留策略（已确认 365 天）")
     retention_sub = retention.add_subparsers(dest="retention_command", required=True)
     preview = retention_sub.add_parser("preview", help="只读预览候选事件，不执行清理")
-    preview.add_argument("--json", dest="json_path", type=Path, help="写入新 JSON 文件，拒绝覆盖")
+    preview.add_argument("--json", dest="json_path", type=Path, help="写入新 JSON 报告，拒绝覆盖")
+    preview.add_argument(
+        "--plan", dest="plan_path", type=Path, default=None,
+        help="写入新的候选计划（apply 的唯一输入），拒绝覆盖",
+    )
+    preview.add_argument(
+        "--baseline", type=Path, default=None, help="baseline 快照（默认 data/recovery/baseline.json）"
+    )
     preview.set_defaults(func=command_history_retention_preview, read_only_preview=True)
+
+    apply_parser = retention_sub.add_parser(
+        "apply", help="按已复核的计划归档并清理（要求 --confirm 输入运行 ID）"
+    )
+    apply_parser.add_argument("--plan", dest="plan_path", type=Path, required=True)
+    apply_parser.add_argument(
+        "--confirm", default="", help="原样输入计划里的运行 ID；缺少即拒绝执行"
+    )
+    apply_parser.add_argument(
+        "--baseline", type=Path, default=None, help="baseline 快照（默认 data/recovery/baseline.json）"
+    )
+    apply_parser.add_argument(
+        "--evidence-dir", dest="evidence_dir", type=Path, default=None,
+        help="凭证目录（默认 <baseline 目录>/history-retention）",
+    )
+    apply_parser.add_argument(
+        "--drafts-dir", dest="drafts_dir", type=Path, default=None,
+        help="本次运行的草稿目录（默认 <凭证目录>/../history-retention-drafts）",
+    )
+    apply_parser.add_argument(
+        "--allow-production",
+        action="store_true",
+        help="明确允许对受保护数据库（生产库/备份/恢复副本）执行；需要负责人批准",
+    )
+    apply_parser.set_defaults(func=command_history_retention_apply, read_only_preview=True)
 
     return parser
 
@@ -251,6 +390,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if getattr(args, "read_only_preview", False):
         args.database_path = _preview_database_path()
+        if getattr(args, "baseline", None) is None:
+            args.baseline = _default_baseline_path()
         verify_schema_revision(args.database_path)
         return int(args.func(args))
     settings = get_settings()

@@ -319,12 +319,19 @@ def compare_against_baseline(
     require_revision: bool = True,
     expected_revision: str | None = None,
     retention_dir: Path | None = None,
+    allow_pending_run: str | None = None,
+    chain_dir: Path | None = None,
 ) -> tuple[bool, dict[str, object]]:
     """Compare a database to a baseline snapshot.
 
     Fails on: lost tables, lost rows, changed row values, integrity problems and
     foreign-key violations. Legitimate growth (new rows, new tables) is allowed
     and reported.
+
+    ``allow_pending_run`` exists for exactly one caller: the retention apply flow,
+    which checks its own work between committing the deletion and publishing the
+    credential. Every public entry point leaves it unset, so an unpublished manifest
+    never explains a missing row.
     """
     report: dict[str, object] = {
         "database": str(database),
@@ -353,7 +360,12 @@ def compare_against_baseline(
         spec.loader.exec_module(archive_module)
         try:
             archived_history, archived_full, history_checkpoint, runs = (
-                archive_module.load_committed_archives(retention_dir, baseline)
+                archive_module.load_archives(
+                    retention_dir,
+                    baseline,
+                    allow_pending_run=allow_pending_run,
+                    chain_dir=chain_dir,
+                )
             )
             if runs:
                 report["history_event_archived"] = {

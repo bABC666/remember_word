@@ -1,14 +1,25 @@
 """Versioned, read-verifiable evidence for archived history_event rows.
 
-This module has no deletion or production CLI entry point. The writer builds
-fixtures/evidence from an existing consistent SQLite backup; only a future,
-separately reviewed retention command may decide which rows may be removed.
+The writer builds an archive from an existing consistent SQLite snapshot and records
+exactly which rows it covers; the reader re-derives every hash from that snapshot, so
+an archive can only ever explain the rows it actually contains. Neither function
+selects candidates, approves a retention policy, or deletes anything -- that decision
+belongs to the operator flow in ``app.history_retention``.
+
+A run is written in two phases. The manifest is created **pending**
+(``<run_id>.manifest.pending.json``) and is renamed to ``<run_id>.manifest.json`` --
+the atomic publication step -- only after the deletion has been committed and
+verified. The public reader accepts committed manifests only, so a run that crashed
+between the commit and the publication explains nothing and verification fails; see
+``docs/V1.2-PHASE2.8-D-HISTORY-RETENTION-DESIGN.md`` §4.2.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -18,6 +29,12 @@ from typing import Any
 
 FORMAT_VERSION = 1
 RUN_ID = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}\Z")
+
+#: The published state of a manifest. ``pending`` is accepted only by a reader that
+#: was explicitly pointed at that one run, which is how the apply flow checks its own
+#: work before publishing.
+COMMITTED_STATE = "committed"
+PENDING_STATE = "pending"
 
 
 class ArchiveError(ValueError):
@@ -67,6 +84,16 @@ def _decode(value: object) -> object:
     raise ArchiveError("unsupported encoded SQLite value")
 
 
+def read_history_rows(database: Path) -> tuple[list[str], dict[str, list[object]]]:
+    """All ``history_event`` columns plus every row, keyed by its ID.
+
+    Public because the retention planner needs the same view of the table that the
+    archive writer uses: a plan and an archive must never disagree about which
+    columns exist or what a row contains.
+    """
+    return _history_rows(database)
+
+
 def _history_rows(database: Path) -> tuple[list[str], dict[str, list[object]]]:
     if not database.is_file():
         raise ArchiveError(f"pre-backup missing: {database}")
@@ -89,6 +116,10 @@ def _safe_file(directory: Path, name: object) -> Path:
     if not isinstance(name, str) or not name or Path(name).name != name or "\\" in name:
         raise ArchiveError("archive path must be a plain filename")
     return directory / name
+
+
+def _manifest_names(run_id: str) -> tuple[str, str]:
+    return f"{run_id}.manifest.json", f"{run_id}.manifest.pending.json"
 
 
 def _verify_pre_backup(
@@ -142,21 +173,39 @@ def _verify_pre_backup(
                 raise ArchiveError(f"pre-backup changed baseline rows in {table}")
 
 
-def create_committed_archive(
+def create_archive(
     pre_backup: Path,
     evidence_dir: Path,
     baseline: dict[str, object],
     row_ids: list[int],
     *,
     run_id: str,
+    state: str = PENDING_STATE,
+    extra: dict[str, Any] | None = None,
+    pre_backup_in_place: bool = False,
+    chain_dir: Path | None = None,
 ) -> Path:
     """Serialize exact rows from a snapshot; never modify the source database.
 
-    This format writer is for test fixtures and future reviewed orchestration.
-    It does not select rows, approve a retention policy, or delete anything.
+    ``state`` decides the manifest name: a run is written *pending* and only becomes
+    readable evidence once :func:`publish_archive` renames it, so a crash between the
+    commit and the publication cannot be mistaken for a completed cleanup. The writer
+    itself never decides which rows may go.
+
+    ``pre_backup_in_place`` says the snapshot is already at
+    ``<run_id>.before.db``: the operator flow creates that file itself with the SQLite
+    online backup API and verifies *that* file, so it must be the very file the
+    manifest points at rather than a second copy.
+
+    ``chain_dir`` is where the previously *published* runs live. The operator flow
+    writes this run's files into a draft directory and publishes them into the
+    evidence directory afterwards, but the manifest chain has to continue from the
+    evidence directory -- otherwise the published run would claim to be the first one.
     """
     if not RUN_ID.fullmatch(run_id):
         raise ArchiveError("invalid run id")
+    if state not in {PENDING_STATE, COMMITTED_STATE}:
+        raise ArchiveError("invalid manifest state")
     if not row_ids or row_ids != sorted(set(row_ids)) or any(row_id <= 0 for row_id in row_ids):
         raise ArchiveError("row IDs must be nonempty, positive, sorted and unique")
     columns, rows = _history_rows(pre_backup)
@@ -164,22 +213,37 @@ def create_committed_archive(
     if any(key not in rows for key in keys):
         raise ArchiveError("archived row missing from pre-backup")
     evidence_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = evidence_dir / f"{run_id}.manifest.json"
+    chain = Path(chain_dir) if chain_dir is not None else evidence_dir
+    committed_name, pending_name = _manifest_names(run_id)
+    manifest_path = evidence_dir / (committed_name if state == COMMITTED_STATE else pending_name)
     archive_path = evidence_dir / f"{run_id}.archive.jsonl"
     backup_path = evidence_dir / f"{run_id}.before.db"
-    if any(path.exists() for path in (manifest_path, archive_path, backup_path)):
+    if pre_backup_in_place:
+        if Path(pre_backup).resolve() != backup_path.resolve():
+            raise ArchiveError(
+                "a pre-backup written in place must already be this run's before.db"
+            )
+    elif any(path.exists() for path in (manifest_path, archive_path, backup_path)):
         raise ArchiveError("run evidence already exists")
-    _previous_archives, _previous_full, _previous_checkpoint, previous_runs = load_committed_archives(
-        evidence_dir, baseline
+    if manifest_path.exists() or archive_path.exists():
+        raise ArchiveError("run evidence already exists")
+    # An unpublished run is an unfinished cleanup: refuse to stack another run on top
+    # of it rather than silently reordering the manifest chain.
+    for candidate in evidence_dir.glob("*.manifest.pending.json"):
+        if candidate.name != pending_name:
+            raise ArchiveError(f"unpublished run {candidate.name} must be resolved first")
+    _previous_archives, _previous_full, _previous_checkpoint, previous_runs = load_archives(
+        chain, baseline
     )
     _verify_pre_backup(pre_backup, baseline, _previous_archives)
     previous_manifest = (
-        evidence_dir / f"{previous_runs[-1]['run_id']}.manifest.json"
+        chain / f"{previous_runs[-1]['run_id']}.manifest.json"
         if previous_runs else None
     )
-    shutil.copyfile(pre_backup, backup_path)
-    if _sha256_file(backup_path) != _sha256_file(pre_backup):
-        raise ArchiveError("pre-backup copy differs from source")
+    if not pre_backup_in_place:
+        shutil.copyfile(pre_backup, backup_path)
+        if _sha256_file(backup_path) != _sha256_file(pre_backup):
+            raise ArchiveError("pre-backup copy differs from source")
     identity_columns = baseline.get("tables", {}).get("history_event", {}).get(
         "identity_columns"
     ) or [column for column in columns if column != "user_id"]
@@ -192,7 +256,7 @@ def create_committed_archive(
     archive_path.write_bytes(b"".join(_json_bytes(line) + b"\n" for line in lines))
     manifest: dict[str, Any] = {
         "format_version": FORMAT_VERSION,
-        "state": "committed",
+        "state": state,
         "run_id": run_id,
         "sequence": len(previous_runs) + 1,
         "previous_manifest_sha256": (
@@ -214,36 +278,148 @@ def create_committed_archive(
             key: _row_hash([values[index] for index in identity_indexes])
             for key, values in rows.items()
         },
+        # Evidence about the reviewed plan this run implements. The reader ignores
+        # unknown fields; keeping them here ties the two artifacts together.
+        "plan_sha256": (extra or {}).get("plan_sha256"),
+        "cutoff_utc": (extra or {}).get("cutoff_utc"),
+        "retention_days": (extra or {}).get("retention_days"),
+        "event_types": (extra or {}).get("event_types"),
     }
     manifest_path.write_bytes(_json_bytes(manifest) + b"\n")
     return manifest_path
 
 
-def load_committed_archives(
-    evidence_dir: Path, baseline: dict[str, object]
-) -> tuple[dict[str, str], dict[str, tuple[list[str], str]], dict[str, str], list[dict[str, object]]]:
+def create_committed_archive(
+    pre_backup: Path,
+    evidence_dir: Path,
+    baseline: dict[str, object],
+    row_ids: list[int],
+    *,
+    run_id: str,
+) -> Path:
+    """Write a manifest that is committed from the start.
+
+    This is how fixtures and tests build evidence; the operator flow writes a pending
+    manifest and publishes it only after its deletion has been verified.
+    """
+    return create_archive(
+        pre_backup, evidence_dir, baseline, row_ids, run_id=run_id, state=COMMITTED_STATE
+    )
+
+
+def publish_archive(evidence_dir: Path, run_id: str) -> Path:
+    """Atomically turn one pending manifest into the committed credential.
+
+    The rename is the commit point of the whole procedure, but the *content* has to
+    change with it: a manifest says which state it is in, and the public reader accepts
+    ``committed`` only. So the committed bytes are written to a temporary file first
+    (never leaving a half-written manifest under the final name), the pending manifest
+    is removed, and only then is the finished file renamed into place. A crash in
+    between leaves no committed manifest at all, which is the safe direction.
+    """
+    if not RUN_ID.fullmatch(run_id):
+        raise ArchiveError("invalid run id")
+    committed_name, pending_name = _manifest_names(run_id)
+    pending = evidence_dir / pending_name
+    committed = evidence_dir / committed_name
+    if not pending.is_file():
+        raise ArchiveError("no pending manifest to publish")
+    if committed.exists():
+        raise ArchiveError("committed manifest already exists")
+    try:
+        manifest = json.loads(pending.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ArchiveError(f"pending manifest cannot be read: {error}") from error
+    if manifest.get("state") != PENDING_STATE:
+        raise ArchiveError("only a pending manifest can be published")
+    manifest["state"] = COMMITTED_STATE
+    temporary = evidence_dir / f"{run_id}.manifest.publishing"
+    try:
+        temporary.write_bytes(_json_bytes(manifest) + b"\n")
+        pending.unlink()
+        os.replace(temporary, committed)
+    except OSError as error:
+        raise ArchiveError(f"could not publish the manifest: {error}") from error
+    finally:
+        with contextlib.suppress(OSError):
+            temporary.unlink(missing_ok=True)
+    return committed
+
+
+def load_archives(
+    evidence_dir: Path,
+    baseline: dict[str, object],
+    *,
+    allow_pending_run: str | None = None,
+    chain_dir: Path | None = None,
+) -> tuple[
+    dict[str, str],
+    dict[str, tuple[list[str], str]],
+    dict[str, str],
+    list[dict[str, object]],
+]:
     """Return exact archived identities, latest checkpoint and report entries.
 
     Any malformed or incomplete evidence raises ArchiveError. A missing directory
     means ordinary strict baseline verification, with no allowed history loss.
+
+    ``allow_pending_run`` accepts exactly one unpublished run, and only for the flow
+    that is publishing it right now: the ordinary verification path never sets it, so
+    a pending manifest alone never explains a missing row.
+
+    ``chain_dir`` is the directory the published runs are read from. It defaults to
+    ``evidence_dir`` -- the only arrangement the public verification path uses. The
+    operator flow keeps this run's unpublished files in its own directory, so it reads
+    the chain from the published directory and the pending run from the draft; both
+    directories are checked for stray files, and the pending run must still continue
+    the chain.
     """
-    if not evidence_dir.exists():
+    published_dir = Path(chain_dir) if chain_dir is not None else Path(evidence_dir)
+    pending_dir = Path(evidence_dir)
+    for directory in {published_dir, pending_dir}:
+        if directory.exists() and not directory.is_dir():
+            raise ArchiveError("evidence path is not a directory")
+    if not published_dir.exists() and not pending_dir.exists():
         return {}, {}, {}, []
-    if not evidence_dir.is_dir():
-        raise ArchiveError("evidence path is not a directory")
+
+    accepted_pending: Path | None = None
+    if allow_pending_run is not None:
+        if not RUN_ID.fullmatch(allow_pending_run):
+            raise ArchiveError("invalid run id")
+        candidate = pending_dir / _manifest_names(allow_pending_run)[1]
+        accepted_pending = candidate if candidate.is_file() else None
+    if accepted_pending is None and allow_pending_run is not None:
+        try:
+            has_files = pending_dir.exists() and any(pending_dir.iterdir())
+        except OSError as error:
+            raise ArchiveError(f"cannot read evidence directory: {error}") from error
+        if has_files and published_dir != pending_dir:
+            raise ArchiveError("the draft directory has no pending manifest for this run")
     try:
-        manifests = list(evidence_dir.glob("*.manifest.json"))
+        committed = list(published_dir.glob("*.manifest.json")) if published_dir.exists() else []
     except OSError as error:
         raise ArchiveError(f"cannot read evidence directory: {error}") from error
-    if not manifests:
+    # A directory that holds an in-progress run is expected to have files but no
+    # committed manifest yet; every other directory with files and no manifest is an
+    # unresolved cleanup and refuses to be read as "nothing was ever archived".
+    pending_in_place = accepted_pending is not None and published_dir == pending_dir
+    if not committed and not pending_in_place:
         try:
-            has_files = any(evidence_dir.iterdir())
+            has_files = published_dir.exists() and any(published_dir.iterdir())
         except OSError as error:
             raise ArchiveError(f"cannot read evidence directory: {error}") from error
         if has_files:
             raise ArchiveError("evidence directory contains no committed manifest")
+    # Each entry is (manifest path, the directory its files live in, expected state).
+    entries: list[tuple[Path, Path, str]] = [
+        (path, published_dir, COMMITTED_STATE) for path in committed
+    ]
+    if accepted_pending is not None:
+        # Same directory or not, the pending run is the last link of the chain; the
+        # per-directory file check below then expects exactly its three files.
+        entries.append((accepted_pending, pending_dir, PENDING_STATE))
     try:
-        manifests.sort(key=lambda path: json.loads(path.read_text(encoding="utf-8"))["sequence"])
+        entries.sort(key=lambda entry: json.loads(entry[0].read_text(encoding="utf-8"))["sequence"])
     except (OSError, KeyError, TypeError, UnicodeError, json.JSONDecodeError) as error:
         raise ArchiveError(f"invalid archive manifest sequence: {error}") from error
     archived: dict[str, str] = {}
@@ -251,15 +427,18 @@ def load_committed_archives(
     checkpoint: dict[str, str] = {}
     reports: list[dict[str, object]] = []
     previous_manifest: Path | None = None
-    for manifest_path in manifests:
+    expected_by_dir: dict[Path, set[str]] = {}
+    for position, (manifest_path, directory, expected_state) in enumerate(entries):
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if manifest["format_version"] != FORMAT_VERSION or manifest["state"] != "committed":
-                raise ArchiveError("archive manifest is not committed v1")
+            if manifest["format_version"] != FORMAT_VERSION or manifest["state"] != expected_state:
+                raise ArchiveError(f"archive manifest is not {expected_state} v1")
+            if expected_state == PENDING_STATE and position != len(entries) - 1:
+                raise ArchiveError("a pending run cannot precede a committed one")
             run_id = manifest["run_id"]
             if not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
                 raise ArchiveError("invalid run id")
-            if manifest_path.name != f"{run_id}.manifest.json":
+            if manifest_path.name not in _manifest_names(run_id):
                 raise ArchiveError("manifest filename and run ID differ")
             if manifest["sequence"] != len(reports) + 1 or manifest["previous_manifest_sha256"] != (
                 _sha256_file(previous_manifest) if previous_manifest else None
@@ -267,8 +446,8 @@ def load_committed_archives(
                 raise ArchiveError("archive manifest chain is incomplete or reordered")
             if manifest["baseline_digest"] != _baseline_digest(baseline):
                 raise ArchiveError("manifest refers to another baseline")
-            backup_path = _safe_file(evidence_dir, manifest["pre_backup_file"])
-            archive_path = _safe_file(evidence_dir, manifest["archive_file"])
+            backup_path = _safe_file(directory, manifest["pre_backup_file"])
+            archive_path = _safe_file(directory, manifest["archive_file"])
             if backup_path.name != f"{run_id}.before.db" or archive_path.name != f"{run_id}.archive.jsonl":
                 raise ArchiveError("evidence filename and run ID differ")
             if _sha256_file(backup_path) != manifest["pre_backup_sha256"]:
@@ -329,21 +508,27 @@ def load_committed_archives(
                 archived_full[key] = (columns, manifest["full_hashes"][key])
             checkpoint = pre_hashes
             reports.append({"run_id": run_id, "ids": [str(i) for i in ids],
-                            "archive": str(archive_path)})
+                            "archive": str(archive_path),
+                            "state": expected_state})
             previous_manifest = manifest_path
+            names = expected_by_dir.setdefault(directory, set())
+            names.add(manifest_path.name)
+            names.add(f"{run_id}.archive.jsonl")
+            names.add(f"{run_id}.before.db")
         except (OSError, KeyError, TypeError, UnicodeError, json.JSONDecodeError, sqlite3.Error) as error:
             raise ArchiveError(f"invalid archive evidence {manifest_path.name}: {error}") from error
-    expected_files = {
-        name for report in reports for name in (
-            f"{report['run_id']}.manifest.json",
-            f"{report['run_id']}.archive.jsonl",
-            f"{report['run_id']}.before.db",
-        )
-    }
-    try:
-        actual_files = {path.name for path in evidence_dir.iterdir()}
-    except OSError as error:
-        raise ArchiveError(f"cannot read evidence directory: {error}") from error
-    if actual_files != expected_files:
-        raise ArchiveError("evidence directory contains missing or orphan files")
+    for directory, expected_files in expected_by_dir.items():
+        try:
+            actual_files = {path.name for path in directory.iterdir()}
+        except OSError as error:
+            raise ArchiveError(f"cannot read evidence directory: {error}") from error
+        if actual_files != expected_files:
+            raise ArchiveError("evidence directory contains missing or orphan files")
     return archived, archived_full, checkpoint, reports
+
+
+def load_committed_archives(
+    evidence_dir: Path, baseline: dict[str, object]
+) -> tuple[dict[str, str], dict[str, tuple[list[str], str]], dict[str, str], list[dict[str, object]]]:
+    """Strict, published-evidence-only reader used by every verification path."""
+    return load_archives(evidence_dir, baseline)
