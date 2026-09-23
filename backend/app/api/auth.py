@@ -53,10 +53,18 @@ BUSY_RETRY_AFTER_SECONDS = 1
 
 #: Which sensitive operation a re-auth attempt belonged to. A closed set: the value
 #: ends up in an audit payload, so it must never be caller-supplied text.
-ReauthAction = Literal["change_password", "revoke_sessions", "revoke_session"]
+ReauthAction = Literal[
+    "change_password",
+    "revoke_sessions",
+    "revoke_session",
+    "create_user",
+    "update_user",
+]
 CHANGE_PASSWORD_ACTION: ReauthAction = "change_password"
 REVOKE_SESSIONS_ACTION: ReauthAction = "revoke_sessions"
 REVOKE_SESSION_ACTION: ReauthAction = "revoke_session"
+CREATE_USER_ACTION: ReauthAction = "create_user"
+UPDATE_USER_ACTION: ReauthAction = "update_user"
 
 
 def user_payload(user: User, settings: UserSettings) -> dict[str, object]:
@@ -537,6 +545,20 @@ def list_users(session: SessionDep, _admin: AdminUser) -> list[dict[str, object]
 def create_user_endpoint(
     payload: CreateUserRequest, session: SessionDep, admin: AdminUser
 ) -> dict[str, object]:
+    """Create an account, behind the administrator's own password.
+
+    The order is the contract: the capability check (``AdminUser``) runs first, then
+    the re-auth guard, and only then is anything read or written. Creating an
+    account -- particularly an ``admin`` one -- is how a stolen session would turn
+    itself into a permanent backdoor, and the guard is the one thing that path
+    cannot survive: the attacker holds a cookie, not the password.
+
+    The password is checked before the duplicate-username test on purpose. A
+    refused attempt must not be able to learn anything, and "that name is taken"
+    is information.
+    """
+    _require_password(session, admin, payload.current_password, action=CREATE_USER_ACTION)
+
     normalized = normalize_username(payload.username)
     if find_user_by_username(session, normalized) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"用户名已存在：{normalized}")
@@ -566,10 +588,24 @@ def create_user_endpoint(
 def update_user_endpoint(
     user_id: int, payload: UpdateUserRequest, session: SessionDep, admin: AdminUser
 ) -> dict[str, object]:
+    """Update an account, behind the administrator's own password.
+
+    Same order as account creation: capability, then the re-auth guard, then the
+    target lookup. Checking the password *before* resolving ``user_id`` is what makes
+    a refused request unable to tell an existing account from a missing one -- both
+    answer the same 400 -- and what guarantees a refused request has no effect:
+    changing someone's password or disabling them also revokes every session they
+    have, and undoing that is not possible.
+    """
+    _require_password(session, admin, payload.current_password, action=UPDATE_USER_ACTION)
+
     user = session.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "用户不存在")
-    changes = payload.model_dump(exclude_unset=True)
+    # ``current_password`` is excluded rather than merely ignored: the re-auth guard
+    # has already consumed it, and it must not reach the field assignments below nor
+    # the audit payload, whose ``fields`` is a list of *account* fields that changed.
+    changes = payload.model_dump(exclude_unset=True, exclude={"current_password"})
     if user.id == admin.id:
         if changes.get("is_active") is False:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "不能停用当前登录的管理员")

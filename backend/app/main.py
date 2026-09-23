@@ -58,21 +58,33 @@ async def _not_found_handler(_request: Request, error: NotFoundError) -> JSONRes
     return JSONResponse(status_code=404, content={"detail": str(error)})
 
 
+#: Path prefixes whose answers must never be reused by a cache.
+#:
+#: ``/api/auth/`` responses describe the caller's identity and session; ``/api/users``
+#: responses describe accounts (usernames, roles, whether they are disabled) and are
+#: only answerable to an administrator. Both are statements about credentials, so a
+#: shared cache must not replay them and a browser must not serve a cached body after
+#: the session or the account state changed.
+#:
+#: ``/api/users`` was added with the admin re-auth guard (Phase 2.8 S-1). The phase
+#: 2.7-d design flagged that path as the one exception to this middleware's coverage,
+#: and a prefix rule is what keeps a future endpoint under it from being missed.
+NO_STORE_PREFIXES = ("/api/auth/", "/api/users")
+
+
 @app.middleware("http")
 async def _no_store_auth_responses(request: Request, call_next):
     """Keep authentication responses out of every cache.
 
-    ``/api/auth/*`` answers describe the caller's identity and session, so they are
-    never reusable: a shared cache must not replay them, and a browser must not
-    serve a cached "signed in" body after the session ended.
-
-    Deliberately scoped to that path group rather than applied site-wide, and
-    implemented as middleware rather than as a router dependency so it also covers
-    responses FastAPI builds for a rejected request -- a 401 raised by
-    ``get_current_user`` never reaches a route's own dependencies.
+    Deliberately scoped to :data:`NO_STORE_PREFIXES` rather than applied site-wide --
+    the study, article and lexicon endpoints are ordinary data -- and implemented as
+    middleware rather than as a router dependency so it also covers responses FastAPI
+    builds for a rejected request: a 401 raised by ``get_current_user``, or the 403
+    ``require_admin`` raises, never reaches a route's own dependencies but always
+    passes through here.
     """
     response = await call_next(request)
-    if request.url.path.startswith("/api/auth/"):
+    if request.url.path.startswith(NO_STORE_PREFIXES):
         response.headers["Cache-Control"] = "no-store"
     return response
 

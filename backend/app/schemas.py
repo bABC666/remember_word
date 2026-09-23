@@ -120,17 +120,43 @@ class SessionDeleteRequest(BaseModel):
 
 
 class CreateUserRequest(BaseModel):
+    """Create an account, behind the administrator's own password.
+
+    Two different secrets appear in this body and they must not share a name:
+    ``password`` is the **new account's**, while ``current_password`` is the
+    **caller's own** -- the value the re-auth guard verifies (Phase 2.8 S-1).
+    Creating an account is how a stolen session would install a permanent
+    administrator, so the guard runs before anything is written.
+    """
+
     username: str = Field(min_length=1, max_length=64)
     display_name: str = Field(default="", max_length=120)
     password: str = Field(min_length=8, max_length=256)
     role: Literal["admin", "user"] = "user"
+    current_password: str = Field(min_length=1, max_length=256)
 
 
 class UpdateUserRequest(BaseModel):
+    """Update an account, behind the administrator's own password.
+
+    Every field here is something the phase 2.7-d rule calls sensitive -- display
+    identity, capability (``role``), whether the account can be reached at all
+    (``is_active``), and the credential itself (``password``) -- so *every* call to
+    this endpoint demands ``current_password``, including one that changes nothing.
+    Which account fields were actually sent is still decided by ``exclude_unset``;
+    ``current_password`` is the admin's own password and takes no part in that.
+
+    ``password`` is the **target account's** new password. ``current_password`` is
+    the **caller's** own, and is therefore a required field rather than an optional
+    one: an absent password must be a refusal, never a silent fallback to
+    session-only authorisation.
+    """
+
     display_name: str | None = Field(default=None, max_length=120)
     is_active: bool | None = None
     role: Literal["admin", "user"] | None = None
     password: str | None = Field(default=None, min_length=8, max_length=256)
+    current_password: str = Field(min_length=1, max_length=256)
 
 
 class LexiconCreateRequest(BaseModel):

@@ -712,9 +712,15 @@ def test_admin_can_create_and_disable_users(auth_db, client) -> None:
     create_user(auth_db, "root-admin", role="admin")
     client.post("/api/auth/login", json={"username": "root-admin", "password": PASSWORD})
 
+    # Since Phase 2.8 S-1 both admin endpoints also demand the caller's own password.
     created = client.post(
         "/api/users",
-        json={"username": "created-by-admin", "password": PASSWORD, "role": "user"},
+        json={
+            "username": "created-by-admin",
+            "password": PASSWORD,
+            "role": "user",
+            "current_password": PASSWORD,
+        },
     )
     assert created.status_code == 201, created.text
     listing = client.get("/api/users")
@@ -723,12 +729,19 @@ def test_admin_can_create_and_disable_users(auth_db, client) -> None:
 
     duplicate = client.post(
         "/api/users",
-        json={"username": "created-by-admin", "password": PASSWORD, "role": "user"},
+        json={
+            "username": "created-by-admin",
+            "password": PASSWORD,
+            "role": "user",
+            "current_password": PASSWORD,
+        },
     )
     assert duplicate.status_code == 409
 
     user_id = created.json()["id"]
-    disabled = client.patch(f"/api/users/{user_id}", json={"is_active": False})
+    disabled = client.patch(
+        f"/api/users/{user_id}", json={"is_active": False, "current_password": PASSWORD}
+    )
     assert disabled.status_code == 200
     assert client.post(
         "/api/auth/login", json={"username": "created-by-admin", "password": PASSWORD}
@@ -740,10 +753,23 @@ def test_admin_cannot_lock_themselves_out(auth_db, client) -> None:
     client.post("/api/auth/login", json={"username": "self-admin", "password": PASSWORD})
     with auth_db() as session:
         my_id = session.scalar(select(User.id).where(User.username == "self-admin"))
-    assert client.patch(f"/api/users/{my_id}", json={"is_active": False}).status_code == 400
-    assert client.patch(f"/api/users/{my_id}", json={"role": "user"}).status_code == 400
     assert (
-        client.patch("/api/users/999999", json={"role": "admin"}).status_code == 404
+        client.patch(
+            f"/api/users/{my_id}", json={"is_active": False, "current_password": PASSWORD}
+        ).status_code
+        == 400
+    )
+    assert (
+        client.patch(
+            f"/api/users/{my_id}", json={"role": "user", "current_password": PASSWORD}
+        ).status_code
+        == 400
+    )
+    assert (
+        client.patch(
+            "/api/users/999999", json={"role": "admin", "current_password": PASSWORD}
+        ).status_code
+        == 404
     ), "a missing user is a 404, not a silent success"
 
 
