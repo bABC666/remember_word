@@ -256,7 +256,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | **S-3** | **恢复路径可被短暂封锁**：持被窃会话者可烧掉 re-auth 预算，使合法用户在窗口（默认 300 s）内无法执行敏感操作 | handoff §9.3 | 🟡 | 拒绝服务窗口有限；已有 CLI `set-password` 逃生口 | 2.8（评估） |
 | **S-4** | **限流状态在内存**：重启清零；**多 worker 下每 worker 各一份计数（等效阈值 × worker 数）**；反向代理后未配置 `--proxy-headers` 会导致所有用户共用一个 IP 计数桶 | handoff §9.4 | 🟠 | 部署阶段若误开多 worker，防滥用形同虚设 | 2.8（约束固化）/ 4（部署校验） |
 | **S-5** | **`data/staging/` 残留含真实数据的副本**（`v1.1-realdata-migration-test.db`、`v1.3-acceptance.db` 等），部分含测试口令 | status §6.5 #4 | 🟡 | 含个人学习数据的文件长期驻留；须连同 `-shm`/`-wal` 处置并确认无进程占用 | 2.8 |
-| **S-6** | **无保留策略的审计增长**：`history_event` append-only（约 129 字节/行），登录失败与审计持续增长 | handoff §9.5 | 🟡 | 长期磁盘膨胀；无分页/归档 | 2.8 |
+| **S-6** | ✅ **已实现并在 data/staging 副本上验收（2026-09-23，Batch 7 / G6 / T10）；生产清理仍待批准** 原缺陷：**无保留策略的审计增长**：`history_event` append-only（约 129 字节/行），登录失败与审计持续增长 | handoff §9.5；实现与验收见 `docs/V1.2-PHASE2.8-D-HISTORY-RETENTION-DESIGN.md` §8 | ✅ 已实现 | 在线保留 365 天、仅四类事件可归档；**生产清理需要负责人对具体计划与运行 ID 另行批准** | 2.8 |
 
 ### 4.2 数据与运维
 
@@ -323,7 +323,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 G6 审计保留、T8 三账号验收、T12/T13/T14 卫生项；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6**/**7** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 T8 三账号验收、T12/T13/T14 卫生项与 G6 的**生产执行**（保留策略本身已于 Batch 7 实现并在副本验收）；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.8 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | 2.8（备份 + 门禁 + CSRF）；建议在 3 之后 | 产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
@@ -432,7 +432,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | G3 | ✅ **已完成（2026-09-23，Batch 3）** **管理员敏感操作二次认证（S-1）** —— 改他人密码/角色、停用、建号，以及"什么都没改"的空更新，**每一次调用都要管理员输入自己的当前口令**；失败矩阵 401/403/422/400/429 固定；设计 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` |
 | G4 | ✅ **已完成（2026-09-23）** **CSRF 同源校验（S-2）** 覆盖 `/api/**` 写操作（30 个非安全端点；`POST /api/auth/login` 与 `/logout` **不豁免**） |
 | G5 | ✅ **已完成（2026-09-23，Batch 4）** **会话数量上限（2.7-e）** —— `VOCAB_MAX_SESSIONS_PER_USER`（默认 **10**，**0 = 不限制**）；每次登录后若该账号存活会话数超限，**先清理已失效行**，再按 `COALESCE(last_seen_at, created_at)` 最早**撤销最久未活动**的存活会话（并列取 id 最小者），**刚签发的当前会话按 id 硬排除**；新登录**永不因超限被拒**；每条淘汰写一条不含凭据的 `session_evicted` 审计。设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`，测试 `backend/tests/test_session_limit.py`（16 项） |
-| G6 | **`history_event` 保留策略（S-6）** —— CLI 清理 + 明确保留窗口 |
+| G6 | ✅ **已实现并在 data/staging 副本上验收（2026-09-23，Batch 7 / T10）；生产执行未批准** **`history_event` 保留策略（S-6）** —— 在线保留 **365 天**，仅 `login_failed`、`reauth_failed`、`user_login`、`article_word_lookup` **四类事件**可到期归档（其余审计事件长期在线保留）；`history-retention preview --plan` 固定候选 ID、UTC cutoff 与逐行 hash，`apply --plan --confirm <运行 ID>` 在 `BEGIN IMMEDIATE` 事务内按明确 ID 删除并核对删除数，提交后核验通过才原子发布 committed 凭证；**`data/vocab.db` 从未执行 preview/apply**（生产执行需负责人针对具体计划与运行 ID 批准并安排维护窗口）。设计 `docs/V1.2-PHASE2.8-D-HISTORY-RETENTION-DESIGN.md` §8 |
 | G7 | **`/api/**` 未知路径返回 404 JSON（T-3）** |
 | G8 | ✅ **已完成（2026-09-23，Batch 6）** **让「每日新词数」真正生效（P-5）** —— 学习队列按「当天已开始学的新词数」**累计**限制 `new`，而不是每次请求最多显示 N 个；到期与 `weak` 词优先占用 `limit`，且不受新词额度削减。语义、取舍与边界见 `docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md`，测试 `backend/tests/test_daily_new_words.py`（25 项） |
 
@@ -449,7 +449,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T7 | ✅ **已完成（2026-09-23）** 本地 commit 已推送（Batch 0/1/2A 三次推送），当前 `git status -sb` 为 **ahead 0 / behind 0**；发布证据 `data/recovery/*` 按设计**不入 Git**，随源码包另行交接 | git | S |
 | T8 | 副本上的**三账号验收**（管理员 / 用户 A / 用户 B）：跨用户读写、列表计数、公共词库读 vs 私有写、实例级配置与备份的管理员门槛、匿名访问；**必须把 409（词库删除守卫）纳入期望矩阵** | `tools/staging_*.py` | M |
 | T9 | ✅ **已完成（2026-09-23，Batch 4）** 会话数量上限淘汰逻辑 + 测试。落在 `services/auth.py::create_session` → `enforce_session_limit`（服务层，CLI/测试/未来登录路径共享同一语义）；**无 migration、无新字段、不引入 `revoke_reason`**；`.env.example` 记录 `VOCAB_MAX_SESSIONS_PER_USER` | `backend/app/services/auth.py`、`backend/app/config.py`、`.env.example`、`backend/tests/test_session_limit.py` | S–M ✅ |
-| T10 | `history_event` 保留策略：CLI 清理命令 + 保留窗口配置 + 测试 | `backend/app/cli.py` | S–M |
+| T10 | ✅ **已完成（2026-09-23，Batch 7）** `history_event` 保留策略：`history-retention preview [--plan]` 与 `apply --plan --confirm <运行 ID>`；窗口由 `VOCAB_HISTORY_EVENT_RETENTION_DAYS` 控制（默认 365、最小 365、`0` = 关闭）；归档 + 清理前备份 + 待提交→committed 凭证，任何失败都故障关闭。测试 `backend/tests/test_history_retention_apply.py`（39 项）与副本演练 `tools/history_retention_staging_drill.py`（含恢复演练） | `backend/app/cli.py`、`backend/app/history_retention.py`、`backend/app/history_retention_preview.py`、`tools/history_archive.py`、`.env.example` | M ✅ |
 | T11 | ✅ **已完成（2026-09-23，Batch 5）** SPA 兜底路由加 `/api/**` 例外，返回 404 JSON（T-3）：未知 `/api/**` 的 `GET` 返回 404 JSON，正常前端路由仍返回 SPA 页面；既有 API 与 `/assets` 挂载不变；**未放宽 CSRF**——跨源写请求仍由最外层同源中间件 403 拒绝（`POST`/`HEAD`/`OPTIONS` 打到未知 `/api/**` 由路由给出 405）。测试 `backend/tests/test_spa_fallback.py` 16 项 | `backend/app/main.py` | S ✅ |
 | T12 | 清理死代码：`helpers.word_dict`、`schemas.py::WordSummary`（`services/words.py` 视 T-1 决策一并处理） | `backend/app/api/helpers.py`、`schemas.py` | S |
 | T13 | 版本号决策与落地（E-4）：三处统一；若确定发布则打 tag | `pyproject.toml`、`package.json`、`main.py` | S |

@@ -80,7 +80,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 
 | 项 | 说明 |
 |---|---|
-| G6 / S-6 `history_event` 保留策略 | append-only，无清理 CLI 与保留窗口 |
+| G6 / S-6 `history_event` 保留策略 | **已实现并在副本验收（2026-09-23 Batch 7 / T10）**：365 天、四类事件；`preview --plan` 固定候选 ID、UTC cutoff 与逐行 hash，`apply --plan --confirm <运行 ID>` 在 `BEGIN IMMEDIATE` 内只按明确 ID 删除并核对数量，提交后核验通过才发布 committed 凭证。**生产 `data/vocab.db` 从未执行 preview/apply**（需负责人批准具体计划与运行 ID 并安排维护窗口）——因此这条在"尚未完成"表里只保留生产侧 |
 | T8 / E-3 副本三账号验收 | 现有证据为**双账号**（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`） |
 | T9–T17 卫生项 | **T11（T-3 未知 `/api/**` → 404 JSON）与 T17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；未完成部分见 §6（T-12 死代码、T-13 版本号、T-14 staging 残留） |
 | T-7 浏览器人工验收 | F-1/F-7 已有集成测试与活实例验证，但"人在浏览器里点一遍"仍待用户确认 |
@@ -91,7 +91,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 
 | 检查 | 命令 | 当前结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **474 passed**（36 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项、G5 的 `test_session_limit.py` 16 项、Batch 5 的 `test_spa_fallback.py` 16 项与 Batch 6 的 `test_daily_new_words.py` 25 项） |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **513 passed**（37 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项、G5 的 `test_session_limit.py` 16 项、Batch 5 的 `test_spa_fallback.py` 16 项、Batch 6 的 `test_daily_new_words.py` 25 项与 Batch 7 的 `test_history_retention_apply.py` 39 项） |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests`、`… ruff check tools` | All checks passed（两条） |
 | 前端测试 | `cd frontend; npm test` | **32 passed / 7 files** |
 | 前端类型 / lint / 构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 全部通过 |
@@ -220,7 +220,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 1b. ✅ **G5 每用户会话数量上限已完成（2026-09-23，Batch 4）**：默认 10、`0` = 不限制；超限时先清理已失效行、再淘汰最久未活动的存活会话，当前会话永不淘汰（见 §2.3、§5.3）。
    **本次未做**：`revoke_reason`（UI 仍无法解释"为何被登出"）；前端对被挤掉的提示。
 2. **Phase 2.8 卫生项打包**（低风险，可并行）
-   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**G8「每日新词数」生效已于 Batch 6 完成**；**仍待做**：T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T-10 `history_event` 保留策略（G6）；T8 副本三账号验收。
+   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**G8「每日新词数」生效已于 Batch 6 完成**；**T-10 `history_event` 保留策略（G6）已于 Batch 7 实现并在副本验收，生产执行仍未批准**；**仍待做**：T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T8 副本三账号验收。
 3. **Phase 3 · PWA 与移动端可用性**（先做设计决策）
    `manifest` + Service Worker + 图标（`/api/**` **永不缓存**）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-4 safe-area；F-6 底部导航。
 4. **Phase 4 · 生产部署上线**（建议在 Phase 3 之后）

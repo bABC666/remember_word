@@ -2,7 +2,7 @@
 
 > 更新日期：2026-09-23（本轮记录 **Phase 2.8 G8 / T16（「每日新词数」真正限制学习队列）** 的完成；上一轮为 T11 + T17）
 > 当前分支：`feat/v1.2-phase1-safe`；最近功能代码 `10dcfa5`（S-2）与 **`c3a6106`（S-1，本地，未 push）**，规划修订起点 `0d20a51`；实时 HEAD 以 Git 为准。
-> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 G6 审计保留、T8 三账号副本验收、T12/T13/T14 卫生项；**T11 与 T17 已于 Batch 5 完成、G8/T16 已于 Batch 6 完成**）
+> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 T8 三账号副本验收、T12/T13/T14 卫生项与 **G6 的生产执行**（保留策略已于 Batch 7 实现并在副本验收）；**T11 与 T17 已于 Batch 5 完成、G8/T16 已于 Batch 6 完成**）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
 > **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
@@ -17,15 +17,16 @@
 |---|---|
 | HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
 | 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`；**本地领先于 origin，尚未 push**——截至本批依次是：S-1 实现 `c3a6106`、S-1 文档收口 `acde4f8`、笔记归位 `46e0c55`、G5 `9fef2a4`、状态表补注 `1ca1a47`（**具体提交数与是否已推送以 `git status -sb` 为准**，本行不写死数字） |
+| 最近完成（Batch 7） | **Phase 2.8 G6 / T10：`history_event` 保留策略** —— 在线 **365 天**，仅 `login_failed`/`reauth_failed`/`user_login`/`article_word_lookup` 四类事件可到期归档；`history-retention preview --plan` 写出**固定计划**（候选 ID、UTC cutoff、逐行全列/身份 hash、当时每一行的 hash），`apply --plan --confirm <运行 ID>` 按计划建**清理前备份**（SQLite online backup API，唯一命名、拒绝覆盖、自包含单文件）→ 核验备份 → 生成归档与**待提交**凭证 → `BEGIN IMMEDIATE` 内重验并**只按明确 ID** 删除、核对删除数 → 提交后核验 → **原子发布 committed 凭证** → 发布后复核；任何失败都故障关闭（回滚不留孤儿、提交后未发布则核验必须失败）。**证照已核实**：保留规则已确认，但**生产清理未批准**，`data/vocab.db` 从未执行 preview/apply。设计 `docs/V1.2-PHASE2.8-D-HISTORY-RETENTION-DESIGN.md` §8，测试 `backend/tests/test_history_retention_apply.py` 39 项，副本演练 `tools/history_retention_staging_drill.py`（DRILL PASSED，含恢复演练）。代码提交 **`b48f1f9`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 6） | **Phase 2.8 G8 / T16：「每日新词数」真正控制学习队列** —— 额度 = 当天（UTC）`review_event.status_before = 'new'` 的**不同词条数**（多次请求不叠加、复习后不补词）；用户级 `daily_new_words` 封顶当日总量、`user_lexicon.daily_new_words` 各自限制本词库、两层取 `min`；`limit` 仍是整份队列长度上限，到期/`weak` 词优先占用且**不被新词额度削减**。`GET /api/study/today` 新增只读字段 `daily_new_words: {target, consumed_today, remaining}`（加法，旧客户端忽略）。**零 schema、零 migration、未改调度算法**；设计 `docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md`，测试 `backend/tests/test_daily_new_words.py` 25 项。代码提交 **`9872fe8`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 5） | **Phase 2.8 T11 + T17**：未知 `/api/**` 的 `GET` 返回 404 JSON（`backend/app/main.py`；测试 `backend/tests/test_spa_fallback.py` 16 项），`.env.example` 补 `VOCAB_DATABASE_PATH`（明确选择数据库环境；开发与测试不得指向 `data/vocab.db`）。代码与配置提交 **`59a8c68`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 4） | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。提交 **`9fef2a4`**，**本地未 push** |
 | 更早的批次 | Batch 3：S-1 管理员敏感操作二次认证（`c3a6106`）+ 其文档收口（`acde4f8`）；Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1/F-7；Batch 0.5 / 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
-| 本批关闭的任务 | **G8**（§6.1 功能目标）、**T16**（技术任务）；Batch 5 关闭的是 **T11**（T-3）与 **T17**（`.env.example`） |
-| 门禁 | `scripts/check.ps1` **exit 0**；后端 **474 passed**（含本批 `test_daily_new_words.py` 25 项）+ ruff 全通过 / 前端 **32 passed** |
+| 本批关闭的任务 | **T10**（技术任务）与 **G6 的"保留策略 + 凭证核验 + 副本验收"部分**；**G6 的生产执行未关闭**（需负责人批准具体计划与运行 ID）。Batch 6 关闭的是 **G8** 与 **T16** |
+| 门禁 | `scripts/check.ps1` **exit 0**；后端 **513 passed**（含本批 `test_history_retention_apply.py` 39 项）+ ruff 全通过 / 前端 **32 passed** |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 `c3a6106` 与本批：S-1 与 G5 的代码与测试都已完成并提交，但都尚未在此进程生效。** 让它们生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
-| 下一步 | Phase 2.8 剩余：**G6 `history_event` 保留策略、T8 三账号副本验收、T12/T13/T14 卫生项**（T11、T17 与 G8/T16 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
+| 下一步 | Phase 2.8 剩余：**T8 三账号副本验收、T12/T13/T14 卫生项，以及 G6 保留策略的生产执行**（需负责人针对具体 preview 计划与运行 ID 批准 + 维护窗口；T11、T17、G8/T16 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -309,7 +310,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 1a. **`PUT /api/settings` 的实例级字段仍无二次认证**（随 S-1 一并登记）：管理员可改 DeepSeek Key / Base URL / Model 与 OCR 配置；把 `deepseek_base_url` 指向攻击者端点即可外泄后续请求内容。**有意不在 S-1 范围**——该端点同时服务普通用户保存自己的偏好，无条件加口令会打断日常保存；理由见设计文档 §2.4。
 2. **恢复路径可被短暂封锁**：持被窃会话者可烧掉 re-auth 预算，使合法用户在窗口（默认 300 s）内无法执行敏感操作；缓解=短窗口 + 登录不受影响 + CLI `set-password` 逃生口 + 失败审计。
 3. **限流状态在内存**：重启清零；**若改为多 worker，每个 worker 各有一份计数（等效阈值×worker 数）**。IP 判定依赖部署层——置于反向代理后必须配置 `uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`，否则所有用户共用一个计数桶（与 §5.7 的 scheme 推导是同一处配置）。
-4. **`history_event` 无保留策略**（append-only，实测约 129 字节/行）：登录失败与审计会持续增长。
+4. ~~**`history_event` 无保留策略**（append-only，实测约 129 字节/行）：登录失败与审计会持续增长。~~ → ✅ **已于 2026-09-23（Batch 7 / G6 / T10）实现并在 `data/staging/` 副本上验收**（含故意失败与恢复演练）；**生产清理仍未批准**。**残余**：同一磁盘上的 SHA-256 不能抵抗有写权限者同时篡改数据库与清单——独立副本、文件权限与是否使用不可变存储/签名仍未定（设计 §7.2）；归档含用户名等个人信息，其访问与销毁策略需单独批准。
 
 **功能未完成**
 
@@ -328,7 +329,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 ## 10. 建议的下一步（按优先级）
 
 1. ✅ **已完成（2026-09-23，Batch 3）** ~~管理员操作二次认证（S-1 / 2.7-d-e，需产品决策）~~：`_require_password` 已扩展到 `POST /api/users` 与 `PATCH /api/users/{id}`（见 §5.3）。**以下为 Phase 2.8 的剩余待办**：
-2. **`history_event` 保留策略**（G6 / S-6）—— 会话数量上限（G5）已于 2026-09-23 Batch 4 完成。
+2. ✅ **`history_event` 保留策略（G6 / S-6）已于 2026-09-23 Batch 7 实现，并在 `data/staging/` 副本上完成清理 + 恢复演练**；**剩余的是生产执行**：需要负责人针对一次 `preview --plan` 的具体报告与运行 ID 批准，并在维护窗口内执行。
 3. ✅ **`/api/**` 未知路径返回 404 JSON（T-3 / T11）已于 2026-09-23 Batch 5 完成**（同批完成 T17：`.env.example` 补 `VOCAB_DATABASE_PATH`）；**仍待做**：死代码清理（T-12）、版本号（E-4）、staging 残留清理（S-5）。
 4. 部署前置：反向代理头配置、`VOCAB_COOKIE_SECURE=true`、HTTPS、备份定时器（Phase 0 §9.4）。
 
