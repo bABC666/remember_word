@@ -2,7 +2,7 @@
 
 > 更新日期：2026-09-23（本轮更新对应 **Phase 2.8 S-1（管理员敏感操作二次认证）** 完成）
 > 当前分支：`feat/v1.2-phase1-safe`；最近功能代码 `10dcfa5`（S-2）与 **`c3a6106`（S-1，本地，未 push）**，规划修订起点 `0d20a51`；实时 HEAD 以 Git 为准。
-> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1** 已交付；剩余 G5 会话上限、G6 审计保留、G8「每日新词数」、T8 三账号副本验收、T11–T17 卫生项）
+> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 G6 审计保留、G8「每日新词数」、T8 三账号副本验收、T11–T17 卫生项）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
 > **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
@@ -16,14 +16,14 @@
 | 项 | 值 |
 |---|---|
 | HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
-| 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`，**ahead 0 / behind 0** |
-| 最近完成 | **S-1 管理员敏感操作二次认证**（`backend/app/api/auth.py` 复用 `_require_password` + `schemas.py` 必填 `current_password` + `main.py` 的 `no-store` 覆盖 `/api/users` + `backend/tests/test_admin_reauth.py` 27 项 + 设计文档；提交 **`c3a6106`**，**本地未 push**） |
-| 上一批 | Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1 登录设备管理、F-7 自助改密；Batch 0.5：`verified_db` 行身份口径修正；Batch 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
-| 本批关闭的任务 | **S-1**（登记册 §4.1）、**G3**、**T3** |
-| 门禁 | `scripts/check.ps1` **exit 0**；后端 **392 passed** + ruff 全通过 / 前端 **29 passed** |
+| 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`；**本地领先 4 个提交**（S-1 实现 `c3a6106` + S-1 文档收口 `acde4f8` + 笔记归位 `46e0c55` + 本批 G5），**均未 push** |
+| 最近完成 | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。**本地提交，未 push** |
+| 上一批 | Batch 3：S-1 管理员敏感操作二次认证（`c3a6106`）+ 其文档收口（`acde4f8`）；Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1/F-7；Batch 0.5 / 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
+| 本批关闭的任务 | **G5**（§6.1 功能目标）、**T9**（技术任务） |
+| 门禁 | `scripts/check.ps1` **exit 0**；后端 **408 passed** + ruff 全通过 / 前端 **29 passed** |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
-| 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 S-1 提交 `c3a6106`：S-1 的代码与测试已完成并提交，但尚未在此进程生效。** 让它生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
-| 下一步 | Phase 2.8 剩余：**G5 会话数量上限、G6 `history_event` 保留策略、G8「每日新词数」生效、T8 三账号副本验收、T11–T17 卫生项**；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
+| 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 `c3a6106` 与本批：S-1 与 G5 的代码与测试都已完成并提交，但都尚未在此进程生效。** 让它们生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
+| 下一步 | Phase 2.8 剩余：**G6 `history_event` 保留策略、G8「每日新词数」生效、T8 三账号副本验收、T11–T17 卫生项**；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -150,7 +150,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 - **登录**：`POST /api/auth/login`。四种失败（用户不存在 / 口令错误 / 未设置密码 / 账号停用）返回**完全相同**的 `401 {"detail":"用户名或密码不正确"}`；未知用户也执行一次 dummy Argon2 校验以消除时间侧信道（实测时间比 **1.0×**）。
 - **Cookie**：`shici_session`，`HttpOnly` + `SameSite=lax` + `Path=/` + `Max-Age=30d`，`Secure` 由 `VOCAB_COOKIE_SECURE` 控制，无 `Domain`（host-only）。名称唯一定义于 `services/auth.py::COOKIE_NAME`。
-- **生命周期**：绝对过期（`VOCAB_SESSION_DAYS`，签发时固定、**永不续期**）+ 闲置超时（`VOCAB_SESSION_IDLE_DAYS`，默认 7 天）。`last_seen_at` 由 `touch_session` 写入（节流 5 分钟）。启动与 `python -m app.cli prune-sessions` 会删除"永不可再用"的会话行。
+- **生命周期**：绝对过期（`VOCAB_SESSION_DAYS`，签发时固定、**永不续期**）+ 闲置超时（`VOCAB_SESSION_IDLE_DAYS`，默认 7 天）+ **每账号存活会话上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10，`0` = 不限制；见 §5.4）。`last_seen_at` 由 `touch_session` 写入（节流 5 分钟）。启动与 `python -m app.cli prune-sessions` 会删除"永不可再用"的会话行。
 - **登出**：`POST /api/auth/logout` **幂等且匿名安全**——无 cookie / 已撤销 / 已过期 / 未知 token 一律 `200 {"ok":true}` 并返回删除 Cookie；重复调用不改写首次 `revoked_at`。
 - **会话判定**：`services/auth.py::session_is_live` 是唯一"可用"定义，`prune_sessions` 删除的正是它的补集。
 
@@ -190,8 +190,9 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 | 并发闸门 `LoginGate` | 全局 | `VOCAB_LOGIN_MAX_CONCURRENT=8` | **非阻塞**；满了立即 429（`Retry-After: 1`），绝不排队。所有口令校验（登录 + 敏感操作）共用，上限约 512 MiB 内存 |
 | 登录失败窗口 | 客户端 IP | `VOCAB_LOGIN_IP_FAILURES=10` / `VOCAB_LOGIN_IP_WINDOW_SECONDS=300` | 达阈值 → 429；成功登录清零；`0` 关闭 |
 | 二次认证预算 | 用户 | `VOCAB_REAUTH_FAILURES=5` / `VOCAB_REAUTH_WINDOW_SECONDS=300` | 同上；与 IP 窗口**互相独立** |
+| **每账号会话上限**（G5，2026-09-23） | 用户（**数据库行**） | `VOCAB_MAX_SESSIONS_PER_USER=10` | 登录后存活会话数超限 → **先清理该账号已失效的行**，再撤销 `COALESCE(last_seen_at, created_at)` 最早的存活会话（并列取 id 最小；**当前会话按 id 硬排除**）；新登录**永不因超限被拒**；每条淘汰写 `session_evicted`。`0` = 不限制。**与上面三行不同：它读数据库而非内存计数**——重启、多 worker 都不会让它失真 |
 
-计数全部在**内存**中（`app/services/limiter.py`，键有上限 + LRU），**不写数据库、不需要 schema**；重启清零。
+计数全部在**内存**中（`app/services/limiter.py`，键有上限 + LRU），**不写数据库、不需要 schema**；重启清零。**唯一的例外是上表的会话上限**：它是数据库里的行数，属于持久约束（也因此与本文件的"单 worker"约束无关）。
 
 ### 5.5 会话管理 API
 
@@ -203,7 +204,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 ### 5.6 与认证相关的环境变量（详见 `.env.example`）
 
-`VOCAB_SESSION_DAYS`、`VOCAB_SESSION_IDLE_DAYS`、`VOCAB_COOKIE_SECURE`、`VOCAB_BOOTSTRAP_USERNAME`、`VOCAB_LOGIN_MAX_CONCURRENT`、`VOCAB_LOGIN_IP_FAILURES`、`VOCAB_LOGIN_IP_WINDOW_SECONDS`、`VOCAB_REAUTH_FAILURES`、`VOCAB_REAUTH_WINDOW_SECONDS`、`VOCAB_CSRF_ALLOW_MISSING_ORIGIN`、`VOCAB_CSRF_TRUSTED_ORIGINS`；数据与安全相关：`VOCAB_DATA_DIR`、`VOCAB_DATABASE_PATH`、`VOCAB_REAL_DATA_DIR`、`VOCAB_ENABLE_OCR`。
+`VOCAB_SESSION_DAYS`、`VOCAB_SESSION_IDLE_DAYS`、**`VOCAB_MAX_SESSIONS_PER_USER`**、`VOCAB_COOKIE_SECURE`、`VOCAB_BOOTSTRAP_USERNAME`、`VOCAB_LOGIN_MAX_CONCURRENT`、`VOCAB_LOGIN_IP_FAILURES`、`VOCAB_LOGIN_IP_WINDOW_SECONDS`、`VOCAB_REAUTH_FAILURES`、`VOCAB_REAUTH_WINDOW_SECONDS`、`VOCAB_CSRF_ALLOW_MISSING_ORIGIN`、`VOCAB_CSRF_TRUSTED_ORIGINS`；数据与安全相关：`VOCAB_DATA_DIR`、`VOCAB_DATABASE_PATH`、`VOCAB_REAL_DATA_DIR`、`VOCAB_ENABLE_OCR`。
 
 ### 5.7 CSRF 防护：三层，而不是一层（Phase 2.8 S-2，2026-09-23）
 
@@ -227,7 +228,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - **阅读**：weak/失败/新词优先选词、AI 生成 + `actual_used_words` 后端校验、完成后测试、点词（词库优先、未知词才走 AI）、全文翻译并保存、查词缓存、生词入库。
 - **词库**：搜索/状态筛选/weak/最近/陈旧、单词详情（Source + Learning + 复习历史 + 文章暴露）；**删除含学习记录的词库会被 409 拒绝**（Phase 2.1）。
 - **设置**：DeepSeek Key/Base URL/Model（实例级，管理员）、每日新词数、文章长度、OCR 配置、onboarding 状态；Key 只回掩码。
-- **账号与安全**：登录/登出、会话列表与撤销、退出其它/全部设备、改密（撤销全部会话）、**管理员用户管理（改他人密码/角色/停用/建号，2026-09-23 起每次调用都要求管理员输入自己的当前口令，S-1）**、登录防滥用、失败审计、**写请求同源校验（S-2，2026-09-23）**；**设置页的「登录设备」区（F-1，2026-09-23）**列出每台设备的 `user_agent`/最近活动/登录时间/到期时间，当前设备不可在此撤销，单设备与"其它全部设备"两处撤销都要求输入当前口令；**设置页的「修改密码」区（F-7，2026-09-23）**校验当前口令与两次新口令一致，成功后全部会话被撤销并回到登录页（登录页会说明原因）。**注意**：管理员用户管理**只有 API/CLI 入口**，前端没有对应页面（见 §9.13）。
+- **账号与安全**：登录/登出、会话列表与撤销、退出其它/全部设备、改密（撤销全部会话）、**管理员用户管理（改他人密码/角色/停用/建号，2026-09-23 起每次调用都要求管理员输入自己的当前口令，S-1）**、登录防滥用、失败审计、**写请求同源校验（S-2，2026-09-23）**、**每账号会话数量上限与"最久未活动优先"淘汰（G5，2026-09-23）**；**设置页的「登录设备」区（F-1，2026-09-23）**列出每台设备的 `user_agent`/最近活动/登录时间/到期时间，当前设备不可在此撤销，单设备与"其它全部设备"两处撤销都要求输入当前口令；**设置页的「修改密码」区（F-7，2026-09-23）**校验当前口令与两次新口令一致，成功后全部会话被撤销并回到登录页（登录页会说明原因）。**注意**：管理员用户管理**只有 API/CLI 入口**，前端没有对应页面（见 §9.13）；会话上限与淘汰**对用户不可见**（没有"你被挤掉"的提示，见 §9.5）。
 
 ## 7. 代码导航
 
@@ -238,7 +239,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - `backend/app/csrf.py`：**写请求同源校验的纯函数**（`authority_of` / `request_authority` / `request_origin` / `write_is_allowed`）；无数据库、无网络、无状态。挂载点见 `main.py::_same_origin_write_check`。
 - `backend/app/config.py`：全部 `VOCAB_*` 配置项（含会话、限流、二次认证、CSRF）。
 - `backend/alembic/versions/`：0001–0007（**0007 为当前 head**）。
-- `backend/tests/`：**31 个测试文件（392 个用例）**，其中认证相关为 `test_auth.py`、`test_authz.py`、`test_session_lifecycle.py`、`test_session_management.py`、`test_session_revoke_all.py`、`test_login_limiter.py`、`test_reauth_guard.py`、**`test_admin_reauth.py`（S-1，27 项）**、`test_csrf.py`、`test_isolation_guards.py`、`test_static_guards.py`。
+- `backend/tests/`：**32 个测试文件（408 个用例）**，其中认证相关为 `test_auth.py`、`test_authz.py`、`test_session_lifecycle.py`、`test_session_management.py`、`test_session_revoke_all.py`、**`test_session_limit.py`（G5，16 项）**、`test_login_limiter.py`、`test_reauth_guard.py`、`test_admin_reauth.py`（S-1，27 项）、`test_csrf.py`、`test_isolation_guards.py`、`test_static_guards.py`。
 - `frontend/src/`：`pages/`（6 个应用页 + `LoginPage`）、`auth.tsx`（登录态与缓存清理）、`session.ts`（401 回调）、`api.ts`（统一 401/`credentials:'same-origin'`）。
 - 设计/审计文档：`docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`、`docs/V1.2-PHASE2.3-AUTH-FLOW-AUDIT.md`、`docs/V1.2-PHASE2.5-LOGIN-ABUSE-PROTECTION-DESIGN.md`、`docs/V1.2-PHASE2.7-A-SESSION-MANAGEMENT-DESIGN.md`、`docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`、`docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`（S-2）、**`docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`（S-1；编号字母取自安全条目序号 S-1/S-2，不是时间顺序——批次顺序是 Batch 2A → Batch 3）**。
 - 接手/协作入口（2026-09-23 新增）：**`docs/PROJECT_STATUS_CURRENT.md`**（项目当前状态，接手第一阅读文件）、**`docs/AI_DEVELOPMENT_GUIDE.md`**（AI 协作开发规范：必读清单、设计门槛、测试与文档与 Git 要求、禁止事项）。
@@ -249,7 +250,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **392 passed**（31 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项） |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **408 passed**（32 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项、G5 的 `test_session_limit.py` 16 项） |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests` | All checks passed |
 | 前端测试 | `cd frontend; npm test` | **29 passed / 5 files** |
 | 前端类型/构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 通过 |
@@ -310,7 +311,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 **功能未完成**
 
-5. **会话数量上限**（2.7-e，设计已给出"最旧未活动优先淘汰"的建议）。
+5. ~~**会话数量上限**（2.7-e）~~ → ✅ **已于 2026-09-23（Batch 4，G5）关闭**：`VOCAB_MAX_SESSIONS_PER_USER`（默认 10，`0` = 不限制）；超限时**先清理已失效行、再淘汰最久未活动**的存活会话，**当前会话永不淘汰，新登录永不因超限被拒**。**残余**：被挤掉的设备在 UI 上得不到解释（没有 `revoke_reason`，migration 0008 未做），用户只会看到"掉线"——审计里有 `session_evicted`。
 6. **无 `revoke_reason`**：UI 无法解释某设备为何被登出（需 migration 0008，可选）。
 7. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
 8. `word` 表已无写入方，`helpers.word_dict`、`services/words.py`、`schemas.py::WordSummary` 属**遗留死代码**；`POST /api/words/quick-add`（Phase 0 规划）未实现。
@@ -325,7 +326,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 ## 10. 建议的下一步（按优先级）
 
 1. ✅ **已完成（2026-09-23，Batch 3）** ~~管理员操作二次认证（S-1 / 2.7-d-e，需产品决策）~~：`_require_password` 已扩展到 `POST /api/users` 与 `PATCH /api/users/{id}`（见 §5.3）。**以下为 Phase 2.8 的剩余待办**：
-2. **`history_event` 保留策略**与**会话数量上限**（2.7-e）。
+2. **`history_event` 保留策略**（G6 / S-6）—— 会话数量上限（G5）已于 2026-09-23 Batch 4 完成。
 3. **`/api/**` 未知路径返回 404 JSON**（T-3）、死代码清理、版本号（E-4）、staging 残留清理（S-5）。
 4. 部署前置：反向代理头配置、`VOCAB_COOKIE_SECURE=true`、HTTPS、备份定时器（Phase 0 §9.4）。
 

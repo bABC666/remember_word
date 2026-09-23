@@ -78,6 +78,27 @@ class Settings:
         return max(0, value)
 
     @property
+    def max_sessions_per_user(self) -> int:
+        """How many live sessions one account may hold. ``0`` switches the cap off.
+
+        A login that would exceed it is **never refused**: the least recently active
+        session is revoked instead. Refusing would deadlock the one person who needs
+        to sign in most -- somebody who lost a device and wants to revoke it.
+
+        Ten is generous for a personal application (real device counts are one or
+        two) and still bounded, so a script, a forgotten tab or a leaked password
+        cannot grow the table for ever. The value is read from the rows on each
+        login, so there is no process-local state to restart: lowering it takes
+        effect at the next login.
+        """
+        raw = os.getenv("VOCAB_MAX_SESSIONS_PER_USER", "10").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return 10
+        return max(0, value)
+
+    @property
     def login_max_concurrent(self) -> int:
         """How many password verifications may run at the same time.
 

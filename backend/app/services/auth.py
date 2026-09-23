@@ -8,7 +8,7 @@ from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import User, UserSession, UserSettings
+from app.models import HistoryEvent, User, UserSession, UserSettings
 from app.security import (
     UNUSABLE_PASSWORD,
     dummy_password_hash,
@@ -129,7 +129,14 @@ def verify_unknown_user_password(password: str) -> None:
 def create_session(
     session: Session, user: User, *, user_agent: str = "", now: datetime | None = None
 ) -> tuple[str, UserSession]:
-    """Create a session row and return the raw token for the cookie."""
+    """Create a session row and return the raw token for the cookie.
+
+    Signing in is never refused for being over the account's session cap: when this
+    account already holds ``VOCAB_MAX_SESSIONS_PER_USER`` live sessions, the least
+    recently active one is revoked instead (:func:`enforce_session_limit`). A refusal
+    here would deadlock the one user who needs to sign in most -- somebody whose
+    device was lost, who has to get in to revoke it.
+    """
     issued = now or datetime.now(UTC)
     token = generate_session_token()
     record = UserSession(
@@ -142,6 +149,7 @@ def create_session(
     session.add(record)
     session.commit()
     session.refresh(record)
+    enforce_session_limit(session, user, keep_session_id=record.id, now=issued)
     return token, record
 
 
@@ -344,6 +352,90 @@ def list_user_sessions(
         )
     ).all()
     return [record for record in records if session_is_live(record, now=moment)]
+
+
+def enforce_session_limit(
+    session: Session, user: User, *, keep_session_id: int, now: datetime | None = None
+) -> list[UserSession]:
+    """Bring this account's live sessions back within the cap; return the evicted rows.
+
+    Called right after a session has been issued (see :func:`create_session`), which is
+    what makes the two steps' order meaningful:
+
+    1. **dead rows first.** Revoked, expired and idle-past-the-window sessions cannot
+       be used again, so removing them is housekeeping -- and it keeps the count
+       honest instead of letting unusable rows consume the allowance.
+    2. **then the least recently active live sessions**, by
+       ``COALESCE(last_seen_at, created_at)`` ascending: the device that has gone
+       longest without being seen is the least likely to be in someone's hand. Ties
+       break on the row id, so the same table always evicts the same session.
+
+    ``keep_session_id`` is the session this request just created, and it is excluded
+    unconditionally. The ordering would almost always spare it anyway -- its creation
+    time is now, so it sorts as the newest -- but "almost always" is not what a login
+    should rest on. The exclusion is what makes "the login that triggered enforcement
+    is never the login that got signed out" a fact rather than a likelihood.
+
+    ``VOCAB_MAX_SESSIONS_PER_USER=0`` returns before any of this: with the cap off,
+    neither the eviction nor the cleanup happens here, and dead rows are left to the
+    startup / CLI :func:`prune_sessions` as before.
+    """
+    limit = get_settings().max_sessions_per_user
+    if limit <= 0:
+        return []
+
+    moment = now or datetime.now(UTC)
+    live = list_user_sessions(session, user, now=moment)  # most recent activity first
+    if len(live) <= limit:
+        return []
+
+    _purge_dead_user_sessions(session, user, moment)
+
+    # ``live`` is ordered most-recent-first, so reversing it gives the eviction order.
+    # Its rows are safe from the purge above by construction: the purge removes only
+    # rows ``session_is_live`` rejects, and every row here passed it. The kept session
+    # is not a candidate, and ``limit`` is at least 1, so the slice never runs short.
+    candidates = [record for record in reversed(live) if record.id != keep_session_id]
+    evicted = candidates[: len(live) - limit]
+    for record in evicted:
+        record.revoked_at = moment
+        session.add(record)
+        session.add(
+            HistoryEvent(
+                # The account whose device went, not the session: an eviction is
+                # something that happened to a person, and it has to be findable that
+                # way. The payload is a fixed reason -- no caller-supplied text, no
+                # token, no token_hash, nothing derived from the credential.
+                user_id=user.id,
+                event_type="session_evicted",
+                entity_type="user_session",
+                entity_id=record.id,
+                payload={"reason": "session_limit", "limit": limit},
+            )
+        )
+    session.commit()
+    return evicted
+
+
+def _purge_dead_user_sessions(session: Session, user: User, now: datetime) -> int:
+    """Delete this account's unusable sessions, and report how many rows went.
+
+    Scoped to ``user_id`` deliberately: the cap is enforced inside one account's
+    login, and deleting other accounts' dead rows at that moment would be a surprise
+    with nothing to show for it -- :func:`prune_sessions` already does that sweep at
+    startup and from the CLI.
+
+    Liveness is decided by :func:`session_is_live`, the same predicate every request
+    and :func:`list_user_sessions` use, rather than by a second SQL rule that could
+    disagree with them (``test_prune_and_the_live_check_agree_on_the_boundary`` pins
+    the bulk sweep to the same boundary). An account has a handful of rows, so
+    filtering here costs nothing worth optimising.
+    """
+    rows = session.scalars(select(UserSession).where(UserSession.user_id == user.id)).all()
+    dead = [row for row in rows if not session_is_live(row, now=now)]
+    for row in dead:
+        session.delete(row)
+    return len(dead)
 
 
 def revoke_user_session(

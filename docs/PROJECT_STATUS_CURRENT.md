@@ -12,8 +12,8 @@
 | 上游 | `origin/feat/v1.2-phase1-safe`；S-1 提交**仅在本地**（未 push、未打 tag） |
 | 安全基线分支 | `recovery/v1.1-guarded`（2026-09-22 数据事故后的安全基线） |
 | 工作区 | **未收口，且含他人未交付的改动**：①S-1 的代码/测试/设计文档已提交（`c3a6106`）；②**并发协作者**修订中的规划文档（`PROJECT_ARCHITECTURE.md`、`PROJECT_ROADMAP.md`、`PROJECT_STATUS_CURRENT.md`、`PROJECT_HANDOFF.md`、`AI_DEVELOPMENT_GUIDE.md` 均**未提交**，内容是 Phase 2.9 规划）；③**本目录内出现的他人前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` 修改 + 未跟踪 `frontend/src/api.test.ts`、`frontend/src/pages/ImportPage.test.tsx`；内容是 OCR 请求超时修复，归属另一个独立 worktree 的任务）——**未提交、未合并、未回滚**；④未跟踪产物 `docs/PROJECT_STATUS_V1.2.md`、`backend/.pytest-tmp-codex-*`。**不要顺手提交或回滚②③④** |
-| 门禁状态 | `scripts/check.ps1` → **exit 0**（见 §3）；后端 **392 passed** |
-| 运行实例 | `127.0.0.1:8000` 单 worker 进程**启动于 12:27，早于 `c3a6106`**。因此必须把两件事分开读：**S-1 的代码与测试已完成并提交**（后端 392 passed、设计文档齐备），但**当前运行实例尚未重启，S-1 在该进程上尚未生效**。重启命令：`stop-vocab.bat` → `start-vocab.bat`（无新 migration，其中 `alembic upgrade head` 是空操作）。本批**未重启实例、未触碰生产库** |
+| 门禁状态 | `scripts/check.ps1` → **exit 0**（见 §3）；后端 **408 passed** |
+| 运行实例 | `127.0.0.1:8000` 单 worker 进程**启动于 12:27，早于 `c3a6106` 与本批 G5**。因此必须把两件事分开读：**S-1 与 G5 的代码与测试都已完成并提交**（后端 408 passed、设计文档齐备），但**当前运行实例尚未重启，两者在该进程上都尚未生效**。重启命令：`stop-vocab.bat` → `start-vocab.bat`（无新 migration，其中 `alembic upgrade head` 是空操作）。本批**未重启实例、未触碰生产库** |
 | 冻结基线 | 本文件描述的代码状态已通过全量门禁；**数据侧**另有一份 0007 verified backup 与重录基线（见 §4） |
 
 ---
@@ -73,12 +73,12 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | **F-7 自助修改密码** | 设置页「修改密码」区：校验当前口令 + 两次新口令一致（≥8 位、不得与旧密码相同）；成功后服务端撤销全部会话，前端回到登录页并说明原因 |
 | **S-1 管理员敏感操作二次认证** | `POST /api/users`、`PATCH /api/users/{id}` 的**每一次调用**都要管理员输入**自己的当前口令**（复用 `_require_password`；零 schema、零新配置）；提交 **`c3a6106`**。失败行为固定：口令错 400、无口令 422、预算尽 429 + `Retry-After`、非管理员 403、未登录 401；**校验通过前不改任何账号与会话**；两个端点与 `GET /api/users` 的响应都带 `no-store`；口令/token/`token_hash` 不进响应与审计。设计 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`，测试 `backend/tests/test_admin_reauth.py`（27 项）。**前端仍无管理员管理入口，本次未建页面** → 见 §5.2 与 §6 风险 #29 |
 | **S-2 CSRF 防护** | 见 §5.1 |
+| **G5 每用户会话数量上限** | `VOCAB_MAX_SESSIONS_PER_USER`（默认 10，`0` = 不限制）；超限时**新登录仍成功**：先清理该账号的已失效行，再按 `COALESCE(last_seen_at, created_at)` 最早撤销**最久未活动**的存活会话（并列取 id 最小），**刚签发的当前会话按 id 硬排除**；每条淘汰写一条不含凭据的 `session_evicted` 审计。零 schema、零 migration、不引入 `revoke_reason`。设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`，测试 `backend/tests/test_session_limit.py`（16 项） → 见 §5.3 |
 
 ### 2.4 Phase 2.8 尚未完成
 
 | 项 | 说明 |
 |---|---|
-| G5 会话数量上限（2.7-e） | 设计已给"最旧未活动优先淘汰"建议，未实现 |
 | G6 / S-6 `history_event` 保留策略 | append-only，无清理 CLI 与保留窗口 |
 | T8 / E-3 副本三账号验收 | 现有证据为**双账号**（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`） |
 | T9–T17 卫生项 | 未完成部分见 §6（T-3 未知 `/api` 路径、T-12 死代码、T-13 版本号、T-14 staging 残留、T-17 `.env.example` 缺 `VOCAB_DATABASE_PATH`） |
@@ -90,7 +90,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 
 | 检查 | 命令 | 当前结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **392 passed**（31 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项） |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **408 passed**（32 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项与 G5 的 `test_session_limit.py` 16 项） |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests`、`… ruff check tools` | All checks passed（两条） |
 | 前端测试 | `cd frontend; npm test` | **29 passed / 5 files** |
 | 前端类型 / lint / 构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 全部通过 |
@@ -154,6 +154,22 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 **未关闭的对照**：S-2 关闭的是**跨站**这条路径；**会话被盗**这条路径由 S-1 收窄。同源校验**不能替代**二次认证，两者互补。
 （另有 3 个用户侧端点已有口令守卫：`POST /api/auth/password`、`POST /api/auth/sessions/revoke`、`DELETE /api/auth/sessions/{id}`——合计 **5 个**受保护端点。）
 
+### 5.3 已完成：G5 每用户会话数量上限（2026-09-23）
+
+设计记录：`docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`（含设计 ↔ 代码差异 D-1…D-16 的逐条裁定）；实现：`backend/app/services/auth.py`（`create_session` → `enforce_session_limit` + `_purge_dead_user_sessions`，均为新函数；`prune_sessions` / `session_is_live` / `list_user_sessions` **未改**）+ `backend/app/config.py`（`max_sessions_per_user`）+ `.env.example`；测试：`backend/tests/test_session_limit.py`（16 项）。
+
+| 项 | 内容 |
+|---|---|
+| **上限** | `VOCAB_MAX_SESSIONS_PER_USER`，默认 **10**；`0` = 不限制（此时本功能整段跳过，死行仍由启动/CLI 的 `prune_sessions` 处理）；非法值回落 10，负值等同 0 |
+| **超限动作** | **不拒绝新登录**（拒绝会造出"设备丢了 → 登不上 → 撤销不了"的死锁）：登录成功后若该账号存活会话数超限，**先清理已失效行**，再撤销最久未活动的那条，直到 ≤ 上限 |
+| **排序** | `COALESCE(last_seen_at, created_at)` 最早的先淘汰（是"最近一次活动"，不是"创建时间"）；**并列取 id 最小**者（确定性） |
+| **当前会话** | 刚签发的会话**按 id 硬排除**，永不淘汰（不是"排序上通常不会选中"） |
+| **审计** | 每条淘汰一条 `session_evicted`：`user_id`=账号、`entity_type="user_session"`、`entity_id`=被撤销会话、`payload={"reason":"session_limit","limit":N}`；**不含 token / token_hash / 口令 / 客户端文本** |
+| **存储语义** | 淘汰 = 写 `revoked_at`（不是删除行）；被挤掉的设备下一次请求即 **401**；行本身要等 `prune_sessions` 才消失 |
+| **零 schema** | 无新列、无 migration、**未引入 `revoke_reason`**（因此 UI 仍无法解释"为何被登出"，只能靠审计事件） |
+| **与内存限流不同** | 它**读数据库行**，不是内存计数：重启、多 worker 都不会让上限失真（与 S-4 的取舍相反，是有意的） |
+| **验收证据** | 先补测试：实现前 **13 failed / 3 passed**；实现后 **16 passed**；全量后端 **408 passed**（392 → +16，无回归） |
+
 ---
 
 ## 6. 当前已知风险（完整清单，不删除既有条目）
@@ -189,6 +205,10 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | 25 | **DNS rebinding 不由本机制拦截** | ⚪ | 但会话 Cookie 是 **host-only**，不会发给攻击者域名 → 请求到达时无凭据 |
 | 26 | **运维观感问题** | ⚪ | 启动脚本会截断 `data/logs/server-out.log`；`data/server.pid` 记的是启动器 PID 而实际监听者是子进程（`stop-vocab.ps1` 以端口为准，可正确定位）；桌面快捷方式存在已知乱码缺陷（`0007-release-record.md` §12.2） |
 | 27 | **可选：`revoke_reason`** | ⚪ | UI 无法解释"某设备为何被登出"；需 migration 0008，默认不做 |
+| 29 | **`PUT /api/settings` 的实例级字段仍无二次认证** | 🟠 | 管理员可改 DeepSeek Key / Base URL / Model 与 OCR 配置：把 `deepseek_base_url` 指向攻击者端点即可外泄后续请求内容。**有意不在 S-1 范围**——该端点同时服务普通用户保存自己的偏好，无条件加口令会打断日常保存，条件加口令需另行设计（理由见 `V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` §2.4） |
+| 30 | **恢复路径可被短暂封锁**（S-3） | 🟡 | 持被窃会话者可故意烧掉 re-auth 预算，使合法管理员/用户在窗口（默认 300 s）内无法执行任何受口令保护的敏感操作。缓解：窗口短、**登录与日常学习不受影响**、CLI `set-password`/`promote` 逃生口（不经 API）、每次失败都有审计。S-1 使这条风险的作用面扩大（原来只有用户侧改密，现在含管理员用户管理） |
+| 31 | **被挤掉的设备在 UI 上得不到解释**（G5 的固有代价） | 🟡 | 达到 `VOCAB_MAX_SESSIONS_PER_USER`（默认 10）后，最久未活动的那台设备会**静默登出**；前端只知道"会话失效"，唯一线索是 `history_event` 里的 `session_evicted`。根治需 `revoke_reason`（migration 0008，未做）。相关取舍：持口令者可用"反复登录"制造登出骚扰（设计记录 §3-3 已论证：与其拒绝新登录造成死锁，宁可接受可恢复的骚扰） |
+| 32 | **会话上限与内存限流的取舍相反** | ⚪ | 上限**读数据库行**，因此重启/多 worker 都不会让它失真；而登录/二次认证的限流仍是内存计数（#7 / S-4），**单 worker 约束不变**。两者不要混为一谈 |
 
 ---
 
@@ -196,8 +216,10 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 
 1. ✅ **S-1 管理员二次认证已完成（2026-09-23，Batch 3）**：两个端点每次调用都要求管理员自己的当前口令（见 §2.3、§5.2）。`ReauthAction` 字面量已扩展为 5 个动作（`change_password` / `revoke_sessions` / `revoke_session` / `create_user` / `update_user`）。
    **本次未做**：前端管理员管理页面（前端至今没有该入口，见 §2.3 与 §6 风险 #29）；`PUT /api/settings` 的实例级字段二次认证。
+1b. ✅ **G5 每用户会话数量上限已完成（2026-09-23，Batch 4）**：默认 10、`0` = 不限制；超限时先清理已失效行、再淘汰最久未活动的存活会话，当前会话永不淘汰（见 §2.3、§5.3）。
+   **本次未做**：`revoke_reason`（UI 仍无法解释"为何被登出"）；前端对被挤掉的提示。
 2. **Phase 2.8 卫生项打包**（低风险，可并行）
-   T-3 未知 `/api/**` → 404 JSON；T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T-9 会话数量上限；T-10 `history_event` 保留策略；T-17 `.env.example` 补 `VOCAB_DATABASE_PATH`。
+   T-3 未知 `/api/**` → 404 JSON；T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T-10 `history_event` 保留策略（G6）；T-17 `.env.example` 补 `VOCAB_DATABASE_PATH`；G8「每日新词数」生效；T8 副本三账号验收。
 3. **Phase 3 · PWA 与移动端可用性**（先做设计决策）
    `manifest` + Service Worker + 图标（`/api/**` **永不缓存**）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-4 safe-area；F-6 底部导航。
 4. **Phase 4 · 生产部署上线**（建议在 Phase 3 之后）
@@ -233,6 +255,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | `docs/V1.2-PHASE2.*-*.md` | Phase 2 各子阶段设计/审计 | 对应主题 |
 | `docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md` | S-2 设计与边界 | 触碰 CSRF/认证头时 |
 | `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` | **S-1 管理员二次认证**：现状审查（两个端点的全部操作与保护）、失败矩阵、无副作用承诺、验收标准、与本文件/代码的不一致登记 | 触碰管理员端点或 re-auth 守卫时 |
+| `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md` | **G5 每用户会话数量上限**：设计（`V1.2-PHASE2.7-A` §5）与代码现状的**差异裁定 D-1…D-16**、判定顺序、审计、边界与验收 | 触碰会话上限、淘汰或会话清理逻辑时 |
 | `docs/AI_DEVELOPMENT_GUIDE.md` | AI 协作开发规范（可执行版） | 每个任务开始/结束时 |
 | `docs/0007-production-migration-runbook.md`（+`-checklist`） | 生产迁移操作规程 | **任何** migration |
 | `data/recovery/*` | 发布/校验/验收证据（**不入 Git**） | 查证据、复验 |
