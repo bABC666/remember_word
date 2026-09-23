@@ -141,8 +141,35 @@ if assets_dir.exists():
     app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 
+#: The URL segment the JSON API owns. Every endpoint under it is registered above this
+#: point, so the catch-all route below must never answer for it. The path parameter of
+#: that route arrives without a leading slash, which is why this is not spelled "/api".
+API_SEGMENT = "api"
+
+
+def _belongs_to_api(path: str) -> bool:
+    """Whether a catch-all path sits in the API namespace (T11 / G7 "T-3").
+
+    A whole segment is required: ``/apiary`` is an ordinary frontend route, and only
+    ``api`` itself or something below it belongs to the API. Without this exclusion a
+    mistyped endpoint answers ``200`` with ``index.html``, so a failed call looks like a
+    success and an API client is handed an HTML document to parse.
+    """
+    return path == API_SEGMENT or path.startswith(f"{API_SEGMENT}/")
+
+
 @app.get("/{path:path}", include_in_schema=False)
 def frontend(path: str) -> FileResponse:
+    """Serve a built frontend file, or the SPA shell, for anything outside the API.
+
+    The API exclusion comes before the file lookup on purpose: nothing placed in
+    ``frontend/dist/api/`` may be served under the namespace the JSON API owns, so a
+    build artifact and an endpoint cannot silently shadow each other. The check is only
+    reachable by ``GET`` -- the route's other methods are refused by the router -- and a
+    write to these paths is still refused earlier by ``_same_origin_write_check``.
+    """
+    if _belongs_to_api(path):
+        raise HTTPException(404, "接口不存在")
     index = frontend_dist / "index.html"
     requested = frontend_dist / path
     if requested.is_file() and frontend_dist in requested.resolve().parents:
