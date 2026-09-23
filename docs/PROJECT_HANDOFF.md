@@ -1,10 +1,31 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-22（本轮更新对应 **Phase 2.7-d-d** 完成）
-> 当前分支：`feat/v1.2-phase1-safe`　HEAD：`043e221`
-> 当前阶段：**V1.2 Phase 2（多用户认证、会话治理、防滥用）基本完成**；前端设备管理页、配额与部署尚未开始
+> 更新日期：2026-09-23（本轮更新对应 **Phase 2.8 S-2（CSRF 写请求同源校验）** 完成）
+> 当前分支：`feat/v1.2-phase1-safe`　HEAD：`10dcfa5`
+> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7 已交付、S-2 已完成；**剩余 S-1 管理员二次认证**与会话上限/审计保留等收尾项）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
+
+---
+
+## 当前状态
+
+> 本块是接手者的**第一屏**：只写"现在是什么"，历史过程见 §12 与各阶段文档。每次重要提交后更新。
+
+| 项 | 值 |
+|---|---|
+| HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
+| 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`，**ahead 0 / behind 0** |
+| 最近完成 | **S-2 CSRF 写请求同源校验**（`backend/app/csrf.py` + `main.py` 中间件 + 45 项测试 + 设计文档） |
+| 上一批 | Batch 1：F-1 登录设备管理、F-7 自助改密；Batch 0.5：`verified_db` 行身份口径修正；Batch 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
+| 本批关闭的任务 | **S-2**（登记册 §4.1）、**T4**、**G4** |
+| 门禁 | `scripts/check.ps1` **exit 0**；后端 **365 passed** / 前端 **29 passed** |
+| 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录 |
+| 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`） |
+| 下一步 | **S-1 管理员二次认证**（`POST /api/users`、`PATCH /api/users/{id}` 目前仅凭管理员会话）；需先定调"是否全部管理员敏感操作都要求口令" |
+| 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
+
+**本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
 
 ---
 
@@ -208,6 +229,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - `backend/tests/`：30 个测试文件（365 个用例），其中认证相关为 `test_auth.py`、`test_authz.py`、`test_session_lifecycle.py`、`test_session_management.py`、`test_session_revoke_all.py`、`test_login_limiter.py`、`test_reauth_guard.py`、`test_csrf.py`、`test_isolation_guards.py`、`test_static_guards.py`。
 - `frontend/src/`：`pages/`（6 个应用页 + `LoginPage`）、`auth.tsx`（登录态与缓存清理）、`session.ts`（401 回调）、`api.ts`（统一 401/`credentials:'same-origin'`）。
 - 设计/审计文档：`docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`、`docs/V1.2-PHASE2.3-AUTH-FLOW-AUDIT.md`、`docs/V1.2-PHASE2.5-LOGIN-ABUSE-PROTECTION-DESIGN.md`、`docs/V1.2-PHASE2.7-A-SESSION-MANAGEMENT-DESIGN.md`、`docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`、`docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`。
+- 接手/协作入口（2026-09-23 新增）：**`docs/PROJECT_STATUS_CURRENT.md`**（项目当前状态，接手第一阅读文件）、**`docs/AI_DEVELOPMENT_GUIDE.md`**（AI 协作开发规范：必读清单、设计门槛、测试与文档与 Git 要求、禁止事项）。
 - 迁移资料：`docs/0007-production-migration-runbook.md`、`...-checklist.md`、`docs/2026-09-22-migration-history-forensics.md`。
 - 工具：`tools/`（staging、备份校验、隔离取证、迁移预演、事故取证）、`scripts/`（启动/停止/全量检查）。
 

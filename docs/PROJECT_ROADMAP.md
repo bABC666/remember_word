@@ -307,7 +307,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | ID | 事项 | 证据 | 严重度 | 影响 | 阶段 |
 |---|---|---|---|---|---|
-| **E-1** | **`scripts/check.ps1` 必然失败（B6）**：`tools/verify_backup.py` 的基线 `data/recovery/baseline.json` 仍冻结在 `0003_article_reading_tools`，而生产库已是 `0007`；`tools/verified_db.py` 另有硬编码 `0003` 参数 | [实测] baseline.json mtime 14:10（迁移在 18:50 之后）；status §6.4 | 🟠 | **全量检查门禁不可用** → 每个 commit 失去自动兜底；这是"有护栏但护栏失效"的状态 | **2.8** |
+| **E-1** | ✅ **已关闭（2026-09-23，Batch 0 / T5）** ~~**`scripts/check.ps1` 必然失败（B6）**：`tools/verify_backup.py` 的基线 `data/recovery/baseline.json` 仍冻结在 `0003_article_reading_tools`，而生产库已是 `0007`~~ → 基线已从 verified 0007 备份重录（旧基线归档保留），`check.ps1` 恢复 **exit 0**；另注：`tools/verified_db.py` 并无硬编码 `0003`（实际位置见 T5 行） | handoff §8 | 🟠→⚪ | 已恢复自动兜底 | 2.8 ✅ |
 | **E-2** | **33 个 commit 只在本地**，`origin` 停在 `6ad8fce`；发布证据（`data/recovery/*`）按设计不入 Git | [实测] `git status -sb` | 🔴 | 本机故障即丢失 P1.0–P1.3 与 0007 迁移成果 | **2.8** |
 | **E-3** | 生产双账号/三账号端到端隔离验收未做（须**在副本上**，禁止在生产建测试账号） | status §6.1 | 🟠 | 多用户隔离缺少生产级证据 | 2.8 |
 | **E-4** | 版本号未更新（`1.0.0` × 3 处） | [实测] | 🟡 | 无法标记发布点；"V1.2"仅是阶段名 | 2.8 |
@@ -323,7 +323,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | 未开始 |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2；剩余 **S-1**、G5 会话上限、G6 审计保留、T8 三账号验收、T11–T17 卫生项） |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.8 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | 2.8（备份 + 门禁 + CSRF）；建议在 3 之后 | 产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
@@ -427,8 +427,8 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 
 | ID | 目标 |
 |---|---|
-| G1 | **前端"登录设备"页面（2.7-f，★ 首选任务）** —— 列表、单会话撤销、退出其它设备、退出全部设备 |
-| G2 | **自服务改密入口（F-7）** —— 复用同一口令确认对话框，并修正"改密后需重新登录"的注释与行为一致性 |
+| G1 | ✅ **已完成（2026-09-23，Batch 1）** **前端"登录设备"页面（2.7-f，★ 首选任务）** —— 设置页「登录设备」区：列表（`user_agent`/最近活动/登录时间/到期时间）、单会话撤销、"退出其它全部设备"；当前设备不可在此撤销；两处撤销**都要求当前口令** |
+| G2 | ✅ **已完成（2026-09-23，Batch 1）** **自服务改密入口（F-7）** —— 设置页「修改密码」区，复用同一口令确认对话框；成功后全部会话被撤销并回到登录页（登录页说明原因） |
 | G3 | **管理员敏感操作二次认证（S-1）** —— 改他人密码/角色、停用、建号 |
 | G4 | ✅ **已完成（2026-09-23）** **CSRF 同源校验（S-2）** 覆盖 `/api/**` 写操作（30 个非安全端点；`POST /api/auth/login` 与 `/logout` **不豁免**） |
 | G5 | **会话数量上限（2.7-e）** —— 采用设计文档建议的"最旧未活动优先淘汰" |
@@ -440,13 +440,13 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 
 | # | 任务 | 涉及位置 | 规模 |
 |---|---|---|---|
-| T1 | 新增设备管理 UI：调用已就绪的 `GET /api/auth/sessions`、`DELETE /api/auth/sessions/{id}`、`POST /api/auth/sessions/revoke`；展示 `id/current/created_at/last_seen_at/expires_at/user_agent`；**仅展示，绝不渲染 token** | `frontend/src/pages/` | M |
-| T2 | 复用口令确认对话框组件，**统一展示 429 的 `Retry-After`**（登录失败窗口、re-auth 预算、并发闸门三处 429 都要有可读提示） | `frontend/src/components/` | S–M |
+| T1 | ✅ **已完成（2026-09-23，Batch 1）** 新增设备管理 UI：调用 `GET /api/auth/sessions`、`DELETE /api/auth/sessions/{id}`、`POST /api/auth/sessions/revoke`；展示 `user_agent/created_at/last_seen_at/expires_at` 与"当前设备"标记；**绝不渲染 token 或 token_hash**（测试把二者塞进夹具，泄漏即会以文本出现） | `frontend/src/pages/SettingsPage.tsx` | M |
+| T2 | ⚠ **部分完成（2026-09-23，Batch 1）** 口令确认对话框已抽成共享组件 `PasswordConfirmDialog`，并对**二次认证预算与并发闸门的 429 展示 `Retry-After` 倒计时**（等待期禁用按钮）；**未做**：登录页对登录限流 429 只显示文案，没有倒计时 | `frontend/src/components/PasswordConfirmDialog.tsx` | S–M |
 | T3 | 把 `_require_password`（顺序固定：预算检查 → 共享闸门 → 一次 `verify_user_password` → 审计/计数 → 业务动作）扩展到管理员端点 `POST /api/users`、`PATCH /api/users/{id}` | `backend/app/api/auth.py` | M |
 | T4 | ✅ **已完成（2026-09-23）** 新增 `Origin`/`Referer` 校验中间件（只作用于写方法；`GET`/`HEAD`/`OPTIONS` 不拦）；前端 `credentials:'same-origin'` 不受影响（零前端改动） | `backend/app/csrf.py`（新）+ `backend/app/main.py` + `config.py` | M |
-| T5 | **重建验收基线**：从当前 verified 0007 库执行 `verify_backup.py --write-baseline`（**保留旧 baseline 作历史，不得覆盖**）；把 `tools/verified_db.py` 里硬编码的 `0003` 参数化 | `tools/verified_db.py`、`data/recovery/baseline.json` | S |
-| T6 | **建立 0007 verified backup**：走 SQLite backup API（`app/services/backup.py` 已是此实现），**不得裸拷贝主文件**（D-3） | `data/backups/` | S |
-| T7 | 推送本地 commit 到 `origin`，并确认发布证据（`data/recovery/*`）按既定方式随源码包交接 | git | S |
+| T5 | ✅ **已完成（2026-09-23，Batch 0）** 重建验收基线：从 verified 0007 备份录制新 `data/recovery/baseline.json`，旧基线归档为 `baseline.prior-attempt-*.json`（**未覆盖**），并同步更新 `test_verified_db.py` 的项目基线断言。**注**：任务里"`tools/verified_db.py` 硬编码 `0003`"与实际不符——该文件没有硬编码 revision；`0003` 字面量在**事故恢复工具**（`seal_restore.py`/`promote_restore.py`/`restore_v1_1.py`）与 `fresh_clone_migration_check.py`（断言克隆起点，合法）中，前者按规则**未改动** | `data/recovery/baseline.json`、`backend/tests/test_verified_db.py` | S |
+| T6 | ✅ **已完成（2026-09-23，Batch 0）** 建立 0007 verified backup：`data/backups/post-0007-verified-20260923-001237-vocab.db`（589824 B，sha256 `21d3d821…`），用 SQLite online backup API 从**只读**源生成；`verify_backup.py` 判定 **VERIFIED BACKUP**；生产主文件/WAL 在生成前后逐字节相同 | `data/backups/` | S |
+| T7 | ✅ **已完成（2026-09-23）** 本地 commit 已推送（Batch 0/1/2A 三次推送），当前 `git status -sb` 为 **ahead 0 / behind 0**；发布证据 `data/recovery/*` 按设计**不入 Git**，随源码包另行交接 | git | S |
 | T8 | 副本上的**三账号验收**（管理员 / 用户 A / 用户 B）：跨用户读写、列表计数、公共词库读 vs 私有写、实例级配置与备份的管理员门槛、匿名访问；**必须把 409（词库删除守卫）纳入期望矩阵** | `tools/staging_*.py` | M |
 | T9 | 会话数量上限淘汰逻辑 + 测试 | `backend/app/services/auth.py`、CLI | S–M |
 | T10 | `history_event` 保留策略：CLI 清理命令 + 保留窗口配置 + 测试 | `backend/app/cli.py` | S–M |
@@ -454,7 +454,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T12 | 清理死代码：`helpers.word_dict`、`schemas.py::WordSummary`（`services/words.py` 视 T-1 决策一并处理） | `backend/app/api/helpers.py`、`schemas.py` | S |
 | T13 | 版本号决策与落地（E-4）：三处统一；若确定发布则打 tag | `pyproject.toml`、`package.json`、`main.py` | S |
 | T14 | 处置 `data/staging/` 残留副本（S-5）：先核对证据引用（`migration-rehearsal-0006.db` 被 `rehearsal-0006-to-0007.json` 引用，**按证据保留**），其余连同 `-shm`/`-wal` 逐个删除（**不用通配符**），删除后复核文件不存在且生产库未被触碰 | `data/staging/` | S |
-| T15 | 修正过时文档陈述（E-6）：在 `PROJECT_HANDOFF.md` / `0007-release-record.md` 对应位置加更正说明（**不改写历史证据文件本身，只加注**） | `docs/` | S |
+| T15 | ✅ **基本完成（2026-09-23）** 过时文档陈述（E-6）：`PROJECT_HANDOFF.md` 中与现状矛盾的陈述已就地更正（§8 的"check.ps1 必然失败"已改为已修复并新增 §8.1 校验口径）；`0007-release-record.md` 的 §11 原本就有 §12 附注（"§11 原文不改写"）。**仍存在**：`PROJECT_ROADMAP.md` 自身的历史快照（§2.2 ahead 33、§4.6 E-1 等）未逐条回填——已在 `PROJECT_STATUS_CURRENT.md` 风险 #21 登记 | `docs/` | S |
 | T16 | **让 `daily_new_words` 生效（P-5）**：`GET /api/study/today` 加入"每日新词"上限（读 `user_settings.daily_new_words`，词库级 `user_lexicon.daily_new_words` 的优先级需一并定义）。**注意**：这是行为变更，会改变用户每天看到的队列长度，需先补测试并明确"什么算新词"（`status == 'new'` 或 `first_seen` 当日） | `backend/app/api/study.py`、`services/userdata.py` | M |
 | T17 | 补 `.env.example` 的 `VOCAB_DATABASE_PATH`（T-7） | `.env.example` | S |
 
@@ -498,6 +498,21 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 6. 副本三账号验收报告 `verified: true` / `failures: []`，证据落盘为**新文件名**（不得覆盖既有证据）。
 7. 生产库仍为 `0007`（或经批准的新 revision），`integrity_check=ok`、`foreign_key_check=0`、行数与行指纹不变。
 8. 后端 + 前端全量验收通过（后端 pytest、ruff；前端 test/typecheck/lint/build）。
+
+#### 出口标准达成情况（2026-09-23 知识冻结时实测）
+
+| DoD | 状态 | 证据 / 缺口 |
+|---|---|---|
+| 1 `check.ps1` exit 0 | ✅ 达成 | `All checks passed.`，含 `prove_test_isolation.py`（`data/` 106 文件零变化）与 `verify_backup.py`（VERIFIED BACKUP） |
+| 2 0007 verified backup + 新 baseline | ✅ 达成 | `post-0007-verified-20260923-001237-vocab.db` + 重录的 `baseline.json`；两份旧基线归档保留 |
+| 3 ahead 归零 | ✅ 达成 | ahead 0 / behind 0 |
+| 4 设备管理 / 自助改密 / **管理员二次认证** 浏览器可用 + 前端测试 | ⚠ **部分** | 前两者已交付：10 条前端集成测试（`security.test.tsx`）+ 活实例上线新 bundle；**S-1 未做**；"人在浏览器里点一遍"的人工验收待用户确认 |
+| 5 `daily_new_words` 生效 + `.env.example` 补 `VOCAB_DATABASE_PATH` | ❌ 未达成 | G8/T16、T17 均未做（`.env.example` 本次只补了 CSRF 两个变量） |
+| 6 副本**三账号**验收 `verified: true` | ❌ 未达成 | T8；现有证据为**双账号**（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`） |
+| 7 生产库仍为 0007、完整性不变 | ✅ 达成 | revision `0007`、`integrity_check=ok`、`foreign_key_check=0`；`check.ps1` 逐表行指纹比对 17/17 `ok` |
+| 8 后端 + 前端全量验收 | ✅ 达成 | 后端 **365 passed** + ruff 全通过；前端 **29 passed** + typecheck/lint/build 通过 |
+
+> **结论**：Phase 2.8 **尚未完成**，剩余 DoD 4（S-1 部分）/ 5 / 6。不要把本阶段标记为已完成。
 
 ---
 
@@ -974,7 +989,7 @@ def calculate_schedule(current_status, result, consecutive_failures, *, now=None
 | 里程碑 | 名称 | 判定证据（必须可复现） | 对应阶段 |
 |---|---|---|---|
 | **M0** | 当前基线 | 312 后端测试 / 19 前端测试通过；revision `0007`；26 外键；`foreign_key_check=0` | 现状 |
-| **M1** | **工程基线恢复** | ①`scripts/check.ps1` exit 0 全绿 ②存在 0007 **verified backup** + 新 baseline ③`git status -sb` ahead 归零 ④设备管理 / 自助改密 / 管理员二次认证在浏览器中可用 ⑤副本三账号验收 `verified: true` | 2.8 |
+| **M1** | **工程基线恢复**（⚠ **部分达成**，2026-09-23） | ①`scripts/check.ps1` exit 0 全绿 ✅ ②存在 0007 **verified backup** + 新 baseline ✅（`post-0007-verified-20260923-001237-vocab.db`；旧基线归档保留）③`git status -sb` ahead 归零 ✅ ④设备管理 / 自助改密 / 管理员二次认证在浏览器中可用 ⚠ **部分**（F-1/F-7 已有 10 条前端集成测试 + 活实例上线；**管理员二次认证 S-1 未做**；浏览器人工点击验收待用户确认）⑤副本三账号验收 `verified: true` ❌（当前证据为**双账号**） | 2.8 |
 | **M2** | **移动端可用** | ①≤900px 可见完整释义/音标/复习历史/文章暴露 ②Android + iOS 可添加到主屏并 standalone 启动 ③SW 断言：`/api/**` 未被缓存、切号无残留 ④桌面端无回归 | 3 |
 | **M3** | **公网可服务** | ①域名 + HTTPS + `/api/health` 200 ②`VOCAB_COOKIE_SECURE=true` ③单 worker + `--proxy-headers` 经双 IP 验证 ④systemd timer 连续 3 天备份 + 异地副本 ⑤**完成一次真实恢复演练** | 4 |
 | **M4** | **自适应学习** | ①设计文档评审通过 ②`0008` 在 staging 真实数据预演 PASS + 行指纹证据 ③切换前后到期分布无洪峰/真空 ④回放工具与线上状态一致 ⑤`review_event` 零丢失零改写 | 5 |

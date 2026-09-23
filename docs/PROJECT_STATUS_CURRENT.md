@@ -1,0 +1,262 @@
+# 拾词 · 项目当前状态（PROJECT_STATUS_CURRENT）
+
+> **这是接手本项目的第一阅读文件。** 读完本文后，按 §9 的文档地图继续深入。
+> 本文只记录**当前事实**与**入口**，不重复架构约束与计划细节；事实与代码冲突时**以代码/数据库实测为准**。
+
+| 项 | 值 |
+|---|---|
+| 更新时间 | 2026-09-23 |
+| 当前版本 | `1.0.0`（三处版本号均未改：`backend/pyproject.toml`、`frontend/package.json`、`backend/app/main.py` 的 `FastAPI(version=...)`）——**"V1.2" 是分支名与阶段名，不是已发布版本**，尚未合并到 `main`、尚未打 tag |
+| 当前分支 | `feat/v1.2-phase1-safe` |
+| 当前 commit | `10dcfa5`（`feat(v1.2): require a same-origin write request (S-2)`）；本文档与其提交位于 `10dcfa5` 之上，属**纯文档提交** |
+| 上游 | `origin/feat/v1.2-phase1-safe`，**ahead 0 / behind 0** |
+| 安全基线分支 | `recovery/v1.1-guarded`（2026-09-22 数据事故后的安全基线） |
+| 工作区 | 干净；仅一个**有意不纳入版本控制**的他人审计产物 `docs/PROJECT_STATUS_V1.2.md` |
+| 门禁状态 | `scripts/check.ps1` → **exit 0**（见 §3） |
+| 冻结基线 | 本文件描述的代码状态已通过全量门禁；**数据侧**另有一份 0007 verified backup 与重录基线（见 §4） |
+
+---
+
+## 1. 项目定位
+
+**拾词是一个"数据自主、AI 辅助、可长期持有"的英语词汇学习系统。**
+
+它不是传统背单词软件：传统软件的核心循环是"给出中文释义 → 记住它"，学习对象是释义文本本身。拾词的核心假设是**词义不是被记住的标准答案，而是在多次真实语境中逐渐长出来的东西**——系统给出的 anchor（提取线索）只是线索，**不替代完整中文释义**：
+
+```
+英文词形 → anchor（线索）→ 主动提取（1/2/3 评分）→ 阅读中再次遇见 → 语义丰满
+```
+
+数据仍然只落在一个**自己掌控的 SQLite 数据库**里。三条不可让渡的红线：
+
+1. **完整中文释义永久保留**（`source_meanings` / `source_raw` / OCR 原文 / 原始图片），AI 永远不得覆盖，任何时候都能从 anchor 回到完整释义。
+2. **未经人工确认的内容不进词库**（`import_candidate` 必须人工确认才成为 `lexicon_entry`）。
+3. **每次复习都留痕**（每次复习写一条 `review_event`；累计数字只是可由事件重算的缓存）。
+
+### 1.1 当前技术栈
+
+| 层 | 现状 |
+|---|---|
+| **Frontend** | React 19 + Vite + TypeScript、React Router、TanStack Query、Lucide、自定义 CSS（`frontend/src/styles.css`）；测试为 Vitest + Testing Library |
+| **Backend** | FastAPI（Python）+ SQLAlchemy 2 + Pydantic v2 + Alembic；8 个 router、**46 个业务端点 + `GET /api/health`**（其中非安全方法 **30 个**）；口令哈希 pwdlib(Argon2id) |
+| **Database** | **SQLite（WAL）**，`data/vocab.db` 是唯一事实来源；revision **0007**（迁移链 0001→0007 线性）；18 表 / 26 物理外键；单写者 → **uvicorn 必须单 worker** |
+| **Authentication** | **服务器端会话 + HttpOnly Cookie**：Cookie 名 `shici_session`（`HttpOnly` + `SameSite=lax` + `Path=/` + host-only 无 `Domain`，`Secure` 由 `VOCAB_COOKIE_SECURE` 控制）；数据库只存 token 的 SHA-256；**账号由管理员/CLI 创建，不开放注册、不接 OAuth** |
+| **Deployment 方向** | 当前：本机 Windows 应用，`scripts/start-vocab.ps1` 单 worker 监听 `127.0.0.1:8000`，同时托管 API 与 `frontend/dist`。目标：**Caddy + HTTPS + systemd + PWA**（Phase 3/4，尚未开始） |
+
+---
+
+## 2. 当前阶段：**Phase 2.8「认证收尾与工程基线修复」收尾阶段**
+
+Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 分四批推进，**已完成三批半**：
+
+### 2.1 基础系统（已完成）
+
+- **用户系统**：`user` / `user_settings` / `user_lexicon`；管理员与普通用户两种角色；账号由 `POST /api/users`、CLI `create-user`、`promote`、`set-password` 管理。
+- **Cookie Session 认证**：登录（四种失败**响应完全一致** + dummy Argon2 消除时间侧信道）、登出（幂等且匿名安全）、会话列表 / 单台撤销 / 批量撤销、绝对过期 + 闲置超时、启动与 CLI 清理。
+- **多用户隔离**：归属**只来自会话**（`api/deps.py` 的 `CurrentSession` / `CurrentUser` / `AdminUser` 是唯一入口，任何端点都不接受客户端 `user_id`）；越权与不存在统一 **404**；`services/userdata.py` 是 owner-scoped 访问层；`test_authz.py` 维护 IDOR 矩阵。
+
+### 2.2 安全与工程基线（已完成）
+
+| 项 | 状态 |
+|---|---|
+| **verified backup（Batch 0 / T6）** | `data/backups/post-0007-verified-20260923-001237-vocab.db`（589824 B，sha256 `21d3d821…`），用 **SQLite online backup API** 从只读源生成，`verify_backup.py` 判定 **VERIFIED BACKUP** |
+| **baseline 重建（Batch 0 / T5）** | `data/recovery/baseline.json`（17317 B，sha256 `81c370cf…`），从上述备份重录；旧基线**归档保留**：`baseline.prior-attempt-20260923-001325.json`（0003 时代）、`…-111637.json`（首个 0007 基线） |
+| **`check.ps1` 门禁恢复** | 由"必然失败"恢复为 **exit 0**（Batch 0 重建基线 + 同步修改 `test_verified_db.py`） |
+| **校验口径稳定化（Batch 0.5）** | `tools/verified_db.py`：运行期可变列退出"行身份"（`IGNORED_COLUMNS`，六张表 50→22 列）+ 行容忍表 `ROW_TOLERANT_TABLES={user_session, user_lexicon}`；正常使用不再误报，且安全列（`token_hash`、归属与桥接列）仍严格校验。证据 `data/recovery/batch05-verifier-evidence.json` |
+
+### 2.3 功能（已完成）
+
+| 项 | 状态 |
+|---|---|
+| **F-1 登录设备管理** | 设置页「登录设备」区：列出每台会话的 `user_agent` / 最近活动 / 登录时间 / 到期时间；**当前设备不提供撤销按钮**；单台撤销与"退出其它全部设备"**都必须输入当前口令**；**绝不渲染 token / token_hash** |
+| **F-7 自助修改密码** | 设置页「修改密码」区：校验当前口令 + 两次新口令一致（≥8 位、不得与旧密码相同）；成功后服务端撤销全部会话，前端回到登录页并说明原因 |
+| **S-2 CSRF 防护** | 见 §5.1 |
+
+### 2.4 Phase 2.8 尚未完成
+
+| 项 | 说明 |
+|---|---|
+| **S-1 管理员敏感操作二次认证** | `POST /api/users`、`PATCH /api/users/{id}` 仍**仅凭管理员会话**（改他人密码/角色/停用/建号）。**下一阶段第一优先** |
+| G5 会话数量上限（2.7-e） | 设计已给"最旧未活动优先淘汰"建议，未实现 |
+| G6 / S-6 `history_event` 保留策略 | append-only，无清理 CLI 与保留窗口 |
+| T8 / E-3 副本三账号验收 | 现有证据为**双账号**（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`） |
+| T9–T17 卫生项 | 未完成部分见 §6（T-3 未知 `/api` 路径、T-12 死代码、T-13 版本号、T-14 staging 残留、T-17 `.env.example` 缺 `VOCAB_DATABASE_PATH`） |
+| T-7 浏览器人工验收 | F-1/F-7 已有集成测试与活实例验证，但"人在浏览器里点一遍"仍待用户确认 |
+
+---
+
+## 3. 当前测试与门禁状态
+
+| 检查 | 命令 | 当前结果 |
+|---|---|---|
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **365 passed**（30 个测试文件） |
+| 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests`、`… ruff check tools` | All checks passed（两条） |
+| 前端测试 | `cd frontend; npm test` | **29 passed / 5 files** |
+| 前端类型 / lint / 构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 全部通过 |
+| **全量门禁** | `powershell -File scripts\check.ps1` | **exit 0**（`All checks passed.`）——这一条覆盖以上全部 + 下面两项 |
+| 测试隔离取证 | `backend\.venv\Scripts\python.exe tools\prove_test_isolation.py` | `data/` 全量指纹**零变化**（2026-09-23 实测 106 个文件）+ 全量测试通过 |
+| 备份校验 | `backend\.venv\Scripts\python.exe tools\verify_backup.py data\vocab.db --baseline data\recovery\baseline.json` | **VERDICT: VERIFIED BACKUP**（17 张业务表逐行比对全部 `ok`） |
+
+> **唯一的门禁命令是 `scripts/check.ps1`**。改动后请用它收尾，不要只跑单项。
+
+---
+
+## 4. 数据与备份状态（2026-09-23 只读实测）
+
+| 项 | 值 |
+|---|---|
+| 生产库 | `data/vocab.db`（SQLite，WAL） |
+| alembic revision | `0007_bridge_foreign_keys`（唯一 head） |
+| 表 / 物理外键 | **18 / 26** |
+| 完整性 | `integrity_check = ok`、`foreign_key_check` = **0 违规** |
+| 用户 | **1 个**：`admin`（role=admin、is_active=1、已设 Argon2id 口令） |
+| 核心数据量 | `lexicon` 1、`lexicon_entry` 19、`user_word_state` 19、`review_event` 10、`article` 2、`article_word_exposure` 16、`import_candidate` 19、`word` 19（V1.1 遗留） |
+| **0007 verified backup** | `data/backups/post-0007-verified-20260923-001237-vocab.db`（**已建立**，D-2 关闭） |
+| 项目基线 | `data/recovery/baseline.json`（从上述备份录制，已含新的行身份口径） |
+| 备份**策略** | ⚠ 仍是"启动时 + 手动"两个触发点，无定时/保留/异地（D-4，Phase 4） |
+| `data/staging/` | 仍有 **17 个文件**：4 个含真实数据的副本（各带 `-wal`/`-shm`）、1 个 staging 备份、**4 个 Batch 0.5 的 JSON 证据**、`migration-rehearsal-0006.db`（被证据引用，须保留）；S-5 未处置 |
+
+> **三级数据库环境（强制）**：Level 1 = pytest 临时目录；Level 2 = `data/staging/*.db`（唯一允许拿真实数据做演练的地方）；Level 3 = `data/vocab.db`（**生产，开发期禁止迁移、禁止写入**）。完整规则见 `PROJECT_ARCHITECTURE.md` §4.5。
+
+---
+
+## 5. 当前安全状态
+
+### 5.1 已完成：S-2 CSRF 防护（写请求同源校验）
+
+设计文档：`docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`；实现：`backend/app/csrf.py`（纯函数）+ `backend/app/main.py::_same_origin_write_check`；测试：`backend/tests/test_csrf.py`（45 项）。
+
+**三层防御，互不依赖**：
+
+| 层 | 机制 | 挡住 | 挡不住 |
+|---|---|---|---|
+| 1 | Cookie 的 **`SameSite=Lax`** | 跨站表单 / 跨站 fetch / `<img>`·`<iframe>` 携带 Cookie | **同站不同源**（子域）、Chromium "Lax+POST" **2 分钟窗口**、未来放宽 SameSite、旧浏览器 |
+| 2 | **请求体只接受 `application/json`**（FastAPI `strict_content_type` 默认） | 跨站 HTML 表单造不出合法写请求（→ 422） | 两处 **multipart** 端点（`POST /api/imports`、`.../images`）；未来任何接受表单体的端点 |
+| 3 | **写请求同源校验**（`Origin`，缺失时回落 `Referer`；比对 `Host` 的 host:port） | 以上全部；不依赖内容类型与浏览器行为 | XSS（同源脚本可伪造请求头） |
+
+要点：覆盖 **30 个非安全端点**；`GET`/`HEAD`/`OPTIONS` 放行；只比 host:port，**不比 scheme**（Caddy 终止 TLS）；两个头都缺 → **403**（除非 `VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true`）；`null` 永不接受；**不豁免 `POST /api/auth/login` 与 `/logout`**；中间件在**认证之前**拒绝（被拒请求不解析会话、不写审计）。
+
+### 5.2 未完成：S-1 管理员敏感操作二次认证
+
+| 端点 | 现状 | 风险 |
+|---|---|---|
+| `POST /api/users` | 仅 `AdminUser` 依赖，**无口令** | 管理员会话被盗 → 创建**持久后门管理员**（提权不可逆） |
+| `PATCH /api/users/{id}` | 仅 `AdminUser` 依赖，**无口令** | 可改他人密码/角色/停用 → 账号接管 |
+
+**注意**：S-2 关闭的是**跨站**这条路径；**会话被盗**这条路径只有 S-1 能收窄。同源校验**不能替代** S-1。
+（另有 3 个端点已有口令守卫：`POST /api/auth/password`、`POST /api/auth/sessions/revoke`、`DELETE /api/auth/sessions/{id}`。）
+
+---
+
+## 6. 当前已知风险（完整清单，不删除既有条目）
+
+> 严重度：🔴 阻塞上线 / 🟠 应尽快 / 🟡 可计划 / ⚪ 记录备查。更完整的登记册见 `PROJECT_ROADMAP.md` §4。
+
+| # | 风险 | 级别 | 影响 / 归属 |
+|---|---|---|---|
+| 1 | **S-1 管理员敏感操作无二次认证** | 🟠 | 提权路径敞开；**Phase 2.8 剩余首项** |
+| 2 | **Phase 4 部署必须配 `uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`** | 🟠 | 不配则两处同时出错：①所有用户共用一个 IP 限流桶（S-4）②TLS 终止后裸域名 `Host` 被推导为 80 端口 → https 来源的写请求被 CSRF 校验 **403**。必须写进部署脚本 |
+| 3 | **公网部署未开始**（D-1） | 🔴 | 仅监听回环地址，无 `deploy/`、无 HTTPS、无 CI；产品无法离开本机 |
+| 4 | **PWA / 移动端未开始**（F-2…F-6） | 🟠 | 无 manifest/SW/图标；≤900px 隐藏单词详情面板等移动端缺陷仍在 → 手机上不可用 |
+| 5 | **XSS 不在 CSRF 防御范围** | 🟠 | 同源脚本可同时伪造请求与请求头；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说 |
+| 6 | **`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层** | 🟡 | 脚本客户端逃生口，默认关闭；开启前须读设计文档 §6 |
+| 7 | **限流与闸门状态在内存**（S-4） | 🟠 | 重启清零；**多 worker 会让等效阈值 ×worker 数**；单 worker 是架构硬约束 |
+| 8 | **`data/staging/` 残留含真实数据的副本 + 测试口令**（S-5） | 🟡 | 长期驻留个人学习数据；须连同 `-shm`/`-wal` 逐个处置（`migration-rehearsal-0006.db` 被证据引用，保留） |
+| 9 | **备份策略不适常常驻服务**（D-4） | 🟠 | 仅"启动时 + 手动"；`create_backup` 当日同名即跳过（曾导致"备份看似成功实为旧文件"）→ 需定时 + 保留 + 异地 + 失败可见性 |
+| 10 | **`history_event` 无保留策略**（S-6） | 🟡 | 审计表持续增长（约 129 B/行） |
+| 11 | **未知 `/api/**` 路径返回 200 HTML**（T-3） | 🟡 | SPA 兜底路由；客户端错误处理会拿到 HTML（`POST` 则 405） |
+| 12 | **`word` 表与 `user_word_state` 双轨并存**（T-1） | 🟡 | 两套 id 命名空间**刻意不互相回退**，混用得 404；Phase 6 退场（高风险） |
+| 13 | **词频数据缺失**（P-1） | 🟠 | `frequency_rank` 全 NULL，选词回落 `sequence`/`id`；**不得用 AI 编造**，等外部词频文件 |
+| 14 | **复习算法是固定天数阶梯**（P-2） | 🟠 | 不随个人表现自适应；Phase 5，且需先设计 + migration |
+| 15 | **连续天数在 Python 中重算**（T-6） | 🟡 | 取最近 1000 条 `review_event`，超过后会算错；Phase 5 |
+| 16 | **三账号副本验收未做**（T8 / E-3） | 🟡 | 现有证据为双账号 |
+| 17 | **版本号未更新**（E-4） | 🟡 | 三处仍 `1.0.0`；"V1.2" 只是阶段名；影响打 tag 的口径（见 §7 与本文末） |
+| 18 | **无 CI**（E-5） | 🟡 | 门禁全靠人工执行；Phase 6 |
+| 19 | **`.env.example` 仍缺 `VOCAB_DATABASE_PATH`**（T-7） | ⚪ | 三级数据库环境切换依赖它，缺文档易误配 |
+| 20 | **死代码**（T-2） | ⚪ | `helpers.word_dict`、`schemas.py::WordSummary`、`services/words.py::apply_learning_update` |
+| 21 | **文档历史快照未逐条回填** | 🟡 | `PROJECT_ROADMAP.md` §2.2（ahead 33）、§4.6 E-1 等仍是 2026-09-22 快照；`docs/PROJECT_STATUS_V1.2.md` 为**未跟踪**的他人审计产物，与现状可能冲突。**当前事实以 `PROJECT_HANDOFF.md` §8 与本文为准** |
+| 22 | **响应体全为手写 dict，无统一出口**（T-4，已接受） | ⚪ | 应对方式是 IDOR 测试矩阵覆盖，不重构为 Pydantic |
+| 23 | **时区语义**（T-5）：SQLite 不存时区，`DateTime(timezone=True)` 读出为 naive | ⚪ | 现有代码同源比较无症状 |
+| 24 | **CSRF 严格比较的取舍**：同主机**不同端口**即不同源 | ⚪ | 有意为之（避免"同主机另一服务"成为缺口）；出现误拒时用 `VOCAB_CSRF_TRUSTED_ORIGINS` |
+| 25 | **DNS rebinding 不由本机制拦截** | ⚪ | 但会话 Cookie 是 **host-only**，不会发给攻击者域名 → 请求到达时无凭据 |
+| 26 | **运维观感问题** | ⚪ | 启动脚本会截断 `data/logs/server-out.log`；`data/server.pid` 记的是启动器 PID 而实际监听者是子进程（`stop-vocab.ps1` 以端口为准，可正确定位）；桌面快捷方式存在已知乱码缺陷（`0007-release-record.md` §12.2） |
+| 27 | **可选：`revoke_reason`** | ⚪ | UI 无法解释"某设备为何被登出"；需 migration 0008，默认不做 |
+
+---
+
+## 7. 下一阶段计划（推荐顺序）
+
+1. **S-1 管理员二次认证**（P0 收尾，建议立即做）
+   把 `_require_password` 扩展到 `POST /api/users` 与 `PATCH /api/users/{id}`；`ReauthAction` 字面量扩展；前端复用 Batch 1 的 `PasswordConfirmDialog`。
+   **前置决策（需产品定调）**：是"全部管理员敏感操作都要求口令"，还是仅"建号 / 改角色 / 改他人密码"？（`V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md` §3.1 建议全部。）
+2. **Phase 2.8 卫生项打包**（低风险，可并行）
+   T-3 未知 `/api/**` → 404 JSON；T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T-9 会话数量上限；T-10 `history_event` 保留策略；T-17 `.env.example` 补 `VOCAB_DATABASE_PATH`。
+3. **Phase 3 · PWA 与移动端可用性**（先做设计决策）
+   `manifest` + Service Worker + 图标（`/api/**` **永不缓存**）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-4 safe-area；F-6 底部导航。
+4. **Phase 4 · 生产部署上线**（建议在 Phase 3 之后）
+   Caddy + HTTPS + systemd；`VOCAB_COOKIE_SECURE=true`；**固化 `--proxy-headers --forwarded-allow-ips`**（风险 #2）；备份定时器 + 保留 + 异地 + 恢复演练。
+5. （更远）Phase 5 学习算法升级（需 migration，先设计 + staging 演练）、Phase 6 平台化（`word` 表退场 + CI）。
+
+---
+
+## 8. Agent 协作规则（完整版见 `docs/AI_DEVELOPMENT_GUIDE.md`）
+
+**任何 Agent 开始工作前必须阅读**（按此顺序）：
+
+1. `docs/PROJECT_ARCHITECTURE.md` —— 什么允许、什么禁止（**改代码前必读**）
+2. `docs/PROJECT_ROADMAP.md` —— 往哪走、下一步做什么、判定标准
+3. `docs/PROJECT_HANDOFF.md` —— 当前事实、认证模型、已知限制、复验命令
+4. `docs/PROJECT_STATUS_CURRENT.md`（本文）—— 接手入口与冻结基线
+
+**禁止**：未设计直接修改架构 / 未确认就改数据库 schema / 绕过测试 / 删除安全验证 / 重写历史 migration / 改动 `data/vocab.db`（开发期）。
+
+**完成任务后必须**：更新 `PROJECT_HANDOFF.md`（与本文的状态块）→ 运行 `scripts/check.ps1` 至 exit 0 → 提交 commit（小步、message 说明目的）。
+
+---
+
+## 9. 文档地图与权威顺序
+
+| 文档 | 角色 | 何时读 |
+|---|---|---|
+| `docs/PROJECT_STATUS_CURRENT.md`（本文） | **接手入口 / 冻结基线** | 第一份 |
+| `docs/PROJECT_ARCHITECTURE.md` | **架构约束**（什么允许、什么禁止） | 改任何代码前 |
+| `docs/PROJECT_HANDOFF.md` | **当前事实的唯一权威**（认证模型、DB 状态、限制、命令） | 动手前 + 收尾时更新 |
+| `docs/PROJECT_ROADMAP.md` | **计划**（阶段、任务、DoD、风险登记册） | 决定做什么、验收标准 |
+| `docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md` | V1.2 设计基线（历史依据） | 需要原始设计理由时 |
+| `docs/V1.2-PHASE2.*-*.md` | Phase 2 各子阶段设计/审计 | 对应主题 |
+| `docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md` | S-2 设计与边界 | 触碰 CSRF/认证头时 |
+| `docs/AI_DEVELOPMENT_GUIDE.md` | AI 协作开发规范（可执行版） | 每个任务开始/结束时 |
+| `docs/0007-production-migration-runbook.md`（+`-checklist`） | 生产迁移操作规程 | **任何** migration |
+| `data/recovery/*` | 发布/校验/验收证据（**不入 Git**） | 查证据、复验 |
+
+**权威顺序**：**代码与数据库实测** > `PROJECT_HANDOFF.md` > `PROJECT_ROADMAP.md` > 其它设计文档 > 本文（快照类）。
+本文与代码冲突时，**以代码为准**，并请顺手更新本文。
+
+---
+
+## 10. 常用命令
+
+```powershell
+# 启动 / 停止（单 worker，监听 127.0.0.1:8000）
+.\start-vocab.bat                      # = npm build + alembic upgrade head + 启动 + 打开浏览器
+.\stop-vocab.bat                       # 以端口与进程证明已停止
+
+# 全量门禁（唯一必跑命令；改完必须 exit 0）
+powershell -File scripts\check.ps1
+
+# 单项（调试用）
+cd backend; .\.venv\Scripts\python.exe -m pytest tests -q
+cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests
+cd frontend; npm test; npm run typecheck; npm run lint; npm run build
+
+# 安全与数据证据
+backend\.venv\Scripts\python.exe tools\prove_test_isolation.py     # 证明 pytest 不碰 data/
+backend\.venv\Scripts\python.exe tools\verify_backup.py data\vocab.db --baseline data\recovery\baseline.json
+backend\.venv\Scripts\python.exe -m app.cli list-users             # CLI：用户管理（口令只从 getpass 读）
+```
+
+---
+
+## 附：Git 阶段标签
+
+仓库**当前没有任何 tag**。建议在 Phase 2.8 收尾（S-1 完成）后创建第一个注释 tag；若现在需要一个"已知良好状态"的锚点，建议命名为描述性名称且**不声称阶段完成**（详见本次交付的标签建议，尚未创建、等待确认）。同时注意风险 #17：三处版本号仍为 `1.0.0`，tag 名称中的 `v1.2` 与代码内版本号尚未统一（roadmap 待决策项 D4）。
