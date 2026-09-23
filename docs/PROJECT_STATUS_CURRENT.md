@@ -80,9 +80,9 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 
 | 项 | 说明 |
 |---|---|
-| G6 / S-6 `history_event` 保留策略 | **已实现并在副本验收（2026-09-23 Batch 7 / T10）**：365 天、四类事件；`preview --plan` 固定候选 ID、UTC cutoff 与逐行 hash，`apply --plan --confirm <运行 ID>` 在 `BEGIN IMMEDIATE` 内只按明确 ID 删除并核对数量，提交后核验通过才发布 committed 凭证。**生产 `data/vocab.db` 从未执行 preview/apply**（需负责人批准具体计划与运行 ID 并安排维护窗口）——因此这条在"尚未完成"表里只保留生产侧 |
+| G6 / S-6 `history_event` 保留策略 | **已实现并在副本验收（2026-09-23 Batch 7 / T10）**：365 天、四类事件；`preview --plan` 固定候选 ID、UTC cutoff 与逐行 hash，`apply --plan --confirm <运行 ID>` 在 `BEGIN IMMEDIATE` 内只按明确 ID 删除并核对数量，提交后核验通过才发布 committed 凭证。**生产 `data/vocab.db` 从未执行 preview/apply**，而且**当前生产库没有到期候选行**（12 条 `history_event` 全在 365 天窗口内），未来生产清理必须先有到期候选并针对具体计划与运行 ID 获批、在维护窗口内执行——因此这条在"尚未完成"表里只保留生产侧 |
 | T8 / E-3 副本三账号验收 | ✅ **已于 2026-09-23（Batch 8）完成**：`data/recovery/t8-three-user-report-20260923T134500Z.json`，**126/126 PASS**、`verified: true`、`failures: []`（新文件名；旧双账号证据未覆盖）。生产 `data/vocab.db` 只被只读复制，验收前后与其 WAL/SHM 逐字节一致——本表不再有它的缺口 |
-| T9–T17 卫生项 | **T11（T-3 未知 `/api/**` → 404 JSON）与 T17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；未完成部分见 §6（T-12 死代码、T-13 版本号、T-14 staging 残留） |
+| T9–T17 卫生项 | **T11（T-3 未知 `/api/**` → 404 JSON）与 T17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**T12 死代码的低风险部分已于 Batch 9 清理**；未完成部分见 §6（T-12 死代码、T-13 版本号、T-14 staging 残留） |
 | T-7 浏览器人工验收 | F-1/F-7 已有集成测试与活实例验证，但"人在浏览器里点一遍"仍待用户确认 |
 
 ---
@@ -198,7 +198,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | 17 | **版本号未更新**（E-4） | 🟡 | 三处仍 `1.0.0`；"V1.2" 只是阶段名；影响打 tag 的口径（见 §7 与本文末） |
 | 18 | **无 CI**（E-5） | 🟡 | 门禁全靠人工执行；Phase 6 |
 | 19 | ~~**`.env.example` 仍缺 `VOCAB_DATABASE_PATH`**（T-7）~~ → ✅ **已关闭（2026-09-23 Batch 5 / T17）** | ⚪ | 已补：说明它用于明确选择数据库环境（留空即 `<数据目录>/vocab.db`），并写明开发与测试**不得指向生产库 `data/vocab.db`**。三级数据库环境切换依赖它，缺文档易误配 |
-| 20 | **死代码**（T-2） | ⚪ | `helpers.word_dict`、`schemas.py::WordSummary`、`services/words.py::apply_learning_update` |
+| 20 | **死代码**（T-2） | ⚪ | ~~`helpers.word_dict`、`schemas.py::WordSummary`~~ → ✅ **已于 2026-09-23 Batch 9（T12）删除**；**剩余**：`services/words.py::apply_learning_update`（仅 `test_import_flow.py` 引用）与 `schemas.py::ORMModel`（已无使用者），随 `word` 表退场（Phase 6）一并清理 |
 | 21 | **文档历史快照未逐条回填** | 🟡 | `PROJECT_ROADMAP.md` §2.2（ahead 33）、§4.6 E-1 等仍是 2026-09-22 快照；`docs/PROJECT_STATUS_V1.2.md` 为**未跟踪**的他人审计产物，与现状可能冲突。**当前事实以 `PROJECT_HANDOFF.md` §8 与本文为准** |
 | 22 | **响应体全为手写 dict，无统一出口**（T-4，已接受） | ⚪ | 应对方式是 IDOR 测试矩阵覆盖，不重构为 Pydantic |
 | 23 | **时区语义**（T-5）：SQLite 不存时区，`DateTime(timezone=True)` 读出为 naive | ⚪ | 现有代码同源比较无症状 |
@@ -220,7 +220,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 1b. ✅ **G5 每用户会话数量上限已完成（2026-09-23，Batch 4）**：默认 10、`0` = 不限制；超限时先清理已失效行、再淘汰最久未活动的存活会话，当前会话永不淘汰（见 §2.3、§5.3）。
    **本次未做**：`revoke_reason`（UI 仍无法解释"为何被登出"）；前端对被挤掉的提示。
 2. **Phase 2.8 卫生项打包**（低风险，可并行）
-   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**G8「每日新词数」生效已于 Batch 6 完成**；**T-10 `history_event` 保留策略（G6）已于 Batch 7 实现并在副本验收，生产执行仍未批准**；**T8 副本三账号验收已于 Batch 8 完成**（DoD 6 达成）；**仍待做**：T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）。
+   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**G8「每日新词数」生效已于 Batch 6 完成**；**T-10 `history_event` 保留策略（G6）已于 Batch 7 实现并在副本验收，生产执行仍未批准**；**T8 副本三账号验收已于 Batch 8 完成**（DoD 6 达成）；**T-12 死代码的低风险部分已于 Batch 9 清理**；**仍待做**：T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）。
 3. **Phase 3 · PWA 与移动端可用性**（先做设计决策）
    `manifest` + Service Worker + 图标（`/api/**` **永不缓存**）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-4 safe-area；F-6 底部导航。
 4. **Phase 4 · 生产部署上线**（建议在 Phase 3 之后）

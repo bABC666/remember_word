@@ -296,7 +296,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | ID | 事项 | 证据 | 严重度 | 影响 | 阶段 |
 |---|---|---|---|---|---|
 | **T-1** | **`word` 表与 `user_word_state` 双轨并存**：`word` 是 V1.1 兼容垫片，被 4 张表外键引用（`review_event` / `article_word_exposure` / `article_word_lookup` / `import_candidate`），且已无写入方 | [实测] `models.py`；status §5.3 / §6.5 #7 | 🟡 | 两套 id 命名空间（`word.id` vs `user_word_state.id`）**刻意不互相回退**，混用得 404；未来最大结构风险 | 6 |
-| **T-2** | **遗留死代码**：`helpers.word_dict`、`services/words.py::apply_learning_update`（仅被测试引用）、`schemas.py::WordSummary` | [实测] grep：`word_dict` 仅定义无调用；`apply_learning_update` 仅 `test_import_flow.py` 引用 | ⚪ | 增加阅读成本；`word` 表退场时一并清理 | 2.8（低风险部分）/ 6 |
+| **T-2** | **遗留死代码**：~~`helpers.word_dict`、`schemas.py::WordSummary`~~ → ✅ **已于 2026-09-23（Batch 9 / T12）删除**；**剩余**：`services/words.py::apply_learning_update`（仅被 `test_import_flow.py` 引用，属旧 `word` 路径）与 `schemas.py::ORMModel`（随 `WordSummary` 删除后已无任何使用者） | [实测] 全仓库搜索：`word_dict(` 仅命中定义自身（无任何调用点）；`WordSummary` 仅命中定义与把它记为死代码的文档 | ⚪ | **剩余**：随 `word` 表退场（Phase 6）一并清理 `apply_learning_update` 与 `ORMModel` | 2.8（低风险部分 ✅）/ 6 |
 | **T-3** | **未知 `/api/*` 路径返回 200 HTML**：SPA 兜底路由在 router 之后匹配 `/{path:path}` | [实测] status §6.5 #8 | 🟡 | 权限测试时不要误读为漏洞；客户端错误处理会拿到 HTML | 2.8 |
 | **T-4** | 响应体全为手写 dict，无统一出口（F7） | Phase 0 §F7 | 🟡 | 一个遗漏的查询就会泄露他人数据；**应对是用 IDOR 测试矩阵覆盖，不重构为 Pydantic**（已接受） | 持续 |
 | **T-5** | 时区语义：SQLite 不存时区，`DateTime(timezone=True)` 读出为 naive | Phase 0 §F13 | ⚪ | 现有代码同源比较无症状；跨时区展示需处理 | 4/6 |
@@ -323,7 +323,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6**/**7**/**8** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 T12/T13/T14 卫生项、G6 的**生产执行**与 S-1 的人工点击验收（保留策略已于 Batch 7 实现并在副本验收、**T8 三账号验收已于 Batch 8 完成**）；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6**/**7**/**8**/**9** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 T13/T14 卫生项、G6 的**生产执行**与 S-1 的人工点击验收（保留策略已于 Batch 7 实现并在副本验收、T8 三账号验收已于 Batch 8 完成、**T12 死代码已于 Batch 9 清理**）；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.8 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | 2.8（备份 + 门禁 + CSRF）；建议在 3 之后 | 产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
@@ -451,7 +451,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T9 | ✅ **已完成（2026-09-23，Batch 4）** 会话数量上限淘汰逻辑 + 测试。落在 `services/auth.py::create_session` → `enforce_session_limit`（服务层，CLI/测试/未来登录路径共享同一语义）；**无 migration、无新字段、不引入 `revoke_reason`**；`.env.example` 记录 `VOCAB_MAX_SESSIONS_PER_USER` | `backend/app/services/auth.py`、`backend/app/config.py`、`.env.example`、`backend/tests/test_session_limit.py` | S–M ✅ |
 | T10 | ✅ **已完成（2026-09-23，Batch 7）** `history_event` 保留策略：`history-retention preview [--plan]` 与 `apply --plan --confirm <运行 ID>`；窗口由 `VOCAB_HISTORY_EVENT_RETENTION_DAYS` 控制（默认 365、最小 365、`0` = 关闭）；归档 + 清理前备份 + 待提交→committed 凭证，任何失败都故障关闭。测试 `backend/tests/test_history_retention_apply.py`（39 项）与副本演练 `tools/history_retention_staging_drill.py`（含恢复演练） | `backend/app/cli.py`、`backend/app/history_retention.py`、`backend/app/history_retention_preview.py`、`tools/history_archive.py`、`.env.example` | M ✅ |
 | T11 | ✅ **已完成（2026-09-23，Batch 5）** SPA 兜底路由加 `/api/**` 例外，返回 404 JSON（T-3）：未知 `/api/**` 的 `GET` 返回 404 JSON，正常前端路由仍返回 SPA 页面；既有 API 与 `/assets` 挂载不变；**未放宽 CSRF**——跨源写请求仍由最外层同源中间件 403 拒绝（`POST`/`HEAD`/`OPTIONS` 打到未知 `/api/**` 由路由给出 405）。测试 `backend/tests/test_spa_fallback.py` 16 项 | `backend/app/main.py` | S ✅ |
-| T12 | 清理死代码：`helpers.word_dict`、`schemas.py::WordSummary`（`services/words.py` 视 T-1 决策一并处理） | `backend/app/api/helpers.py`、`schemas.py` | S |
+| T12 | ✅ **已完成（2026-09-23，Batch 9）** 清理死代码：删除 `backend/app/api/helpers.py::word_dict`（连带因此多余的 `Word` import）与 `backend/app/schemas.py::WordSummary`（连带因此多余的 `from datetime import datetime`）。依据是全仓库引用搜索（`word_dict(` 只命中定义自身，`WordSummary` 只命中定义与文档），**未改动任何序列化路径、未改任何 API 响应**。`services/words.py::apply_learning_update` **按 T-2 决策保留**（`test_import_flow.py` 仍在使用）；剩余候选 `schemas.py::ORMModel` （已无使用者）留待 `word` 表退场决策 | `backend/app/api/helpers.py`、`backend/app/schemas.py` | S ✅ |
 | T13 | 版本号决策与落地（E-4）：三处统一；若确定发布则打 tag | `pyproject.toml`、`package.json`、`main.py` | S |
 | T14 | 处置 `data/staging/` 残留副本（S-5）：先核对证据引用（`migration-rehearsal-0006.db` 被 `rehearsal-0006-to-0007.json` 引用，**按证据保留**），其余连同 `-shm`/`-wal` 逐个删除（**不用通配符**），删除后复核文件不存在且生产库未被触碰 | `data/staging/` | S |
 | T15 | ✅ **基本完成（2026-09-23）** 过时文档陈述（E-6）：`PROJECT_HANDOFF.md` 中与现状矛盾的陈述已就地更正（§8 的"check.ps1 必然失败"已改为已修复并新增 §8.1 校验口径）；`0007-release-record.md` 的 §11 原本就有 §12 附注（"§11 原文不改写"）。**仍存在**：`PROJECT_ROADMAP.md` 自身的历史快照（§2.2 ahead 33、§4.6 E-1 等）未逐条回填——已在 `PROJECT_STATUS_CURRENT.md` 风险 #21 登记 | `docs/` | S |
@@ -512,7 +512,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | 7 生产库仍为 0007、完整性不变 | ✅ 达成 | revision `0007`、`integrity_check=ok`、`foreign_key_check=0`；`check.ps1` 逐表行指纹比对 17/17 `ok` |
 | 8 后端 + 前端全量验收 | ✅ 达成 | 后端 **365 passed** + ruff 全通过；前端 **29 passed** + typecheck/lint/build 通过 |
 
-> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭、G8/T16 已于 Batch 6 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用）。剩余：DoD 4 的人工点击验收、T12/T13/T14 卫生项，以及 **G6 保留策略的生产执行**（需负责人批准具体计划与运行 ID 并安排维护窗口）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
+> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭、G8/T16 已于 Batch 6 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用）。剩余：DoD 4 的人工点击验收、T13/T14 卫生项，以及 **G6 保留策略的生产执行**（需负责人批准具体计划与运行 ID 并安排维护窗口）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
 
 ---
 
@@ -881,7 +881,7 @@ def calculate_schedule(current_status, result, consecutive_failures, *, now=None
 
 | ID | 目标 | 技术任务 | 风险 |
 |---|---|---|---|
-| G1 | **T-1 `word` 表退场**（Phase 0 §F4：未来最大结构风险，被 4 张表外键引用） | ①**风险评估先行**（独立文档）；②双读校验期；③`user_word_state.legacy_word_id` 解析路径的统一；④SQLite 下重建表会牵动 `review_event` / `article_word_exposure` / `article_word_lookup` / `import_candidate`；⑤清理 T-2 死代码（`helpers.word_dict`、`services/words.py`、`schemas.py::WordSummary`） | 🔴 **高风险**：SQLite 重建表 + 遗留 id 命名空间（两条路径**刻意不互相回退**，混用得 404）。必须独立阶段、独立预演、独立回滚预案 |
+| G1 | **T-1 `word` 表退场**（Phase 0 §F4：未来最大结构风险，被 4 张表外键引用） | ①**风险评估先行**（独立文档）；②双读校验期；③`user_word_state.legacy_word_id` 解析路径的统一；④SQLite 下重建表会牵动 `review_event` / `article_word_exposure` / `article_word_lookup` / `import_candidate`；⑤清理 T-2 残余死代码（`services/words.py::apply_learning_update`、`schemas.py::ORMModel`；`helpers.word_dict` 与 `schemas.py::WordSummary` 已于 Batch 9 删除） | 🔴 **高风险**：SQLite 重建表 + 遗留 id 命名空间（两条路径**刻意不互相回退**，混用得 404）。必须独立阶段、独立预演、独立回滚预案 |
 | G2 | **E-5 CI** | `.github/workflows`：后端 pytest、ruff、前端 test/typecheck/lint/build、`prove_test_isolation.py`。**注意** `check.ps1` 的 verified backup 步骤依赖本机 `data/`，CI 中需参数化或跳过并标注 | 🟠 测试隔离必须成立（不得让 CI 触碰真实 `data/`） |
 | G3 | 可观测性 | 结构化日志、请求耗时、AI/OCR 失败率、到期量指标；**必须脱敏**（不含口令/token/Key） | 🟠 日志泄露风险 |
 | G4 | 并发与规模验证 | 多用户/大词库压测；评估 S-4（内存限流）是否需要迁移到持久化存储；**任何多 worker 决策必须先解决限流共享问题** | 🟠 误开多 worker 直接削弱防滥用 |
