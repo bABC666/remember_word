@@ -1,8 +1,8 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-23（本轮记录 **Phase 2.8 T11（未知 `/api/**` 的 `GET` 返回 JSON 404）与 T17（`.env.example` 补 `VOCAB_DATABASE_PATH`）** 的完成）
+> 更新日期：2026-09-23（本轮记录 **Phase 2.8 G8 / T16（「每日新词数」真正限制学习队列）** 的完成；上一轮为 T11 + T17）
 > 当前分支：`feat/v1.2-phase1-safe`；最近功能代码 `10dcfa5`（S-2）与 **`c3a6106`（S-1，本地，未 push）**，规划修订起点 `0d20a51`；实时 HEAD 以 Git 为准。
-> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 G6 审计保留、G8「每日新词数」、T8 三账号副本验收、T12/T13/T14/T16 卫生项；**T11 与 T17 已于 Batch 5 完成**）
+> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 G6 审计保留、T8 三账号副本验收、T12/T13/T14 卫生项；**T11 与 T17 已于 Batch 5 完成、G8/T16 已于 Batch 6 完成**）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
 > **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
@@ -17,14 +17,15 @@
 |---|---|
 | HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
 | 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`；**本地领先于 origin，尚未 push**——截至本批依次是：S-1 实现 `c3a6106`、S-1 文档收口 `acde4f8`、笔记归位 `46e0c55`、G5 `9fef2a4`、状态表补注 `1ca1a47`（**具体提交数与是否已推送以 `git status -sb` 为准**，本行不写死数字） |
+| 最近完成（Batch 6） | **Phase 2.8 G8 / T16：「每日新词数」真正控制学习队列** —— 额度 = 当天（UTC）`review_event.status_before = 'new'` 的**不同词条数**（多次请求不叠加、复习后不补词）；用户级 `daily_new_words` 封顶当日总量、`user_lexicon.daily_new_words` 各自限制本词库、两层取 `min`；`limit` 仍是整份队列长度上限，到期/`weak` 词优先占用且**不被新词额度削减**。`GET /api/study/today` 新增只读字段 `daily_new_words: {target, consumed_today, remaining}`（加法，旧客户端忽略）。**零 schema、零 migration、未改调度算法**；设计 `docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md`，测试 `backend/tests/test_daily_new_words.py` 25 项。代码提交 **`9872fe8`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 5） | **Phase 2.8 T11 + T17**：未知 `/api/**` 的 `GET` 返回 404 JSON（`backend/app/main.py`；测试 `backend/tests/test_spa_fallback.py` 16 项），`.env.example` 补 `VOCAB_DATABASE_PATH`（明确选择数据库环境；开发与测试不得指向 `data/vocab.db`）。代码与配置提交 **`59a8c68`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 4） | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。提交 **`9fef2a4`**，**本地未 push** |
-| 上一批 | Batch 3：S-1 管理员敏感操作二次认证（`c3a6106`）+ 其文档收口（`acde4f8`）；Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1/F-7；Batch 0.5 / 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
-| 本批关闭的任务 | **T11**（T-3：未知 `/api/**` → 404 JSON）、**T17**（`.env.example` 补 `VOCAB_DATABASE_PATH`）；上一批（Batch 4）关闭的是 **G5**（§6.1 功能目标）与 **T9**（技术任务） |
-| 门禁 | `scripts/check.ps1` **exit 0**；后端 **449 passed**（含本批 `test_spa_fallback.py` 16 项）+ ruff 全通过 / 前端 **32 passed** |
+| 更早的批次 | Batch 3：S-1 管理员敏感操作二次认证（`c3a6106`）+ 其文档收口（`acde4f8`）；Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1/F-7；Batch 0.5 / 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
+| 本批关闭的任务 | **G8**（§6.1 功能目标）、**T16**（技术任务）；Batch 5 关闭的是 **T11**（T-3）与 **T17**（`.env.example`） |
+| 门禁 | `scripts/check.ps1` **exit 0**；后端 **474 passed**（含本批 `test_daily_new_words.py` 25 项）+ ruff 全通过 / 前端 **32 passed** |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 `c3a6106` 与本批：S-1 与 G5 的代码与测试都已完成并提交，但都尚未在此进程生效。** 让它们生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
-| 下一步 | Phase 2.8 剩余：**G6 `history_event` 保留策略、G8「每日新词数」生效、T8 三账号副本验收、T12/T13/T14/T16 卫生项**（T11 与 T17 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
+| 下一步 | Phase 2.8 剩余：**G6 `history_event` 保留策略、T8 三账号副本验收、T12/T13/T14 卫生项**（T11、T17 与 G8/T16 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -274,7 +275,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 | `user` | `display_name`、`role`、`is_active`、`password_hash`、`updated_at` | `PATCH /api/users/{id}`、改密、CLI `promote` / `set-password` |
 | `user_session` | `last_seen_at`、`revoked_at` | `touch_session`（节流 5 min）、撤销会话 |
 | `user_settings` | `daily_new_words`、`article_length`、`onboarding_seen`、`theme`、`updated_at` | `PUT /api/settings`、`POST /api/settings/onboarding` |
-| `user_lexicon` | `enabled`、`daily_new_words` | `POST /api/lexicons/{id}/enable` |
+| `user_lexicon` | `enabled`；`daily_new_words`（**2026-09-23 Batch 6 实测更正**：本行原写「二者都由该接口写入」，实际 `POST /api/lexicons/{id}/enable` 只接受 `enabled`；`daily_new_words` 目前没有任何接口写入，只有模型默认 15 与 0005 迁移从旧 `app_setting` 的初始化值） | `POST /api/lexicons/{id}/enable` |
 | `user_word_state` | `status`、`last_review`、`next_review_at`、`recall_success`、`recall_fail`、`consecutive_failures`、`context_exposure`、`updated_at`、`anchor_override`、`semantic_note`、`notes`、`possible_issue` | `services/study.py::_apply`、`services/reading.py` 的 exposure 递增；后四列目前只由**死代码** `services/words.py::apply_learning_update` 声明可写 |
 | `app_setting` | `value`、`updated_at` | 实例级设置写入（OCR、遗留 `daily_new_words` 等） |
 

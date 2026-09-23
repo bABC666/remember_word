@@ -73,6 +73,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | **F-7 自助修改密码** | 设置页「修改密码」区：校验当前口令 + 两次新口令一致（≥8 位、不得与旧密码相同）；成功后服务端撤销全部会话，前端回到登录页并说明原因 |
 | **S-1 管理员敏感操作二次认证** | `POST /api/users`、`PATCH /api/users/{id}` 的**每一次调用**都要管理员输入**自己的当前口令**（复用 `_require_password`；零 schema、零新配置）；提交 **`c3a6106`**。失败行为固定：口令错 400、无口令 422、预算尽 429 + `Retry-After`、非管理员 403、未登录 401；**校验通过前不改任何账号与会话**；两个端点与 `GET /api/users` 的响应都带 `no-store`；口令/token/`token_hash` 不进响应与审计。设计 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`，测试 `backend/tests/test_admin_reauth.py`（27 项）。**前端仍无管理员管理入口，本次未建页面** → 见 §5.2 与 §6 风险 #29 |
 | **S-2 CSRF 防护** | 见 §5.1 |
+| **G8 每日新词数生效** | 「每日新词目标」现在真的限制学习队列：当日额度 = 当天（UTC）`review_event.status_before = 'new'` 的**不同词条数**，所以多次请求、复习后再请求都不会叠加；用户级 `daily_new_words` 封顶当日总量，`user_lexicon.daily_new_words` 各自限制本词库（两层取 `min`）；`limit` 仍是整份队列的长度上限，**到期与 `weak` 词优先占用它，且不被新词额度削减**。`GET /api/study/today` 新增只读字段 `daily_new_words: {target, consumed_today, remaining}`。零 schema、零 migration、未改调度算法；设计 `docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md`，测试 `backend/tests/test_daily_new_words.py`（25 项） |
 | **G5 每用户会话数量上限** | `VOCAB_MAX_SESSIONS_PER_USER`（默认 10，`0` = 不限制）；超限时**新登录仍成功**：先清理该账号的已失效行，再按 `COALESCE(last_seen_at, created_at)` 最早撤销**最久未活动**的存活会话（并列取 id 最小），**刚签发的当前会话按 id 硬排除**；每条淘汰写一条不含凭据的 `session_evicted` 审计。零 schema、零 migration、不引入 `revoke_reason`。提交 **`9fef2a4`**；设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`，测试 `backend/tests/test_session_limit.py`（16 项） → 见 §5.3 |
 
 ### 2.4 Phase 2.8 尚未完成
@@ -90,7 +91,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 
 | 检查 | 命令 | 当前结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **449 passed**（35 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项、G5 的 `test_session_limit.py` 16 项与本批 `test_spa_fallback.py` 16 项） |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **474 passed**（36 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项、G5 的 `test_session_limit.py` 16 项、Batch 5 的 `test_spa_fallback.py` 16 项与 Batch 6 的 `test_daily_new_words.py` 25 项） |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests`、`… ruff check tools` | All checks passed（两条） |
 | 前端测试 | `cd frontend; npm test` | **32 passed / 7 files** |
 | 前端类型 / lint / 构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 全部通过 |
@@ -219,7 +220,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 1b. ✅ **G5 每用户会话数量上限已完成（2026-09-23，Batch 4）**：默认 10、`0` = 不限制；超限时先清理已失效行、再淘汰最久未活动的存活会话，当前会话永不淘汰（见 §2.3、§5.3）。
    **本次未做**：`revoke_reason`（UI 仍无法解释"为何被登出"）；前端对被挤掉的提示。
 2. **Phase 2.8 卫生项打包**（低风险，可并行）
-   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**仍待做**：T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T-10 `history_event` 保留策略（G6）；G8「每日新词数」生效；T8 副本三账号验收。
+   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**G8「每日新词数」生效已于 Batch 6 完成**；**仍待做**：T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T-10 `history_event` 保留策略（G6）；T8 副本三账号验收。
 3. **Phase 3 · PWA 与移动端可用性**（先做设计决策）
    `manifest` + Service Worker + 图标（`/api/**` **永不缓存**）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-4 safe-area；F-6 底部导航。
 4. **Phase 4 · 生产部署上线**（建议在 Phase 3 之后）

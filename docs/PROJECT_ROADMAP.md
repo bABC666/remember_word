@@ -288,7 +288,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | **P-2** | **复习算法为固定阶梯，不随个人记忆表现自适应** | [实测] `services/scheduler.py`（41 行） | 🟠 | 产品核心价值的上限；易词与难词同节奏，复习量随时间失控或覆盖不足 | **5** |
 | **P-3** | 无学习效果统计/洞察（留存曲线、到期预测、进度趋势） | [推断] `frontend/src/pages/` 无相关页面 | 🟡 | 用户无法感知长期进步，影响留存 | 5 |
 | **P-4** | 无注册/找回流程（**有意为之**） | handoff §9.10 | ⚪ | 账号由管理员或 CLI 创建；若未来开放需重新评估安全面 | 6（决策） |
-| **P-5** | **「每日新词数」设置存而不用**：`user_settings.daily_new_words` 与 `user_lexicon.daily_new_words` 可经 `/api/settings` 与词库启用写入，但 `GET /api/study/today` **只使用自己的 `limit` 查询参数（默认 50，上限 200），从不读该设置，也没有"每日新词"上限** | [实测] `backend/app/api/study.py:18-50` 全文；查询条件只有 `next_review_at` / `status`，无 `daily_new_words` | 🟠 | **设置页对用户撒谎**：用户以为每日新词数已生效，实际队列是"全部到期 + 全部 new，直到 50 条"。这是功能正确性缺陷，不是技术债 | **2.8** |
+| **P-5** | ✅ **已关闭（2026-09-23，Batch 6，G8/T16）** 原缺陷：**「每日新词数」设置存而不用**：`user_settings.daily_new_words` 与 `user_lexicon.daily_new_words` 可经 `/api/settings` 与词库启用写入，但 `GET /api/study/today` **只使用自己的 `limit` 查询参数（默认 50，上限 200），从不读该设置，也没有"每日新词"上限** | [实测，修复前] `backend/app/api/study.py:18-50`；查询条件只有 `next_review_at` / `status`，无 `daily_new_words` | ✅ 已关闭 | **设置页对用户撒谎**：用户以为每日新词数已生效，实际队列是"全部到期 + 全部 new，直到 50 条"。这是功能正确性缺陷，不是技术债 | **2.8** |
 | **P-6** | `lexicon_entry.sequence` 已声明并建了专用索引 `ix_lexicon_entry_sequence`，但**应用代码从不读也不写** | [实测] 全仓库 grep：仅 model 定义与 migration `0005:137` 的 DDL | 🟡 | 选词顺序的"预留字段"从未接线；与 P-1 词频回落的实现同时处理 | 5 |
 
 ### 4.5 技术债
@@ -323,7 +323,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 G6 审计保留、G8「每日新词数」、T8 三账号验收、T12/T13/T14/T16 卫生项；**T11（T-3）与 T17 已于 Batch 5 完成**） |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 G6 审计保留、T8 三账号验收、T12/T13/T14 卫生项；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.8 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | 2.8（备份 + 门禁 + CSRF）；建议在 3 之后 | 产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
@@ -434,7 +434,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | G5 | ✅ **已完成（2026-09-23，Batch 4）** **会话数量上限（2.7-e）** —— `VOCAB_MAX_SESSIONS_PER_USER`（默认 **10**，**0 = 不限制**）；每次登录后若该账号存活会话数超限，**先清理已失效行**，再按 `COALESCE(last_seen_at, created_at)` 最早**撤销最久未活动**的存活会话（并列取 id 最小者），**刚签发的当前会话按 id 硬排除**；新登录**永不因超限被拒**；每条淘汰写一条不含凭据的 `session_evicted` 审计。设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`，测试 `backend/tests/test_session_limit.py`（16 项） |
 | G6 | **`history_event` 保留策略（S-6）** —— CLI 清理 + 明确保留窗口 |
 | G7 | **`/api/**` 未知路径返回 404 JSON（T-3）** |
-| G8 | **让「每日新词数」真正生效（P-5）** —— 学习队列按该设置限制 `new` 词条数量，而不是只受 `limit` 参数约束 |
+| G8 | ✅ **已完成（2026-09-23，Batch 6）** **让「每日新词数」真正生效（P-5）** —— 学习队列按「当天已开始学的新词数」**累计**限制 `new`，而不是每次请求最多显示 N 个；到期与 `weak` 词优先占用 `limit`，且不受新词额度削减。语义、取舍与边界见 `docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md`，测试 `backend/tests/test_daily_new_words.py`（25 项） |
 
 #### 技术任务
 
@@ -455,7 +455,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T13 | 版本号决策与落地（E-4）：三处统一；若确定发布则打 tag | `pyproject.toml`、`package.json`、`main.py` | S |
 | T14 | 处置 `data/staging/` 残留副本（S-5）：先核对证据引用（`migration-rehearsal-0006.db` 被 `rehearsal-0006-to-0007.json` 引用，**按证据保留**），其余连同 `-shm`/`-wal` 逐个删除（**不用通配符**），删除后复核文件不存在且生产库未被触碰 | `data/staging/` | S |
 | T15 | ✅ **基本完成（2026-09-23）** 过时文档陈述（E-6）：`PROJECT_HANDOFF.md` 中与现状矛盾的陈述已就地更正（§8 的"check.ps1 必然失败"已改为已修复并新增 §8.1 校验口径）；`0007-release-record.md` 的 §11 原本就有 §12 附注（"§11 原文不改写"）。**仍存在**：`PROJECT_ROADMAP.md` 自身的历史快照（§2.2 ahead 33、§4.6 E-1 等）未逐条回填——已在 `PROJECT_STATUS_CURRENT.md` 风险 #21 登记 | `docs/` | S |
-| T16 | **让 `daily_new_words` 生效（P-5）**：`GET /api/study/today` 加入"每日新词"上限（读 `user_settings.daily_new_words`，词库级 `user_lexicon.daily_new_words` 的优先级需一并定义）。**注意**：这是行为变更，会改变用户每天看到的队列长度，需先补测试并明确"什么算新词"（`status == 'new'` 或 `first_seen` 当日） | `backend/app/api/study.py`、`services/userdata.py` | M |
+| T16 | ✅ **已完成（2026-09-23，Batch 6）** 让 `daily_new_words` 生效（P-5）：额度 = 当天（UTC）`review_event.status_before = 'new'` 的**不同词条数**，所以多次请求、复习后再请求都不会叠加；用户级设置封顶当日总量，词库级 `user_lexicon.daily_new_words` 各自限制本词库，两层取 `min`；`limit` 仍是整份队列的长度上限，到期/`weak` 词优先占用它。**零 schema、零 migration、未改调度算法**。（原计划写的 `services/userdata.py` 未改：队列组装落在 `services/study.py`，UTC 日边界抽到 `services/day.py` 与 dashboard 共用） | `backend/app/services/study.py`、`backend/app/services/day.py`、`backend/app/api/study.py`、`backend/app/api/dashboard.py` | M ✅ |
 | T17 | ✅ **已完成（2026-09-23，Batch 5）** 补 `.env.example` 的 `VOCAB_DATABASE_PATH`（T-7）：说明它用于**明确选择数据库环境**（留空即 `<数据目录>/vocab.db`），并写明开发与测试**不得指向生产库 `data/vocab.db`**；相对路径按进程工作目录解析，因此要求绝对路径 | `.env.example` | S ✅ |
 
 #### 数据库影响
@@ -507,12 +507,12 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | 2 0007 verified backup + 新 baseline | ✅ 达成 | `post-0007-verified-20260923-001237-vocab.db` + 重录的 `baseline.json`；两份旧基线归档保留 |
 | 3 ahead 归零 | ✅ 达成 | ahead 0 / behind 0 |
 | 4 设备管理 / 自助改密 / **管理员二次认证** 浏览器可用 + 前端测试 | ⚠ **部分** | 设备管理（F-1）与自助改密（F-7）已交付：10 条前端集成测试（`security.test.tsx`）+ 活实例上线新 bundle。**S-1 的后端守卫与 27 项测试已完成**，但**前端从来就没有管理员用户管理入口**（[实测] `frontend/src/` 全仓库无 `/api/users` 调用），所以"在浏览器里点一遍"这一条只对 F-1/F-7 成立，对 S-1 **不适用**（其验收口径改为后端契约 + 测试，见 `V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` §7）。是否新建管理员页面属**另一次产品决策**，本批不做。人工点击验收仍待用户确认 |
-| 5 `daily_new_words` 生效 + `.env.example` 补 `VOCAB_DATABASE_PATH` | ⚠ **部分达成（T17 已做）** | **T17 已于 2026-09-23 Batch 5 完成**（`.env.example` 已记录 `VOCAB_DATABASE_PATH` 的数据库环境选择用途与「开发/测试不得指向生产库」）；**G8/T16 仍未做**，因此本项整体仍未达成 |
+| 5 `daily_new_words` 生效 + `.env.example` 补 `VOCAB_DATABASE_PATH` | ✅ **达成（2026-09-23）** | **T17 已于 Batch 5 完成**、**G8/T16 已于 Batch 6 完成**：额度按当天已开始学的新词累计（跨请求不叠加、复习后不补词），到期词不被新词额度或 `limit` 挤掉；测试 `backend/tests/test_daily_new_words.py`（25 项） |
 | 6 副本**三账号**验收 `verified: true` | ❌ 未达成 | T8；现有证据为**双账号**（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`） |
 | 7 生产库仍为 0007、完整性不变 | ✅ 达成 | revision `0007`、`integrity_check=ok`、`foreign_key_check=0`；`check.ps1` 逐表行指纹比对 17/17 `ok` |
 | 8 后端 + 前端全量验收 | ✅ 达成 | 后端 **365 passed** + ruff 全通过；前端 **29 passed** + typecheck/lint/build 通过 |
 
-> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用、DoD 5/6 未满足）。剩余：DoD 5（G8 让 `daily_new_words` 生效；T17（`.env.example`）已于 Batch 5 完成）、DoD 6（T8 **三账号**副本验收）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
+> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭、G8/T16 已于 Batch 6 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用、DoD 6 未满足）。剩余：DoD 6（T8 **三账号**副本验收）、DoD 4 的人工点击验收，以及 T12/T13/T14 卫生项。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
 
 ---
 
