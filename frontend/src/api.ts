@@ -2,10 +2,13 @@ import { reportUnauthorized } from './session'
 
 export class ApiError extends Error {
   status: number
+  /** Seconds the server asked us to wait, taken from a 429's `Retry-After`. */
+  retryAfter?: number
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfter?: number) {
     super(message)
     this.status = status
+    this.retryAfter = retryAfter
   }
 }
 
@@ -49,7 +52,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep the HTTP fallback message.
     }
-    throw new ApiError(message, response.status)
+    // A 429 always explains how long the caller must wait; dropping the header
+    // would leave "too many attempts" with no way to act on it.
+    const advertised = Number(response.headers.get('Retry-After') ?? '')
+    const retryAfter = Number.isFinite(advertised) && advertised > 0 ? advertised : undefined
+    throw new ApiError(message, response.status, retryAfter)
   }
 
   if (response.status === 204) return undefined as T

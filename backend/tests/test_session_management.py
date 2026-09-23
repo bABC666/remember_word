@@ -23,6 +23,11 @@ from app.services.auth import COOKIE_NAME, create_session
 #: Exactly the fields the endpoint is allowed to return.
 SESSION_FIELDS = {"id", "current", "created_at", "last_seen_at", "expires_at", "user_agent"}
 
+#: The password ``conftest.TEST_PASSWORD`` gives every world's user. Revoking a
+#: device, like the bulk action, is behind the re-auth guard.
+PASSWORD = "test-password-123"
+WRONG_PASSWORD = "definitely-wrong"
+
 
 def add_session(
     world,
@@ -44,6 +49,14 @@ def add_session(
         session.add(record)
         session.commit()
         return token, record.id
+
+
+def revoke(world, session_id: int, password: str = PASSWORD):
+    """Revoke one of this world's sessions through the API, password included."""
+    # ``TestClient.delete`` takes no ``json`` argument, so the generic verb is used.
+    return world.client.request(
+        "DELETE", f"/api/auth/sessions/{session_id}", json={"current_password": password}
+    )
 
 
 def listed(world) -> list[dict]:
@@ -204,7 +217,7 @@ def test_revoking_a_session_ends_it(world) -> None:
 
     world.client.cookies.clear()
     world.client.cookies.set(COOKIE_NAME, current_token)
-    response = world.client.delete(f"/api/auth/sessions/{session_id}")
+    response = revoke(world, session_id)
 
     assert response.status_code == 200, response.text
     assert response.json() == {"ok": True}
@@ -220,8 +233,8 @@ def test_revoking_someone_elses_session_looks_exactly_like_an_unknown_one(two_wo
     a, b = two_worlds
     b_token, b_session_id = add_session(b)
 
-    foreign = a.client.delete(f"/api/auth/sessions/{b_session_id}")
-    unknown = a.client.delete("/api/auth/sessions/999999")
+    foreign = revoke(a, b_session_id)
+    unknown = revoke(a, 999999)
 
     assert foreign.status_code == unknown.status_code == 404
     assert foreign.json() == unknown.json(), (foreign.json(), unknown.json())
@@ -235,8 +248,8 @@ def test_revoking_twice_is_idempotent(world) -> None:
     _token, session_id = add_session(world)
     before = event_ids(world, "session_revoked")
 
-    first = world.client.delete(f"/api/auth/sessions/{session_id}")
-    second = world.client.delete(f"/api/auth/sessions/{session_id}")
+    first = revoke(world, session_id)
+    second = revoke(world, session_id)
 
     assert first.status_code == 200 and second.status_code == 200
     assert first.json() == second.json() == {"ok": True}
@@ -250,7 +263,7 @@ def test_revoking_twice_is_idempotent(world) -> None:
 def test_revoking_the_current_session_clears_the_cookie(world) -> None:
     current_id = session_rows(world)[0].id
 
-    response = world.client.delete(f"/api/auth/sessions/{current_id}")
+    response = revoke(world, current_id)
 
     assert response.status_code == 200, response.text
     deletion = response.headers["set-cookie"].lower()
@@ -269,7 +282,7 @@ def test_revoking_records_an_audit_event_without_any_token(world) -> None:
     token, session_id = add_session(world)
     before = event_ids(world, "session_revoked")
 
-    assert world.client.delete(f"/api/auth/sessions/{session_id}").status_code == 200
+    assert revoke(world, session_id).status_code == 200
 
     recorded = new_events(world, "session_revoked", before)
     assert len(recorded) == 1
@@ -290,8 +303,51 @@ def test_anonymous_cannot_revoke_a_session(world) -> None:
 
     _token, session_id = add_session(world)
     with TestClient(app) as anonymous:
-        response = anonymous.delete(f"/api/auth/sessions/{session_id}")
+        response = anonymous.request(
+            "DELETE",
+            f"/api/auth/sessions/{session_id}",
+            json={"current_password": PASSWORD},
+        )
 
     assert response.status_code == 401
     with world.session() as session:
         assert session.get(UserSession, session_id).revoked_at is None
+
+
+# --- the re-auth guard on a single session ---------------------------------
+
+
+def test_a_password_is_required_to_revoke_one_session(world) -> None:
+    """``DELETE`` changes the credential set, so it needs the caller's password."""
+    _token, session_id = add_session(world)
+    before = event_ids(world, "session_revoked")
+
+    for body in (None, {}, {"current_password": ""}, {"current_password": None}):
+        response = world.client.request(
+            "DELETE", f"/api/auth/sessions/{session_id}", json=body
+        )
+        assert response.status_code == 422, (body, response.text)
+
+    with world.session() as session:
+        assert session.get(UserSession, session_id).revoked_at is None
+    assert new_events(world, "session_revoked", before) == []
+
+
+def test_a_wrong_password_revokes_nothing(world) -> None:
+    _token, session_id = add_session(world)
+    before = event_ids(world, "session_revoked")
+
+    response = revoke(world, session_id, password=WRONG_PASSWORD)
+
+    assert response.status_code == 400, response.text
+    assert response.json() == {"detail": "当前密码不正确"}
+    assert session_id in {item["id"] for item in listed(world)}
+    with world.session() as session:
+        assert session.get(UserSession, session_id).revoked_at is None
+    assert new_events(world, "session_revoked", before) == []
+    # The refused attempt is audited against the account, and never carries the
+    # password that was typed.
+    failures = events_for(world, "reauth_failed")
+    assert failures, "a refused re-auth must be recorded"
+    assert failures[-1].payload == {"action": "revoke_session"}
+    assert WRONG_PASSWORD not in str(failures[-1].payload)

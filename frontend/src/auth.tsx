@@ -8,6 +8,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [checking, setChecking] = useState(true)
+  // Explains a sign-out the user did not ask for, so a password change does not end
+  // at a login screen with no explanation.
+  const [notice, setNotice] = useState<string | null>(null)
   // Guards against a stale response re-instating a session that has already been
   // dropped, which is exactly how one user's data could flash on screen for the
   // next user.
@@ -59,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Anything cached belongs to whoever was logged in before.
       queryClient.clear()
       generation.current += 1
+      setNotice(null)
       setUser(next)
     },
     [queryClient],
@@ -71,12 +75,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Even if the server call fails, the client must drop the session.
     } finally {
       clearSession()
+      setNotice(null)
     }
   }, [clearSession])
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      await api('/api/auth/password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      })
+      // The server revokes every session, this one included. Keeping the client
+      // state would leave the app pretending to be signed in with a dead cookie,
+      // so the session is dropped here and the notice explains why.
+      clearSession()
+      setNotice('密码已更新，请用新密码重新登录。')
+    },
+    [clearSession],
+  )
+
   const value = useMemo<AuthState>(
-    () => ({ user, checking, login, logout, refresh }),
-    [user, checking, login, logout, refresh],
+    () => ({ user, checking, notice, login, logout, changePassword, refresh }),
+    [user, checking, notice, login, logout, changePassword, refresh],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -33,6 +33,7 @@ function route(url: string, method: string, who: 'none' | 'admin' | 'userb') {
   if (signingIn) return who === 'admin' ? json(ADMIN) : json(USER_B)
   if (url.includes('/api/auth/me')) return who === 'none' ? unauthorized() : json(who === 'admin' ? ADMIN : USER_B)
   if (url.includes('/api/auth/logout')) return json({ ok: true })
+  if (url.endsWith('/api/auth/sessions')) return json({ sessions: [] })
   if (url.includes('/api/settings/onboarding')) return json({ seen: true })
   if (url.endsWith('/api/settings')) return json({ ...ADMIN, can_manage_instance_settings: who === 'admin' })
   if (url.endsWith('/api/dashboard')) {

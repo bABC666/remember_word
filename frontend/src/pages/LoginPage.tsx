@@ -9,7 +9,7 @@ import { useAuth } from '../useAuth'
  * operator, so this form only signs in.
  */
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, notice } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -66,6 +66,12 @@ export function LoginPage() {
             required
           />
         </label>
+
+        {notice && !error && (
+          <p className="login-notice" role="status">
+            {notice}
+          </p>
+        )}
 
         {error && (
           <p className="login-error" role="alert">

@@ -108,6 +108,17 @@ class SessionRevokeRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=256)
 
 
+class SessionDeleteRequest(BaseModel):
+    """Revoking one device: the same re-auth guard as the bulk action.
+
+    Deleting a session changes the set of credentials that can reach the account,
+    so the phase 2.7-d rule applies to it as well. One field only, so nothing a
+    caller sends can reach the audit trail.
+    """
+
+    current_password: str = Field(min_length=1, max_length=256)
+
+
 class CreateUserRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     display_name: str = Field(default="", max_length=120)

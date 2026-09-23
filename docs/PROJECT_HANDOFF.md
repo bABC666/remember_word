@@ -147,7 +147,8 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - 口令错误 → `400 {"detail":"当前密码不正确"}`，并写 `reauth_failed`（含 `payload.action` 固定枚举），同时记一次**按账号**的失败。
 - 连续失败达 `VOCAB_REAUTH_FAILURES`（默认 5）→ `429 {"detail":"密码校验尝试过于频繁，请稍后再试"}` + `Retry-After`，**不写任何事件**。
 - 成功 → 清零该账号失败计数。
-- 目前受保护的端点：`POST /api/auth/password`、`POST /api/auth/sessions/revoke`。
+- 目前受保护的端点：`POST /api/auth/password`、`POST /api/auth/sessions/revoke`（`others` / `all`）、**`DELETE /api/auth/sessions/{id}`（2026-09-23 起，Phase 2.8 F-1）**。
+  - 后者是对 Phase 2.7-d-a 设计矩阵的**扩展**：该矩阵只列了"退出其它/全部设备"，但它自己的判据（设计文档 §3.2：「会改变认证材料、会话集合、账号权限或安全设置的操作」）同样覆盖"撤销单台设备"。扩展的收益是具体的：**被窃 Cookie 不能再用来把真实用户的其他设备踢下线**。
 
 ### 5.4 防滥用与资源保护
 
@@ -164,7 +165,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `GET` | `/api/auth/sessions` | 列出**自己**的存活会话（`id/current/created_at/last_seen_at/expires_at/user_agent`），按最近活动倒序；**绝不返回 token 或 `token_hash`** |
-| `DELETE` | `/api/auth/sessions/{session_id}` | 撤销自己的某个会话；他人的 id 与不存在的 id **都返回同一个 404**；重复调用幂等；撤销当前会话时同时删除 Cookie |
+| `DELETE` | `/api/auth/sessions/{session_id}` | 撤销自己的某个会话，**body 必带 `current_password`**（走 5.3 的守卫，校验在先、撤销在后）；他人的 id 与不存在的 id **都返回同一个 404**；重复调用幂等；撤销当前会话时同时删除 Cookie |
 | `POST` | `/api/auth/sessions/revoke` | `{"scope":"others"\|"all","current_password":"…"}` → `{"ok":true,"revoked":N}`；`others` 保留当前会话且不动 Cookie，`all` 连当前一起撤销并删除 Cookie；**必须带口令**（走 5.3 的守卫）；每个被撤销会话写一条 `session_revoked` |
 
 ### 5.6 与认证相关的环境变量（详见 `.env.example`）
@@ -179,7 +180,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - **阅读**：weak/失败/新词优先选词、AI 生成 + `actual_used_words` 后端校验、完成后测试、点词（词库优先、未知词才走 AI）、全文翻译并保存、查词缓存、生词入库。
 - **词库**：搜索/状态筛选/weak/最近/陈旧、单词详情（Source + Learning + 复习历史 + 文章暴露）；**删除含学习记录的词库会被 409 拒绝**（Phase 2.1）。
 - **设置**：DeepSeek Key/Base URL/Model（实例级，管理员）、每日新词数、文章长度、OCR 配置、onboarding 状态；Key 只回掩码。
-- **账号与安全**：登录/登出、会话列表与撤销、退出其它/全部设备、改密（撤销全部会话）、管理员用户管理、登录防滥用、失败审计。
+- **账号与安全**：登录/登出、会话列表与撤销、退出其它/全部设备、改密（撤销全部会话）、管理员用户管理、登录防滥用、失败审计；**设置页的「登录设备」区（F-1，2026-09-23）**列出每台设备的 `user_agent`/最近活动/登录时间/到期时间，当前设备不可在此撤销，单设备与"其它全部设备"两处撤销都要求输入当前口令；**设置页的「修改密码」区（F-7，2026-09-23）**校验当前口令与两次新口令一致，成功后全部会话被撤销并回到登录页（登录页会说明原因）。
 
 ## 7. 代码导航
 
@@ -199,9 +200,9 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **318 passed** |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **320 passed** |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests` | All checks passed |
-| 前端测试 | `cd frontend; npm test` | **19 passed / 4 files** |
+| 前端测试 | `cd frontend; npm test` | **29 passed / 5 files** |
 | 前端类型/构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 通过 |
 | 测试隔离取证 | `backend\.venv\Scripts\python.exe tools\prove_test_isolation.py` | `data/` 全量指纹**零变化** + 全量测试通过（文件数随证据文件增减，2026-09-23 实测 100） |
 | 全量门禁 | `powershell -File scripts\check.ps1` | **exit 0**（含 verified backup 一步） |
@@ -260,24 +261,22 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 **功能未完成**
 
-6. **前端"登录设备"页面**（2.7-f）：后端能力已全部就绪（列表/单撤销/批量撤销），前端尚未接线。
-7. **会话数量上限**（2.7-e，设计已给出"最旧未活动优先淘汰"的建议）。
-8. **无 `revoke_reason`**：UI 无法解释某设备为何被登出（需 migration 0008，可选）。
-9. **无自服务改密 UI**：`POST /api/auth/password` 存在但前端无入口；改密成功会撤销全部会话（含当前），调用方需重新登录（代码注释与行为需一并修正）。
-10. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
-11. `word` 表已无写入方，`helpers.word_dict`、`services/words.py`、`schemas.py::WordSummary` 属**遗留死代码**；`POST /api/words/quick-add`（Phase 0 规划）未实现。
-12. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
-13. **PWA / 移动端**：无 manifest/SW/图标；Phase 0 §8.3 记录的移动端缺陷（≤900px 隐藏单词详情面板等）仍在。
-14. **公网部署未开始**：当前只监听回环地址。
+6. **会话数量上限**（2.7-e，设计已给出"最旧未活动优先淘汰"的建议）。
+7. **无 `revoke_reason`**：UI 无法解释某设备为何被登出（需 migration 0008，可选）。
+8. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
+9. `word` 表已无写入方，`helpers.word_dict`、`services/words.py`、`schemas.py::WordSummary` 属**遗留死代码**；`POST /api/words/quick-add`（Phase 0 规划）未实现。
+10. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
+11. **PWA / 移动端**：无 manifest/SW/图标；Phase 0 §8.3 记录的移动端缺陷（≤900px 隐藏单词详情面板等）仍在。
+12. **公网部署未开始**：当前只监听回环地址。
+
+> **2026-09-23 关闭的两项**（见 §6）：前端"登录设备"页面（2.7-f）与自服务改密入口（F-7）均已实现并验收。
 
 ## 10. 建议的下一步（按优先级）
 
-1. **前端设备管理页**（2.7-f）：收益最大、纯前端、后端已就绪；复用同一个口令确认对话框并展示 429 的 `Retry-After`。
-2. **重建验收基线**（B6）：让 `scripts/check.ps1` 重新可用。
-3. **CSRF 同源校验**（B2）：对 `/api/**` 写操作统一校验 `Origin`/`Referer`。
-4. **管理员操作二次认证**（2.7-d-e，需产品决策）+ 把 re-auth 失败预算同时应用到所有"校验当前口令"的端点。
-5. **`history_event` 保留策略**与**会话数量上限**（2.7-e）。
-6. 部署前置：反向代理头配置、`VOCAB_COOKIE_SECURE=true`、HTTPS、备份定时器（Phase 0 §9.4）。
+1. **CSRF 同源校验**（B2）：对 `/api/**` 写操作统一校验 `Origin`/`Referer`。
+2. **管理员操作二次认证**（2.7-d-e，需产品决策）+ 把 re-auth 失败预算同时应用到所有"校验当前口令"的端点。
+3. **`history_event` 保留策略**与**会话数量上限**（2.7-e）。
+4. 部署前置：反向代理头配置、`VOCAB_COOKIE_SECURE=true`、HTTPS、备份定时器（Phase 0 §9.4）。
 
 ## 11. 给接手 AI / 开发者的工作规则
 

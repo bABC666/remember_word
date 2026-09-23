@@ -19,6 +19,7 @@ from app.schemas import (
     ChangePasswordRequest,
     CreateUserRequest,
     LoginRequest,
+    SessionDeleteRequest,
     SessionRevokeRequest,
     UpdateUserRequest,
 )
@@ -52,9 +53,10 @@ BUSY_RETRY_AFTER_SECONDS = 1
 
 #: Which sensitive operation a re-auth attempt belonged to. A closed set: the value
 #: ends up in an audit payload, so it must never be caller-supplied text.
-ReauthAction = Literal["change_password", "revoke_sessions"]
+ReauthAction = Literal["change_password", "revoke_sessions", "revoke_session"]
 CHANGE_PASSWORD_ACTION: ReauthAction = "change_password"
 REVOKE_SESSIONS_ACTION: ReauthAction = "revoke_sessions"
+REVOKE_SESSION_ACTION: ReauthAction = "revoke_session"
 
 
 def user_payload(user: User, settings: UserSettings) -> dict[str, object]:
@@ -369,23 +371,36 @@ def list_sessions(
 
 @router.delete("/api/auth/sessions/{session_id}")
 def revoke_session_endpoint(
+    payload: SessionDeleteRequest,
     session_id: int,
     response: Response,
     session: SessionDep,
     user: CurrentUser,
     current: CurrentSession,
 ) -> dict[str, bool]:
-    """Revoke one of the caller's own sessions.
+    """Revoke one of the caller's own sessions, behind the re-auth guard.
 
     The lookup is scoped by ``user_id``, and another user's session id answers 404
     exactly like an id that does not exist -- so this endpoint cannot be used to
     discover which session ids are real (the project's IDOR rule: 404, never 403).
+
+    The order is the contract, as in bulk revocation: the password is checked
+    **before** anything is revoked, because revoking first would leave a refused
+    request with a real and unrecoverable effect.
+
+    The password is required here for the same reason the bulk action requires it:
+    the phase 2.7-d design rule is that anything which changes *the set of
+    credentials that can reach the account* needs re-authentication (its section
+    3.2), and a single device is exactly that. The upside is concrete -- a stolen
+    cookie can no longer be used to kick the real owner's other devices offline.
 
     Revoking is idempotent: a repeat request is a success that changes nothing and
     writes no second audit event. When the session being revoked is the one making
     the request, the cookie is deleted too -- otherwise the caller would be left
     holding a dead cookie until the next request failed.
     """
+    _require_password(session, user, payload.current_password, action=REVOKE_SESSION_ACTION)
+
     record, changed = revoke_user_session(session, user, session_id)
     if changed:
         # Only a revocation that actually happened is worth recording, so a repeat

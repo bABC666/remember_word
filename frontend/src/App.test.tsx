@@ -15,6 +15,7 @@ function signedInRoutes(url: string, overrides: Record<string, unknown> = {}) {
     })
   }
   if (url.includes('/api/settings/onboarding')) return json({ seen: true })
+  if (url.endsWith('/api/auth/sessions')) return json({ sessions: [] })
   if (url.endsWith('/api/settings')) return json(settingsPayload())
   if (url.endsWith('/api/dashboard')) {
     return json(overrides.dashboard ?? { today_new: 0, due_reviews: 0, weak_words: 0, reading_status: 'not_generated', streak_days: 0 })

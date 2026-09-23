@@ -24,8 +24,15 @@ export interface AuthState {
   user: CurrentUser | null
   /** True until the initial `/api/auth/me` check settles. */
   checking: boolean
+  /** Set when the session ended for a reason worth explaining, such as a password change. */
+  notice: string | null
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  /**
+   * Change the caller's own password. Every session is revoked server-side, this
+   * one included, so the client returns to the sign-in screen.
+   */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   refresh: () => Promise<void>
 }
 
