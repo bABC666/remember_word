@@ -46,6 +46,7 @@ opened read-only.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import sqlite3
 from datetime import UTC, datetime
@@ -317,6 +318,7 @@ def compare_against_baseline(
     *,
     require_revision: bool = True,
     expected_revision: str | None = None,
+    retention_dir: Path | None = None,
 ) -> tuple[bool, dict[str, object]]:
     """Compare a database to a baseline snapshot.
 
@@ -337,6 +339,29 @@ def compare_against_baseline(
     failures: list[str] = report["failures"]  # type: ignore[assignment]
     growth: list[str] = report["growth"]  # type: ignore[assignment]
     pruned: list[str] = report["pruned"]  # type: ignore[assignment]
+
+    archived_history: dict[str, str] = {}
+    archived_full: dict[str, tuple[list[str], str]] = {}
+    history_checkpoint: dict[str, str] = {}
+    if retention_dir is not None:
+        # Loading by file path also works when this module is imported directly
+        # from backend tests rather than as a tools package.
+        module_path = Path(__file__).with_name("history_archive.py")
+        spec = importlib.util.spec_from_file_location("history_archive", module_path)
+        assert spec and spec.loader
+        archive_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(archive_module)
+        try:
+            archived_history, archived_full, history_checkpoint, runs = (
+                archive_module.load_committed_archives(retention_dir, baseline)
+            )
+            if runs:
+                report["history_event_archived"] = {
+                    "ids": sorted(archived_history, key=int),
+                    "runs": runs,
+                }
+        except archive_module.ArchiveError as error:
+            failures.append(f"history_event archive evidence invalid: {error}")
 
     if not database.exists():
         failures.append("database file does not exist")
@@ -399,21 +424,48 @@ def compare_against_baseline(
 
             recorded_hashes: dict[str, str] = recorded.get("row_hashes", {})  # type: ignore[assignment]
             current_hashes: dict[str, str] = current.get("row_hashes", {})  # type: ignore[assignment]
+            if table == "history_event" and archived_history:
+                for key in set(current_hashes) & set(archived_history):
+                    columns, archived_hash = archived_full[key]
+                    present_columns = {
+                        row[1] for row in connection.execute('pragma table_info("history_event")')
+                    }
+                    if not set(columns) <= present_columns:
+                        failures.append(f"history_event: archived id {key} columns are missing")
+                        continue
+                    projected = ", ".join(
+                        '"' + column.replace('"', '""') + '"' for column in columns
+                    )
+                    live_row = connection.execute(
+                        f'select {projected} from "history_event" where rowid = ?', (key,)
+                    ).fetchone()
+                    if live_row is None or row_hash(tuple(live_row)) != archived_hash:
+                        failures.append(f"history_event: archived id {key} conflicts with live row")
+                for key, previous_hash in history_checkpoint.items():
+                    if key not in current_hashes and key not in archived_history:
+                        failures.append(f"history_event: checkpoint row {key} is gone")
+                    elif key in current_hashes and current_hashes[key] != previous_hash:
+                        failures.append(f"history_event: checkpoint row {key} changed")
+                logical_hashes = {**current_hashes, **archived_history}
+                logical_rows = len(logical_hashes)
+            else:
+                logical_hashes = current_hashes
+                logical_rows = current_rows
             lost: list[str] = []
             changed: list[str] = []
             added = 0
             if recorded_hashes:
-                lost = sorted(set(recorded_hashes) - set(current_hashes))
+                lost = sorted(set(recorded_hashes) - set(logical_hashes))
                 changed = sorted(
                     key
-                    for key in set(recorded_hashes) & set(current_hashes)
-                    if recorded_hashes[key] != current_hashes[key]
+                    for key in set(recorded_hashes) & set(logical_hashes)
+                    if recorded_hashes[key] != logical_hashes[key]
                 )
-                added = len(set(current_hashes) - set(recorded_hashes))
+                added = len(set(logical_hashes) - set(recorded_hashes))
             # The row count and the row map are two witnesses of the same loss. A
             # baseline recorded without row hashes only has the first one, so take
             # whichever reports more.
-            missing = max(recorded_rows - current_rows, len(lost))
+            missing = max(recorded_rows - logical_rows, len(lost))
 
             if missing:
                 if table in ROW_TOLERANT_TABLES:
@@ -427,7 +479,7 @@ def compare_against_baseline(
                         "(legitimate pruning)"
                         + (f"; ids {lost[:10]}" if lost else "")
                     )
-                elif current_rows < recorded_rows:
+                elif logical_rows < recorded_rows:
                     failures.append(
                         f"{table}: row count fell from {recorded.get('rows')} to {current['rows']}"
                     )

@@ -109,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         args.database,
         baseline,
         require_revision=not args.allow_revision_change,
+        retention_dir=args.baseline.parent / "history-retention",
     )
     report["verdict"] = "VERIFIED BACKUP" if verified else "NOT A VERIFIED BACKUP"
     report["baseline_path"] = str(args.baseline)
@@ -146,6 +147,12 @@ def main(argv: list[str] | None = None) -> int:
         print("legitimate pruning:")
         for item in report["pruned"]:  # type: ignore[union-attr]
             print("  -", item)
+    if report.get("history_event_archived"):
+        archived = report["history_event_archived"]
+        print()
+        print("history_event_archived:", len(archived["ids"]), "rows")
+        for run in archived["runs"]:
+            print("  run:", run["run_id"], "archive:", run["archive"])
     print()
     if verified:
         print("VERDICT  : VERIFIED BACKUP")
