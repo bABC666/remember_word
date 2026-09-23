@@ -17,6 +17,28 @@ verifier classifies every table:
 The distinction that actually matters is *loss*: a row present in the baseline
 must still be present with an identical value hash, whatever the table.
 
+Two narrow allowances keep that rule usable on a database that is in use without
+turning any of it off (see ``IGNORED_COLUMNS`` and ``ROW_TOLERANT_TABLES``):
+
+* **Runtime-mutable columns are not part of a row's identity.** A session's
+  ``last_seen_at``, a user's ``updated_at``, a word's ``next_review_at`` and the
+  counters the application derives from ``review_event`` all change by design
+  while people use the product. Pinning them made the verifier cry wolf on
+  ordinary use, which is how a gate ends up being ignored. What stays in the
+  identity is what a rewrite would have to forge: primary keys, ownership, the
+  ``lexicon_entry_id`` / ``legacy_word_id`` bridge, ``token_hash`` and
+  ``first_seen``.
+
+* **Rows in a row-tolerant table may legitimately be deleted.** ``prune_sessions``
+  removes revoked / expired / idle sessions, and deleting a lexicon with no
+  learning records cascades to the caller's ``user_lexicon`` row. Those removals
+  are reported under ``rows_pruned`` -- never swallowed -- and a *surviving* row
+  must still hash identically, so a swapped ``token_hash`` or a row re-pointed at
+  another owner is still a failure.
+
+Neither allowance is a blanket exemption: a table is only row-tolerant when live
+code genuinely deletes its rows, and only the listed columns leave the identity.
+
 This module never writes to the databases it inspects: every connection is
 opened read-only.
 """
@@ -63,14 +85,53 @@ CLASSIFICATIONS: dict[str, str] = {
 #: Tables the verifier ignores entirely (engine bookkeeping).
 IGNORED_TABLES: frozenset[str] = frozenset({"alembic_version", "sqlite_sequence"})
 
+#: Tables whose rows may legitimately be DELETED while the application runs.
+#:
+#: ``prune_sessions`` deletes revoked, absolutely expired and idle session rows,
+#: and ``DELETE /api/lexicons/{id}`` cascades to the caller's ``user_lexicon``
+#: row when the lexicon holds no learning records. A baseline recorded earlier
+#: therefore legitimately loses rows in exactly these two tables, so for them a
+#: falling row count and missing baseline rows are reported as ``rows_pruned``
+#: instead of failing the verdict.
+#:
+#: The allowance is deliberately narrow and does NOT relax anything else: a
+#: surviving row must still hash identically, so a swapped ``token_hash``, a
+#: session re-pointed at another user, or a membership re-pointed at another
+#: lexicon all still fail. No other table is listed -- every other row set only
+#: grows, so a lost row there remains evidence of loss.
+ROW_TOLERANT_TABLES: frozenset[str] = frozenset({"user_session", "user_lexicon"})
+
 #: Columns excluded from row identities.
 #:
-#: A migration may legitimately ADD a column to an existing table (the V1.2
-#: migration adds ``user_id`` and ``lexicon_entry_id`` bridges). Hashing
-#: ``select *`` made every existing row look "modified" for that reason alone.
-#: Row identity is therefore the recorded business columns, and these bookkeeping
-#: columns are ignored. Anything not listed is still protected: a real change to
-#: a content or learning column is caught.
+#: Two reasons for an entry here, both about *when* a column changes rather than
+#: how much it matters:
+#:
+#: 1. **Bookkeeping columns added by a migration.** The V1.2 migration adds
+#:    ``user_id`` and ``lexicon_entry_id`` bridges. Hashing ``select *`` made every
+#:    existing row look "modified" for that reason alone.
+#: 2. **Columns the running application rewrites.** A login touches
+#:    ``user_session.last_seen_at``; a review rewrites ``user_word_state.status``,
+#:    ``next_review_at``, ``last_review`` and the counters; a settings save
+#:    rewrites ``user_settings``; every update moves an ``updated_at``. These are
+#:    all defined as *derived cache* in ``docs/PROJECT_ARCHITECTURE.md`` 4.3 --
+#:    the truth is the append-only ``review_event``, which stays under the full
+#:    strict row fingerprint. Excluding them is not "switching verification off".
+#:
+#: Anything not listed is still protected, and that includes the columns a
+#: rewrite would have to forge:
+#:
+#: * ``user_session.token_hash``, ``user_id`` -- a swapped token or a session
+#:   re-pointed at another account is a backdoor and must be caught.
+#: * ``user_word_state.user_id`` / ``lexicon_entry_id`` / ``legacy_word_id`` --
+#:   the ownership and bridge columns; a re-pointed row is cross-user corruption.
+#: * ``first_seen`` / ``created_at`` / ``started_at`` / ``expires_at`` /
+#:   ``user_agent`` -- written once, never rewritten, so a change is evidence.
+#: * `app_setting.key` / `user.username` -- identities of configuration and
+#:   accounts; losing one is loss.
+#:
+#: RULE FOR FUTURE WORK: the moment code starts writing a column that is not
+#: listed here, add it here and re-record the baseline (``identity_columns`` is
+#: frozen into the baseline file, so a code-only change has no effect).
 IGNORED_COLUMNS: dict[str, frozenset[str]] = {
     "word": frozenset({"user_id", "lexicon_entry_id"}),
     "article": frozenset({"user_id"}),
@@ -78,6 +139,33 @@ IGNORED_COLUMNS: dict[str, frozenset[str]] = {
     "import_batch": frozenset({"user_id"}),
     "import_candidate": frozenset({"lexicon_entry_id"}),
     "history_event": frozenset({"user_id"}),
+    # V1.2 runtime tables. Instance and account rows survive; their mutable
+    # columns do not take part in the identity.
+    "user": frozenset(
+        {"display_name", "role", "is_active", "password_hash", "updated_at"}
+    ),
+    "user_session": frozenset({"last_seen_at", "revoked_at"}),
+    "user_settings": frozenset(
+        {"daily_new_words", "article_length", "onboarding_seen", "theme", "updated_at"}
+    ),
+    "user_lexicon": frozenset({"enabled", "daily_new_words"}),
+    "user_word_state": frozenset(
+        {
+            "status",
+            "last_review",
+            "next_review_at",
+            "recall_success",
+            "recall_fail",
+            "consecutive_failures",
+            "context_exposure",
+            "updated_at",
+            "anchor_override",
+            "semantic_note",
+            "notes",
+            "possible_issue",
+        }
+    ),
+    "app_setting": frozenset({"value", "updated_at"}),
 }
 
 BASELINE_VERSION = 1
@@ -242,9 +330,13 @@ def compare_against_baseline(
         "baseline_sha256": baseline.get("sha256"),
         "failures": [],
         "growth": [],
+        #: Baseline rows that legitimately disappeared from a row-tolerant table.
+        #: Reported so a pruned row is never silently accepted.
+        "pruned": [],
     }
     failures: list[str] = report["failures"]  # type: ignore[assignment]
     growth: list[str] = report["growth"]  # type: ignore[assignment]
+    pruned: list[str] = report["pruned"]  # type: ignore[assignment]
 
     if not database.exists():
         failures.append("database file does not exist")
@@ -299,18 +391,17 @@ def compare_against_baseline(
                 table,
                 columns=recorded.get("identity_columns") or None,
             )
+            recorded_rows = int(recorded.get("rows", 0))
+            current_rows = int(current["rows"])
             entry["rows_baseline"] = recorded.get("rows")
             entry["rows_current"] = current["rows"]
             entry["status"] = "ok"
 
-            if int(current["rows"]) < int(recorded.get("rows", 0)):
-                failures.append(
-                    f"{table}: row count fell from {recorded.get('rows')} to {current['rows']}"
-                )
-                entry["status"] = "rows_lost"
-
             recorded_hashes: dict[str, str] = recorded.get("row_hashes", {})  # type: ignore[assignment]
             current_hashes: dict[str, str] = current.get("row_hashes", {})  # type: ignore[assignment]
+            lost: list[str] = []
+            changed: list[str] = []
+            added = 0
             if recorded_hashes:
                 lost = sorted(set(recorded_hashes) - set(current_hashes))
                 changed = sorted(
@@ -318,17 +409,41 @@ def compare_against_baseline(
                     for key in set(recorded_hashes) & set(current_hashes)
                     if recorded_hashes[key] != current_hashes[key]
                 )
-                if lost:
-                    failures.append(f"{table}: {len(lost)} baseline rows are gone: {lost[:10]}")
-                    entry["status"] = "rows_lost"
-                if changed:
-                    failures.append(
-                        f"{table}: {len(changed)} baseline rows changed: {changed[:10]}"
-                    )
-                    entry["status"] = "rows_changed"
                 added = len(set(current_hashes) - set(recorded_hashes))
-                if added:
-                    growth.append(f"{table}: +{added} rows")
+            # The row count and the row map are two witnesses of the same loss. A
+            # baseline recorded without row hashes only has the first one, so take
+            # whichever reports more.
+            missing = max(recorded_rows - current_rows, len(lost))
+
+            if missing:
+                if table in ROW_TOLERANT_TABLES:
+                    # Deleting these rows is ordinary operation (session pruning,
+                    # the cascade from deleting an empty lexicon). Reported as
+                    # pruning -- visible, but not called loss.
+                    entry["rows_pruned"] = missing
+                    entry["status"] = "rows_pruned"
+                    pruned.append(
+                        f"{table}: {missing} of {recorded_rows} baseline rows removed "
+                        "(legitimate pruning)"
+                        + (f"; ids {lost[:10]}" if lost else "")
+                    )
+                elif current_rows < recorded_rows:
+                    failures.append(
+                        f"{table}: row count fell from {recorded.get('rows')} to {current['rows']}"
+                    )
+                    entry["status"] = "rows_lost"
+                else:
+                    failures.append(
+                        f"{table}: {len(lost)} baseline rows are gone: {lost[:10]}"
+                    )
+                    entry["status"] = "rows_lost"
+            if changed:
+                failures.append(
+                    f"{table}: {len(changed)} baseline rows changed: {changed[:10]}"
+                )
+                entry["status"] = "rows_changed"
+            if added:
+                growth.append(f"{table}: +{added} rows")
             per_table[table] = entry
 
         report["tables"] = per_table

@@ -13,6 +13,15 @@ from pathlib import Path
 
 import pytest
 
+from app.models import (
+    AppSetting,
+    User,
+    UserLexicon,
+    UserSession,
+    UserSettings,
+    UserWordState,
+)
+
 TOOLS = Path(__file__).resolve().parents[2] / "tools"
 _spec = importlib.util.spec_from_file_location("verified_db", TOOLS / "verified_db.py")
 assert _spec and _spec.loader
@@ -297,3 +306,294 @@ def test_recorded_baseline_of_the_real_project_is_usable() -> None:
     # Without row hashes the verifier could not detect a modified row at all, so
     # a baseline recorded with --no-row-hashes must not pass as the project one.
     assert all("row_hashes" in info for info in tables.values()), "baseline lacks row hashes"
+
+
+# --- V1.2 runtime tables: mutable columns, and rows that may be pruned ---------
+#
+# A live database is not a frozen artifact. Logging in rewrites a session's
+# ``last_seen_at``, studying rewrites a word's schedule and counters, saving
+# settings rewrites ``user_settings``, and ``prune_sessions`` deletes dead session
+# rows outright. Pinning any of that would make the verifier fail on ordinary use,
+# and a gate that cries wolf is a gate everybody learns to ignore.
+#
+# The exemptions are deliberately narrow, so these tests guard both directions:
+# the mutable columns must NOT be in the row identity, and the columns a rewrite
+# would have to forge (``token_hash``, ownership, bridges) must stay in it.
+
+#: Columns that must remain part of each runtime table's row identity.
+RUNTIME_IDENTITY_COLUMNS: dict[str, set[str]] = {
+    "user": {"id", "username", "created_at"},
+    "user_session": {
+        "id",
+        "user_id",
+        "token_hash",
+        "created_at",
+        "expires_at",
+        "user_agent",
+    },
+    "user_settings": {"user_id", "created_at"},
+    "user_lexicon": {"id", "user_id", "lexicon_id", "started_at"},
+    "user_word_state": {
+        "id",
+        "user_id",
+        "lexicon_entry_id",
+        "legacy_word_id",
+        "first_seen",
+        "created_at",
+    },
+    "app_setting": {"key"},
+}
+
+RUNTIME_MODELS = (User, UserSession, UserSettings, UserLexicon, UserWordState, AppSetting)
+
+
+def build_runtime_database(path: Path) -> None:
+    """Create the six V1.2 runtime tables from the models' own column lists.
+
+    The columns come from the ORM rather than a hand-written copy, so adding a
+    column to one of these models without deciding whether it is mutable fails
+    :func:`test_runtime_columns_are_not_part_of_row_identity` instead of silently
+    joining the row hash.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(str(path))
+    try:
+        for model in RUNTIME_MODELS:
+            columns = ", ".join(f'"{column.name}"' for column in model.__table__.columns)
+            connection.execute(f'create table "{model.__tablename__}" ({columns})')
+        connection.commit()
+    finally:
+        connection.close()
+
+
+@pytest.fixture()
+def runtime_database(tmp_path: Path) -> Path:
+    path = tmp_path / "app-data" / "runtime.db"
+    build_runtime_database(path)
+    return path
+
+
+def write_rows(path: Path, table: str, rows: list[dict[str, object]]) -> None:
+    connection = sqlite3.connect(str(path))
+    try:
+        for row in rows:
+            columns = ", ".join(f'"{name}"' for name in row)
+            placeholders = ", ".join("?" for _ in row)
+            connection.execute(
+                f'insert into "{table}" ({columns}) values ({placeholders})',
+                tuple(row.values()),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def write_sql(path: Path, statement: str, *parameters: object) -> None:
+    connection = sqlite3.connect(str(path))
+    try:
+        connection.execute(statement, parameters)
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def session_row(session_id: int, token: str) -> dict[str, object]:
+    return {
+        "id": session_id,
+        "user_id": 1,
+        "token_hash": token * 64,
+        "created_at": "2026-09-22 11:00:00",
+        "expires_at": "2026-10-22 11:00:00",
+        "last_seen_at": None,
+        "revoked_at": None,
+        "user_agent": "pytest",
+    }
+
+
+def state_row(state_id: int, entry_id: int, user_id: int = 1) -> dict[str, object]:
+    return {
+        "id": state_id,
+        "user_id": user_id,
+        "lexicon_entry_id": entry_id,
+        "legacy_word_id": entry_id,
+        "status": "new",
+        "first_seen": "2026-09-22 11:00:00",
+        "recall_success": 0,
+        "recall_fail": 0,
+        "consecutive_failures": 0,
+        "context_exposure": 0,
+        "anchor_override": "",
+        "semantic_note": "",
+        "notes": "",
+        "possible_issue": 0,
+        "created_at": "2026-09-22 11:00:00",
+        "updated_at": "2026-09-22 11:00:00",
+    }
+
+
+def test_runtime_columns_are_not_part_of_row_identity(runtime_database: Path) -> None:
+    """The ignore list must be exactly right in both directions.
+
+    Fails if a listed column does not exist in the model (a typo would silently
+    ignore nothing), if a column ordinary use rewrites is still inside the row
+    identity, or if a column a rewrite would forge has been dropped from it.
+    """
+    connection = sqlite3.connect(str(runtime_database))
+    try:
+        for model in RUNTIME_MODELS:
+            table = model.__tablename__
+            declared = {column.name for column in model.__table__.columns}
+            ignored = verified_db.IGNORED_COLUMNS[table]
+            assert ignored <= declared, f"{table}: ignored column is not in the model"
+            identity = set(verified_db.identity_columns(connection, table))
+            assert identity == RUNTIME_IDENTITY_COLUMNS[table], table
+            assert not (identity & ignored), table
+    finally:
+        connection.close()
+    # Only the two tables whose rows live code really deletes may tolerate loss.
+    assert verified_db.ROW_TOLERANT_TABLES == frozenset({"user_session", "user_lexicon"})
+    assert not (verified_db.ROW_TOLERANT_TABLES - set(RUNTIME_IDENTITY_COLUMNS))
+
+
+def test_legitimate_session_pruning_verifies_and_is_reported(
+    runtime_database: Path,
+) -> None:
+    """Pruning a dead session and touching ``last_seen_at`` are ordinary use.
+
+    ``prune_sessions`` deletes rows whose session can never be used again, and
+    ``touch_session`` rewrites the last-activity stamp. Neither is loss: the
+    verifier must still call the database verified, and must still report what
+    disappeared rather than accepting it silently.
+    """
+    write_rows(
+        runtime_database,
+        "user_session",
+        [session_row(1, "a"), session_row(2, "b")],
+    )
+    baseline = verified_db.capture_baseline(runtime_database, label="runtime")
+
+    write_sql(runtime_database, 'delete from "user_session" where id = 2')
+    write_sql(
+        runtime_database,
+        'update "user_session" set last_seen_at = ? where id = 1',
+        "2026-09-23 00:00:00",
+    )
+
+    verified, report = verified_db.compare_against_baseline(runtime_database, baseline)
+    assert verified, report["failures"]
+    assert report["failures"] == []
+    entry = report["tables"]["user_session"]
+    assert entry["status"] == "rows_pruned"
+    assert entry["rows_pruned"] == 1
+    assert entry["rows_current"] == 1
+    assert any("user_session" in item for item in report["pruned"])
+
+
+def test_changed_session_token_still_fails(runtime_database: Path) -> None:
+    """``token_hash`` stays in the identity: replacing it is a planted backdoor."""
+    write_rows(runtime_database, "user_session", [session_row(1, "a")])
+    baseline = verified_db.capture_baseline(runtime_database, label="runtime")
+
+    write_sql(
+        runtime_database,
+        'update "user_session" set token_hash = ? where id = 1',
+        "c" * 64,
+    )
+
+    verified, report = verified_db.compare_against_baseline(runtime_database, baseline)
+    assert not verified
+    assert any(
+        "user_session" in failure and "changed" in failure
+        for failure in report["failures"]
+    )
+    assert report["tables"]["user_session"]["status"] == "rows_changed"
+
+
+def test_lost_user_word_state_row_still_fails(runtime_database: Path) -> None:
+    """Learning state is not row-tolerant: a lost row is still loss."""
+    write_rows(
+        runtime_database,
+        "user_word_state",
+        [state_row(1, 1), state_row(2, 2), state_row(3, 3)],
+    )
+    baseline = verified_db.capture_baseline(runtime_database, label="runtime")
+
+    write_sql(runtime_database, 'delete from "user_word_state" where id = 3')
+
+    verified, report = verified_db.compare_against_baseline(runtime_database, baseline)
+    assert not verified
+    assert any("user_word_state" in failure for failure in report["failures"])
+    assert report["tables"]["user_word_state"]["status"] == "rows_lost"
+    assert report["pruned"] == []
+
+
+def test_repointed_user_word_state_row_still_fails(runtime_database: Path) -> None:
+    """Re-pointing a state at another user is a forged ownership column."""
+    write_rows(
+        runtime_database,
+        "user_word_state",
+        [state_row(1, 1, user_id=1), state_row(2, 2, user_id=1)],
+    )
+    baseline = verified_db.capture_baseline(runtime_database, label="runtime")
+
+    write_sql(runtime_database, 'update "user_word_state" set user_id = 2 where id = 2')
+
+    verified, report = verified_db.compare_against_baseline(runtime_database, baseline)
+    assert not verified
+    assert any(
+        "user_word_state" in failure and "changed" in failure
+        for failure in report["failures"]
+    )
+
+
+def test_legitimate_study_and_settings_saves_verify(runtime_database: Path) -> None:
+    """A review and a settings save must not look like tampering."""
+    write_rows(
+        runtime_database,
+        "user_word_state",
+        [state_row(1, 1), state_row(2, 2)],
+    )
+    write_rows(
+        runtime_database,
+        "user_settings",
+        [
+            {
+                "user_id": 1,
+                "daily_new_words": 15,
+                "article_length": 650,
+                "onboarding_seen": 0,
+                "theme": "auto",
+                "created_at": "2026-09-22 11:00:00",
+                "updated_at": "2026-09-22 11:00:00",
+            }
+        ],
+    )
+    baseline = verified_db.capture_baseline(runtime_database, label="runtime")
+
+    # what services/study.py::_apply writes on one review ...
+    write_sql(
+        runtime_database,
+        'update "user_word_state" set status = ?, next_review_at = ?, '
+        "last_review = ?, consecutive_failures = ?, recall_success = ?, "
+        "context_exposure = ?, semantic_note = ?, updated_at = ? where id = 1",
+        "familiar",
+        "2026-09-23 12:00:00",
+        "2026-09-23 00:00:00",
+        0,
+        1,
+        1,
+        "第一次在阅读里遇到",
+        "2026-09-23 00:00:00",
+    )
+    # ... and what PUT /api/settings writes for one preference change
+    write_sql(
+        runtime_database,
+        'update "user_settings" set daily_new_words = ?, updated_at = ? where user_id = 1',
+        30,
+        "2026-09-23 00:00:00",
+    )
+
+    verified, report = verified_db.compare_against_baseline(runtime_database, baseline)
+    assert verified, report["failures"]
+    assert report["tables"]["user_word_state"]["status"] == "ok"
+    assert report["tables"]["user_settings"]["status"] == "ok"

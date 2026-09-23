@@ -138,6 +138,14 @@ def main(argv: list[str] | None = None) -> int:
         print("legitimate growth:")
         for item in report["growth"]:  # type: ignore[union-attr]
             print("  +", item)
+    if report.get("pruned"):  # type: ignore[union-attr]
+        # Rows that a row-tolerant table is allowed to lose (session pruning, the
+        # cascade from deleting an empty lexicon). Printed rather than hidden, so a
+        # pruned row is never silently accepted.
+        print()
+        print("legitimate pruning:")
+        for item in report["pruned"]:  # type: ignore[union-attr]
+            print("  -", item)
     print()
     if verified:
         print("VERDICT  : VERIFIED BACKUP")

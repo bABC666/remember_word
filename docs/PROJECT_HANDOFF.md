@@ -195,18 +195,58 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 - 迁移资料：`docs/0007-production-migration-runbook.md`、`...-checklist.md`、`docs/2026-09-22-migration-history-forensics.md`。
 - 工具：`tools/`（staging、备份校验、隔离取证、迁移预演、事故取证）、`scripts/`（启动/停止/全量检查）。
 
-## 8. 验收基线与复验命令（2026-09-22 实测）
+## 8. 验收基线与复验命令（2026-09-23 复验）
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **312 passed** |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **318 passed** |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests` | All checks passed |
 | 前端测试 | `cd frontend; npm test` | **19 passed / 4 files** |
 | 前端类型/构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 通过 |
-| 测试隔离取证 | `backend\.venv\Scripts\python.exe tools\prove_test_isolation.py` | `data/` 93 个文件零变化 + 全量测试通过 |
+| 测试隔离取证 | `backend\.venv\Scripts\python.exe tools\prove_test_isolation.py` | `data/` 全量指纹**零变化** + 全量测试通过（文件数随证据文件增减，2026-09-23 实测 100） |
+| 全量门禁 | `powershell -File scripts\check.ps1` | **exit 0**（含 verified backup 一步） |
 | 生产库 | 只读抽样 | revision 0007、26 外键、`foreign_key_check` = 0 |
 
-**已知例外（不要误判）**：`scripts/check.ps1` 的最后一步 `tools/verify_backup.py` 会失败，因为验收基线 `data/recovery/baseline.json` 仍冻结在 `0003_article_reading_tools`（label 为 "restored V1.1 verified source"），而生产库已是 0007。这是**既有问题**（Phase 2 审计的 B6），与代码质量无关；修法是在 0007 生产库上**有意识地重建基线**（保留旧基线作历史），并把工具里硬编码的 `0003` 参数化。
+**已修复（2026-09-23，Batch 0 / T5）**：原先 `scripts/check.ps1` 的最后一步 `tools/verify_backup.py` 必然失败（Phase 2 审计的 B6），因为验收基线 `data/recovery/baseline.json` 冻结在 `0003_article_reading_tools`（label `restored V1.1 verified source`，录制自 `data/recovery/vocab-restored-v1.1.db`），而生产库已是 0007。现按"**先建副本、再录基线**"的顺序修复：旧基线归档为 `data/recovery/baseline.prior-attempt-20260923-001325.json`（**不覆盖**），新基线从 **verified 0007 备份** `data/backups/post-0007-verified-20260923-001237-vocab.db` 录制。注：路线图 T5 曾写"`tools/verified_db.py` 里有硬编码 `0003`"——与实际不符，`0003` 只出现在事故恢复工具（`promote_restore.py` / `restore_v1_1.py` / `seal_restore.py`）里。
+
+### 8.1 备份校验口径：行身份与行容忍（2026-09-23）
+
+`tools/verify_backup.py` 是"**verified backup**"这一定义的唯一入口（`PROJECT_ARCHITECTURE.md` §4.5 第 5 条）。它把目标库与基线快照**逐表逐行**比对。2026-09-23 之前，它对**运行期会被改写的列**也做严格行指纹，使"正常使用"被误判成数据损坏（登录写 `last_seen_at`、复习写 `word_state`、改设置写 `user_settings`）。现按**方案 A：字段级忽略 + 行级容忍**收敛（`tools/verified_db.py`）。
+
+**为什么是字段级忽略，而不是整表忽略**：被排除的列全部是"派生缓存与用户偏好"——`PROJECT_ARCHITECTURE.md` §4.3 第 3 条已定义 `recall_success` / `recall_fail` / `status` / `next_review_at` / `context_exposure` **都只是可由 `review_event` 重算的缓存**，而真相 `review_event` **仍按严格行指纹校验**。整表忽略会让"备份丢了整张 `user_word_state`"也被判 VERIFIED，那是关掉验证而不是修好它。
+
+**不再参与行身份的列（`IGNORED_COLUMNS`）**
+
+| 表 | 忽略列 | 写入方 |
+|---|---|---|
+| `user` | `display_name`、`role`、`is_active`、`password_hash`、`updated_at` | `PATCH /api/users/{id}`、改密、CLI `promote` / `set-password` |
+| `user_session` | `last_seen_at`、`revoked_at` | `touch_session`（节流 5 min）、撤销会话 |
+| `user_settings` | `daily_new_words`、`article_length`、`onboarding_seen`、`theme`、`updated_at` | `PUT /api/settings`、`POST /api/settings/onboarding` |
+| `user_lexicon` | `enabled`、`daily_new_words` | `POST /api/lexicons/{id}/enable` |
+| `user_word_state` | `status`、`last_review`、`next_review_at`、`recall_success`、`recall_fail`、`consecutive_failures`、`context_exposure`、`updated_at`、`anchor_override`、`semantic_note`、`notes`、`possible_issue` | `services/study.py::_apply`、`services/reading.py` 的 exposure 递增；后四列目前只由**死代码** `services/words.py::apply_learning_update` 声明可写 |
+| `app_setting` | `value`、`updated_at` | 实例级设置写入（OCR、遗留 `daily_new_words` 等） |
+
+**仍然参与校验的安全字段（不得移除）**
+
+| 字段 | 为什么保留 |
+|---|---|
+| `user_session.token_hash`、`user_id` | token 被换 = **植入后门**；会话被改指他人 = **越权** |
+| `user_word_state.user_id` / `lexicon_entry_id` / `legacy_word_id` | 归属与桥接列，被改指 = **跨用户/跨词条错行**（与 `test_id_namespaces.py` 同一守护目标） |
+| `user.id` / `username` / `created_at`；`user_settings.user_id`；`user_lexicon.id` / `user_id` / `lexicon_id`；`app_setting.key` | 行身份与归属；行丢失或账号被换仍必须被发现 |
+| `first_seen` / `created_at` / `started_at` / `expires_at` / `user_agent` | 一次写入、从不改写，变化即证据 |
+
+**行容忍：`ROW_TOLERANT_TABLES = {user_session, user_lexicon}`**
+
+- **允许**：行数减少与基线行消失 —— 因为 `prune_sessions` 会删除已撤销/过期/闲置的会话行，而删除**空词库**（`DELETE /api/lexicons/{id}`，409 守卫只在有学习记录时拦截）会经 `ON DELETE CASCADE` 连带删除 `user_lexicon` 行。
+- **仍然必须**：存活行的身份与安全字段一致 —— 换 `token_hash`、把行改指他人**照样 FAIL**。
+- **不静默**：报告新增 `pruned` 列表与逐表 `rows_pruned` 计数；`verify_backup.py` 控制台打印 `legitimate pruning:` 段；`--json` 报告同样包含。
+- **其它任何表都不允许丢行**：`user_word_state`、`user`、`user_settings`、`app_setting` 丢行依旧是 FAIL（有测试覆盖）。
+
+**操作规则（必须遵守）**
+
+1. `identity_columns` 在**录制基线时冻结**写入 `baseline.json` → **只改 `IGNORED_COLUMNS` 而不重录基线没有任何效果**。
+2. 一旦有代码开始写某个此前不写的列，**必须同步加入 `IGNORED_COLUMNS` 并重录基线**；`backend/tests/test_verified_db.py::test_runtime_columns_are_not_part_of_row_identity` 会在忽略清单与模型列不一致（含拼写错误）时失败。
+3. **残余风险（已知并接受）**：`user` 的 `role` / `is_active` / `password_hash`、`app_setting` 的 `value` 被**直接 SQL 改写**时本工具不再报警。补偿：这些字段的合法变更都会在 `history_event` 留痕（`user_updated` / `user_password_changed`），且"口令哈希被清成 `!` 哨兵"这类形态级损坏仍会在登录时由 `password_is_usable` 暴露。
 
 ## 9. 已知限制与未完成项
 
