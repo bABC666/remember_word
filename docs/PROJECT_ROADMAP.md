@@ -255,7 +255,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | **S-2** | ~~**CSRF 纵深防御缺失**：全仓库无 `Origin`/`Referer` 校验、无 CORS 中间件，仅依赖 `SameSite=Lax`~~ → ✅ **已关闭（2026-09-23，Batch 2A）**：写请求同源校验（`backend/app/csrf.py` + `main.py` 中间件，30 个非安全端点，`GET`/`HEAD`/`OPTIONS` 放行），与 `SameSite=Lax`、JSON-only 请求体构成三层；仍无 CORS（有意为之） | handoff §5.7、`docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`、`backend/tests/test_csrf.py`（45 项） | 🟠→⚪ | 剩余边界：XSS 不在防御范围；`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层；TLS 代理须配 `--proxy-headers` | 2.8 ✅ |
 | **S-3** | **恢复路径可被短暂封锁**：持被窃会话者可烧掉 re-auth 预算，使合法用户在窗口（默认 300 s）内无法执行敏感操作 | handoff §9.3 | 🟡 | 拒绝服务窗口有限；已有 CLI `set-password` 逃生口 | 2.8（评估） |
 | **S-4** | **限流状态在内存**：重启清零；**多 worker 下每 worker 各一份计数（等效阈值 × worker 数）**；反向代理后未配置 `--proxy-headers` 会导致所有用户共用一个 IP 计数桶 | handoff §9.4 | 🟠 | 部署阶段若误开多 worker，防滥用形同虚设 | 2.8（约束固化）/ 4（部署校验） |
-| **S-5** | **`data/staging/` 残留含真实数据的副本**（`v1.1-realdata-migration-test.db`、`v1.3-acceptance.db` 等），部分含测试口令 | status §6.5 #4 | 🟡 | 含个人学习数据的文件长期驻留；须连同 `-shm`/`-wal` 处置并确认无进程占用 | 2.8 |
+| **S-5** | **`data/staging/` 残留含真实数据的副本**（`v1.1-realdata-migration-test.db`、`v1.3-acceptance.db` 等）→ ✅ **2026-09-23（Batch 10 / T14）已逐个盘点、分类并处置**：删除 **6 个文件**（两次**中止**的 G6 演练副本及其 sidecar：`history-retention-drill-…130939Z.db` + `-shm`/`-wal`、`…131010Z.db` + `-shm`/`-wal`）；**其余全部保留**，因为它们是被引用的证据或不可重建（逐项理由见 T14 行与本批处置记录） | status §6.5 #4；处置记录 `data/recovery/t14-staging-disposal-20260923T155046Z.json` | 🟡→⚪ | 已处置部分不再长期驻留；保留项都有明确用途（证据链 / 工具默认目标 / 被测试引用 / 用途未定） | 2.8（已处置）/ 6 |
 | **S-6** | ✅ **已实现并在 data/staging 副本上验收（2026-09-23，Batch 7 / G6 / T10）；生产清理仍待批准** 原缺陷：**无保留策略的审计增长**：`history_event` append-only（约 129 字节/行），登录失败与审计持续增长 | handoff §9.5；实现与验收见 `docs/V1.2-PHASE2.8-D-HISTORY-RETENTION-DESIGN.md` §8 | ✅ 已实现 | 在线保留 365 天、仅四类事件可归档；**生产清理需要负责人对具体计划与运行 ID 另行批准** | 2.8 |
 
 ### 4.2 数据与运维
@@ -323,7 +323,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6**/**7**/**8**/**9** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 T13/T14 卫生项、G6 的**生产执行**与 S-1 的人工点击验收（保留策略已于 Batch 7 实现并在副本验收、T8 三账号验收已于 Batch 8 完成、**T12 死代码已于 Batch 9 清理**）；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6**/**7**/**8**/**9**/**10** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 T13 版本决策、G6 的**生产执行**与 S-1 的人工点击验收（保留策略已于 Batch 7 实现并在副本验收、T8 三账号验收已于 Batch 8 完成、T12 死代码已于 Batch 9 清理、**T14 staging 残留已于 Batch 10 处置**）；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.8 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | 2.8（备份 + 门禁 + CSRF）；建议在 3 之后 | 产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
@@ -453,7 +453,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T11 | ✅ **已完成（2026-09-23，Batch 5）** SPA 兜底路由加 `/api/**` 例外，返回 404 JSON（T-3）：未知 `/api/**` 的 `GET` 返回 404 JSON，正常前端路由仍返回 SPA 页面；既有 API 与 `/assets` 挂载不变；**未放宽 CSRF**——跨源写请求仍由最外层同源中间件 403 拒绝（`POST`/`HEAD`/`OPTIONS` 打到未知 `/api/**` 由路由给出 405）。测试 `backend/tests/test_spa_fallback.py` 16 项 | `backend/app/main.py` | S ✅ |
 | T12 | ✅ **已完成（2026-09-23，Batch 9）** 清理死代码：删除 `backend/app/api/helpers.py::word_dict`（连带因此多余的 `Word` import）与 `backend/app/schemas.py::WordSummary`（连带因此多余的 `from datetime import datetime`）。依据是全仓库引用搜索（`word_dict(` 只命中定义自身，`WordSummary` 只命中定义与文档），**未改动任何序列化路径、未改任何 API 响应**。`services/words.py::apply_learning_update` **按 T-2 决策保留**（`test_import_flow.py` 仍在使用）；剩余候选 `schemas.py::ORMModel` （已无使用者）留待 `word` 表退场决策 | `backend/app/api/helpers.py`、`backend/app/schemas.py` | S ✅ |
 | T13 | 版本号决策与落地（E-4）：三处统一；若确定发布则打 tag | `pyproject.toml`、`package.json`、`main.py` | S |
-| T14 | 处置 `data/staging/` 残留副本（S-5）：先核对证据引用（`migration-rehearsal-0006.db` 被 `rehearsal-0006-to-0007.json` 引用，**按证据保留**），其余连同 `-shm`/`-wal` 逐个删除（**不用通配符**），删除后复核文件不存在且生产库未被触碰 | `data/staging/` | S |
+| T14 | ✅ **已完成（2026-09-23，Batch 10）** 处置 `data/staging/` 残留副本（S-5）：只读盘点 **顶层 21 个文件 + 12 个一级目录**（绝对路径/大小/SHA-256/revision/行数；整棵树 86 个文件 / 40 个目录见记录 §addendum），逐项搜索 `data/recovery`、`test-artifacts`、`docs`、`tools`、`backend/tests` 的引用后分三类处置。**删除（第二类：可从可信来源重建且无有效引用）6 个文件 = 两次中止的 G6 演练副本及其 sidecar**；**保留（第一类）**：`migration-rehearsal-0006.db`（被 `rehearsal-0006-to-0007.json` 等引用）、`v1.1-realdata-migration-test.db` 与 `v1.3-acceptance.db`（各自被报告引用，且是 `tools/staging_*_check.py` 的默认目标）、`fresh-clone-0003-to-head.db`（**被 `tests/test_downgrade_guard.py` 引用**）、`batch05-normaluse-baseline.json`（被 Batch 0.5 证据引用）、G6 演练 `…131041Z.db`（设计文档 §8.3 引用其路径与哈希）、T8 采纳运行的副本目录；**保留并报告（第三类）**：`batch05-ab-*.json`、`batch05-normaluse-verification.json`（零引用但记录了过去库状态，不可重建）、`backups/2026-09-22-vocab.db`（用途未定）、6 个 T8 运行副本目录（各自被自己的报告引用；其中 4 个是失败运行）。删除逐条显式路径、无通配符、删除前校验解析路径位于 `data/staging/` 内且无进程占用；删除后复核保留数据库 `integrity_check=ok` 且内容哈希未变、证据文件仍可解析、生产库及 WAL/SHM 逐字节一致（`74442def…`/`6a65ddfe…`/`1c8eced5…`） | `data/staging/`、`data/recovery/t14-staging-disposal-20260923T155046Z.json` | S ✅ |
 | T15 | ✅ **基本完成（2026-09-23）** 过时文档陈述（E-6）：`PROJECT_HANDOFF.md` 中与现状矛盾的陈述已就地更正（§8 的"check.ps1 必然失败"已改为已修复并新增 §8.1 校验口径）；`0007-release-record.md` 的 §11 原本就有 §12 附注（"§11 原文不改写"）。**仍存在**：`PROJECT_ROADMAP.md` 自身的历史快照（§2.2 ahead 33、§4.6 E-1 等）未逐条回填——已在 `PROJECT_STATUS_CURRENT.md` 风险 #21 登记 | `docs/` | S |
 | T16 | ✅ **已完成（2026-09-23，Batch 6）** 让 `daily_new_words` 生效（P-5）：额度 = 当天（UTC）`review_event.status_before = 'new'` 的**不同词条数**，所以多次请求、复习后再请求都不会叠加；用户级设置封顶当日总量，词库级 `user_lexicon.daily_new_words` 各自限制本词库，两层取 `min`；`limit` 仍是整份队列的长度上限，到期/`weak` 词优先占用它。**零 schema、零 migration、未改调度算法**。（原计划写的 `services/userdata.py` 未改：队列组装落在 `services/study.py`，UTC 日边界抽到 `services/day.py` 与 dashboard 共用） | `backend/app/services/study.py`、`backend/app/services/day.py`、`backend/app/api/study.py`、`backend/app/api/dashboard.py` | M ✅ |
 | T17 | ✅ **已完成（2026-09-23，Batch 5）** 补 `.env.example` 的 `VOCAB_DATABASE_PATH`（T-7）：说明它用于**明确选择数据库环境**（留空即 `<数据目录>/vocab.db`），并写明开发与测试**不得指向生产库 `data/vocab.db`**；相对路径按进程工作目录解析，因此要求绝对路径 | `.env.example` | S ✅ |
@@ -512,7 +512,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | 7 生产库仍为 0007、完整性不变 | ✅ 达成 | revision `0007`、`integrity_check=ok`、`foreign_key_check=0`；`check.ps1` 逐表行指纹比对 17/17 `ok` |
 | 8 后端 + 前端全量验收 | ✅ 达成 | 后端 **365 passed** + ruff 全通过；前端 **29 passed** + typecheck/lint/build 通过 |
 
-> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭、G8/T16 已于 Batch 6 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用）。剩余：DoD 4 的人工点击验收、T13/T14 卫生项，以及 **G6 保留策略的生产执行**（需负责人批准具体计划与运行 ID 并安排维护窗口）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
+> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭、G8/T16 已于 Batch 6 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用）。剩余：DoD 4 的人工点击验收、T13 版本决策，以及 **G6 保留策略的生产执行**（需负责人批准具体计划与运行 ID 并安排维护窗口）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
 
 ---
 
