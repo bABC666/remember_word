@@ -81,7 +81,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | 项 | 说明 |
 |---|---|
 | G6 / S-6 `history_event` 保留策略 | **已实现并在副本验收（2026-09-23 Batch 7 / T10）**：365 天、四类事件；`preview --plan` 固定候选 ID、UTC cutoff 与逐行 hash，`apply --plan --confirm <运行 ID>` 在 `BEGIN IMMEDIATE` 内只按明确 ID 删除并核对数量，提交后核验通过才发布 committed 凭证。**生产 `data/vocab.db` 从未执行 preview/apply**（需负责人批准具体计划与运行 ID 并安排维护窗口）——因此这条在"尚未完成"表里只保留生产侧 |
-| T8 / E-3 副本三账号验收 | 现有证据为**双账号**（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`） |
+| T8 / E-3 副本三账号验收 | ✅ **已于 2026-09-23（Batch 8）完成**：`data/recovery/t8-three-user-report-20260923T134500Z.json`，**126/126 PASS**、`verified: true`、`failures: []`（新文件名；旧双账号证据未覆盖）。生产 `data/vocab.db` 只被只读复制，验收前后与其 WAL/SHM 逐字节一致——本表不再有它的缺口 |
 | T9–T17 卫生项 | **T11（T-3 未知 `/api/**` → 404 JSON）与 T17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；未完成部分见 §6（T-12 死代码、T-13 版本号、T-14 staging 残留） |
 | T-7 浏览器人工验收 | F-1/F-7 已有集成测试与活实例验证，但"人在浏览器里点一遍"仍待用户确认 |
 
@@ -91,7 +91,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 
 | 检查 | 命令 | 当前结果 |
 |---|---|---|
-| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **513 passed**（37 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项、G5 的 `test_session_limit.py` 16 项、Batch 5 的 `test_spa_fallback.py` 16 项、Batch 6 的 `test_daily_new_words.py` 25 项与 Batch 7 的 `test_history_retention_apply.py` 39 项） |
+| 后端测试 | `cd backend; .\.venv\Scripts\python.exe -m pytest tests -q` | **521 passed**（38 个测试文件；含 S-1 的 `test_admin_reauth.py` 27 项、G5 的 `test_session_limit.py` 16 项、Batch 5 的 `test_spa_fallback.py` 16 项、Batch 6 的 `test_daily_new_words.py` 25 项、Batch 7 的 `test_history_retention_apply.py` 39 项与 Batch 8 的 `test_staging_three_user_check.py` 8 项） |
 | 后端 lint | `cd backend; .\.venv\Scripts\python.exe -m ruff check --no-cache app tests`、`… ruff check tools` | All checks passed（两条） |
 | 前端测试 | `cd frontend; npm test` | **32 passed / 7 files** |
 | 前端类型 / lint / 构建 | `npm run typecheck` / `npm run lint` / `npm run build` | 全部通过 |
@@ -194,7 +194,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | 13 | **词频数据缺失**（P-1） | 🟠 | `frequency_rank` 全 NULL，选词回落 `sequence`/`id`；**不得用 AI 编造**，等外部词频文件 |
 | 14 | **复习算法是固定天数阶梯**（P-2） | 🟠 | 不随个人表现自适应；Phase 5，且需先设计 + migration |
 | 15 | **连续天数在 Python 中重算**（T-6） | 🟡 | 取最近 1000 条 `review_event`，超过后会算错；Phase 5 |
-| 16 | **三账号副本验收未做**（T8 / E-3） | 🟡 | 现有证据为双账号 |
+| 16 | ~~**三账号副本验收未做**（T8 / E-3）~~ → ✅ **已关闭（2026-09-23 Batch 8）** | ✅ | `data/recovery/t8-three-user-report-20260923T134500Z.json`：126/126 PASS、`verified: true`、`failures: []`；矩阵含 409 守卫、跨用户 404 等价性、实例级门槛、会话与每日新词额度不串号 |
 | 17 | **版本号未更新**（E-4） | 🟡 | 三处仍 `1.0.0`；"V1.2" 只是阶段名；影响打 tag 的口径（见 §7 与本文末） |
 | 18 | **无 CI**（E-5） | 🟡 | 门禁全靠人工执行；Phase 6 |
 | 19 | ~~**`.env.example` 仍缺 `VOCAB_DATABASE_PATH`**（T-7）~~ → ✅ **已关闭（2026-09-23 Batch 5 / T17）** | ⚪ | 已补：说明它用于明确选择数据库环境（留空即 `<数据目录>/vocab.db`），并写明开发与测试**不得指向生产库 `data/vocab.db`**。三级数据库环境切换依赖它，缺文档易误配 |
@@ -220,7 +220,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 1b. ✅ **G5 每用户会话数量上限已完成（2026-09-23，Batch 4）**：默认 10、`0` = 不限制；超限时先清理已失效行、再淘汰最久未活动的存活会话，当前会话永不淘汰（见 §2.3、§5.3）。
    **本次未做**：`revoke_reason`（UI 仍无法解释"为何被登出"）；前端对被挤掉的提示。
 2. **Phase 2.8 卫生项打包**（低风险，可并行）
-   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**G8「每日新词数」生效已于 Batch 6 完成**；**T-10 `history_event` 保留策略（G6）已于 Batch 7 实现并在副本验收，生产执行仍未批准**；**仍待做**：T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）；T8 副本三账号验收。
+   ✅ **T-3（未知 `/api/**` → 404 JSON，T11）与 T-17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**G8「每日新词数」生效已于 Batch 6 完成**；**T-10 `history_event` 保留策略（G6）已于 Batch 7 实现并在副本验收，生产执行仍未批准**；**T8 副本三账号验收已于 Batch 8 完成**（DoD 6 达成）；**仍待做**：T-12 死代码；T-13 版本号决策（E-4）；T-14 `data/staging/` 残留处置（S-5）。
 3. **Phase 3 · PWA 与移动端可用性**（先做设计决策）
    `manifest` + Service Worker + 图标（`/api/**` **永不缓存**）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-4 safe-area；F-6 底部导航。
 4. **Phase 4 · 生产部署上线**（建议在 Phase 3 之后）

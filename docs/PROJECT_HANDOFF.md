@@ -1,8 +1,8 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-23（本轮记录 **Phase 2.8 G8 / T16（「每日新词数」真正限制学习队列）** 的完成；上一轮为 T11 + T17）
+> 更新日期：2026-09-23（本轮记录 **Phase 2.8 T8：副本上的三账号端到端隔离验收** 的完成；上一轮为 G6/T10、更早为 G8/T16、T11 + T17）
 > 当前分支：`feat/v1.2-phase1-safe`；最近功能代码 `10dcfa5`（S-2）与 **`c3a6106`（S-1，本地，未 push）**，规划修订起点 `0d20a51`；实时 HEAD 以 Git 为准。
-> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 T8 三账号副本验收、T12/T13/T14 卫生项与 **G6 的生产执行**（保留策略已于 Batch 7 实现并在副本验收）；**T11 与 T17 已于 Batch 5 完成、G8/T16 已于 Batch 6 完成**）
+> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 T12/T13/T14 卫生项、**G6 的生产执行**与 S-1 的人工点击验收（保留策略已于 Batch 7 实现、**T8 三账号副本验收已于 Batch 8 完成**）；**T11 与 T17 已于 Batch 5 完成、G8/T16 已于 Batch 6 完成**）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
 > **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
@@ -17,16 +17,17 @@
 |---|---|
 | HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
 | 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`；**本地领先于 origin，尚未 push**——截至本批依次是：S-1 实现 `c3a6106`、S-1 文档收口 `acde4f8`、笔记归位 `46e0c55`、G5 `9fef2a4`、状态表补注 `1ca1a47`（**具体提交数与是否已推送以 `git status -sb` 为准**，本行不写死数字） |
+| 最近完成（Batch 8） | **Phase 2.8 T8：副本上的三账号端到端隔离验收** —— `tools/staging_three_user_check.py` 用 SQLite **online backup API** 从 `data/vocab.db` **只读**建唯一命名副本（`data/staging/t8-three-user-<stamp>/vocab.db`），先核验 revision `0007` / `integrity_check` / 外键 / 原始 baseline，再把**真实应用**指向副本（独立端口 + 显式 `VOCAB_DATABASE_PATH`，账号与业务写入全部只落在副本）。矩阵 **126 项全通过**：匿名与普通用户访问管理员端点被拒；管理员/用户 A/用户 B 各自登录；私人词条、学习状态、文章、复习记录的跨用户读写与列表计数隔离，**越权与不存在同形 404**；公共词库三人可读、普通用户不可改；私人词库他人读/改/启用均 404；**词库删除守卫 409 且拒绝后数据未变**；实例级设置与备份仅管理员；会话列表与每日新词额度在 A/B 之间不串；S-1 `current_password`（422/400）与 CSRF 同源（跨源与缺 Origin 均 403）契约。报告 `data/recovery/t8-three-user-report-20260923T134500Z.json`（`verified: true` / `failures: []`，**新文件名**，既有双账号证据未被覆盖）；验收前后 `data/vocab.db` 及 `-wal`/`-shm` 逐字节一致。脚本请求全部带同源 `Origin`，口令只经 stdin 或 JSON body，**不进入 argv、报告与日志**。测试 `backend/tests/test_staging_three_user_check.py` 8 项（副本/指纹/Origin/矩阵完整性）。代码提交 **`54526ec`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 7） | **Phase 2.8 G6 / T10：`history_event` 保留策略** —— 在线 **365 天**，仅 `login_failed`/`reauth_failed`/`user_login`/`article_word_lookup` 四类事件可到期归档；`history-retention preview --plan` 写出**固定计划**（候选 ID、UTC cutoff、逐行全列/身份 hash、当时每一行的 hash），`apply --plan --confirm <运行 ID>` 按计划建**清理前备份**（SQLite online backup API，唯一命名、拒绝覆盖、自包含单文件）→ 核验备份 → 生成归档与**待提交**凭证 → `BEGIN IMMEDIATE` 内重验并**只按明确 ID** 删除、核对删除数 → 提交后核验 → **原子发布 committed 凭证** → 发布后复核；任何失败都故障关闭（回滚不留孤儿、提交后未发布则核验必须失败）。**证照已核实**：保留规则已确认，但**生产清理未批准**，`data/vocab.db` 从未执行 preview/apply。设计 `docs/V1.2-PHASE2.8-D-HISTORY-RETENTION-DESIGN.md` §8，测试 `backend/tests/test_history_retention_apply.py` 39 项，副本演练 `tools/history_retention_staging_drill.py`（DRILL PASSED，含恢复演练）。代码提交 **`b48f1f9`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 6） | **Phase 2.8 G8 / T16：「每日新词数」真正控制学习队列** —— 额度 = 当天（UTC）`review_event.status_before = 'new'` 的**不同词条数**（多次请求不叠加、复习后不补词）；用户级 `daily_new_words` 封顶当日总量、`user_lexicon.daily_new_words` 各自限制本词库、两层取 `min`；`limit` 仍是整份队列长度上限，到期/`weak` 词优先占用且**不被新词额度削减**。`GET /api/study/today` 新增只读字段 `daily_new_words: {target, consumed_today, remaining}`（加法，旧客户端忽略）。**零 schema、零 migration、未改调度算法**；设计 `docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md`，测试 `backend/tests/test_daily_new_words.py` 25 项。代码提交 **`9872fe8`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 5） | **Phase 2.8 T11 + T17**：未知 `/api/**` 的 `GET` 返回 404 JSON（`backend/app/main.py`；测试 `backend/tests/test_spa_fallback.py` 16 项），`.env.example` 补 `VOCAB_DATABASE_PATH`（明确选择数据库环境；开发与测试不得指向 `data/vocab.db`）。代码与配置提交 **`59a8c68`**，本行所在版本即其后的文档提交，**本地未 push** |
 | 最近完成（Batch 4） | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。提交 **`9fef2a4`**，**本地未 push** |
 | 更早的批次 | Batch 3：S-1 管理员敏感操作二次认证（`c3a6106`）+ 其文档收口（`acde4f8`）；Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1/F-7；Batch 0.5 / 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
-| 本批关闭的任务 | **T10**（技术任务）与 **G6 的"保留策略 + 凭证核验 + 副本验收"部分**；**G6 的生产执行未关闭**（需负责人批准具体计划与运行 ID）。Batch 6 关闭的是 **G8** 与 **T16** |
-| 门禁 | `scripts/check.ps1` **exit 0**；后端 **513 passed**（含本批 `test_history_retention_apply.py` 39 项）+ ruff 全通过 / 前端 **32 passed** |
+| 本批关闭的任务 | **T8**（技术任务）与 **DoD 6**（副本三账号验收 `verified: true`）；Batch 7 关闭的是 **G6 的保留策略实现**与 **T10**（生产清理仍未批准） |
+| 门禁 | `scripts/check.ps1` **exit 0**；后端 **521 passed**（含本批 `test_staging_three_user_check.py` 8 项）+ ruff 全通过 / 前端 **32 passed** |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 `c3a6106` 与本批：S-1 与 G5 的代码与测试都已完成并提交，但都尚未在此进程生效。** 让它们生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
-| 下一步 | Phase 2.8 剩余：**T8 三账号副本验收、T12/T13/T14 卫生项，以及 G6 保留策略的生产执行**（需负责人针对具体 preview 计划与运行 ID 批准 + 维护窗口；T11、T17、G8/T16 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
+| 下一步 | Phase 2.8 剩余：**T12/T13/T14 卫生项、G6 保留策略的生产执行（需负责人针对具体 preview 计划与运行 ID 批准 + 维护窗口），以及 S-1 的人工点击验收**（T11、T17、G8/T16 与 T8 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -76,6 +77,7 @@ Level 2 工作流：
 backend\.venv\Scripts\python.exe tools\make_staging.py                  # 从已验证源克隆 + 记录迁移前基线
 backend\.venv\Scripts\python.exe tools\staging_migration_check.py       # 0003 → head 并逐项断言真实数据未损坏
 backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实启动应用指向 staging，双用户验证
+backend\.venv\Scripts\python.exe tools\staging_three_user_check.py      # T8：只读建新副本 + 三账号 126 项隔离验收
 ```
 
 迁移等级由 `VOCAB_DATABASE_PATH` 显式指定数据库文件；`VOCAB_DATA_DIR` 决定 uploads / backups / config 的位置。
