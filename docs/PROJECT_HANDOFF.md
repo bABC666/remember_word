@@ -17,7 +17,7 @@
 |---|---|
 | HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
 | 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`；**本地领先 4 个提交**（S-1 实现 `c3a6106` + S-1 文档收口 `acde4f8` + 笔记归位 `46e0c55` + 本批 G5），**均未 push** |
-| 最近完成 | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。**本地提交，未 push** |
+| 最近完成 | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。提交 **`9fef2a4`**，**本地未 push** |
 | 上一批 | Batch 3：S-1 管理员敏感操作二次认证（`c3a6106`）+ 其文档收口（`acde4f8`）；Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1/F-7；Batch 0.5 / 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
 | 本批关闭的任务 | **G5**（§6.1 功能目标）、**T9**（技术任务） |
 | 门禁 | `scripts/check.ps1` **exit 0**；后端 **408 passed** + ruff 全通过 / 前端 **29 passed** |

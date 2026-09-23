@@ -73,7 +73,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | **F-7 自助修改密码** | 设置页「修改密码」区：校验当前口令 + 两次新口令一致（≥8 位、不得与旧密码相同）；成功后服务端撤销全部会话，前端回到登录页并说明原因 |
 | **S-1 管理员敏感操作二次认证** | `POST /api/users`、`PATCH /api/users/{id}` 的**每一次调用**都要管理员输入**自己的当前口令**（复用 `_require_password`；零 schema、零新配置）；提交 **`c3a6106`**。失败行为固定：口令错 400、无口令 422、预算尽 429 + `Retry-After`、非管理员 403、未登录 401；**校验通过前不改任何账号与会话**；两个端点与 `GET /api/users` 的响应都带 `no-store`；口令/token/`token_hash` 不进响应与审计。设计 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`，测试 `backend/tests/test_admin_reauth.py`（27 项）。**前端仍无管理员管理入口，本次未建页面** → 见 §5.2 与 §6 风险 #29 |
 | **S-2 CSRF 防护** | 见 §5.1 |
-| **G5 每用户会话数量上限** | `VOCAB_MAX_SESSIONS_PER_USER`（默认 10，`0` = 不限制）；超限时**新登录仍成功**：先清理该账号的已失效行，再按 `COALESCE(last_seen_at, created_at)` 最早撤销**最久未活动**的存活会话（并列取 id 最小），**刚签发的当前会话按 id 硬排除**；每条淘汰写一条不含凭据的 `session_evicted` 审计。零 schema、零 migration、不引入 `revoke_reason`。设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`，测试 `backend/tests/test_session_limit.py`（16 项） → 见 §5.3 |
+| **G5 每用户会话数量上限** | `VOCAB_MAX_SESSIONS_PER_USER`（默认 10，`0` = 不限制）；超限时**新登录仍成功**：先清理该账号的已失效行，再按 `COALESCE(last_seen_at, created_at)` 最早撤销**最久未活动**的存活会话（并列取 id 最小），**刚签发的当前会话按 id 硬排除**；每条淘汰写一条不含凭据的 `session_evicted` 审计。零 schema、零 migration、不引入 `revoke_reason`。提交 **`9fef2a4`**；设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`，测试 `backend/tests/test_session_limit.py`（16 项） → 见 §5.3 |
 
 ### 2.4 Phase 2.8 尚未完成
 
