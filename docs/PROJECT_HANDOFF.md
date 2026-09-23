@@ -4,8 +4,8 @@
 > 当前分支：`feat/v1.2-phase1-safe`；最近功能代码 `10dcfa5`（S-2）与 **`c3a6106`（S-1，本地，未 push）**，规划修订起点 `0d20a51`；实时 HEAD 以 Git 为准。
 > 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1** 已交付；剩余 G5 会话上限、G6 审计保留、G8「每日新词数」、T8 三账号副本验收、T11–T17 卫生项）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
-> **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
+> **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
 
 ---
 
@@ -317,8 +317,8 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 9. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
 10. **PWA / 移动端**：无 manifest/SW/图标；Phase 0 §8.3 记录的移动端缺陷（≤900px 隐藏单词详情面板等）仍在。
 11. **公网部署未开始**：当前只监听回环地址。
-13. **管理员用户管理没有前端入口**：`frontend/src/` 全仓库无 `/api/users` 调用，创建/停用/改角色只能经 API 或 CLI（`python -m app.cli create-user|promote|set-password`）。S-1 让这两个端点必须二次输入口令后，**将来若建页面，必须复用 `frontend/src/components/PasswordConfirmDialog.tsx`**（已支持 400 文案与 429 的 `Retry-After` 倒计时）。**本批不建页面**。
 12. **CSRF 的天然边界**：同源校验不防 XSS（同源脚本可同时伪造请求与请求头）；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说，避免"上了 CSRF 就安全"的错觉。
+13. **管理员用户管理没有前端入口**：`frontend/src/` 全仓库无 `/api/users` 调用，创建/停用/改角色只能经 API 或 CLI（`python -m app.cli create-user|promote|set-password`）。S-1 让这两个端点必须二次输入口令后，**将来若建页面，必须复用 `frontend/src/components/PasswordConfirmDialog.tsx`**（已支持 400 文案与 429 的 `Retry-After` 倒计时）。**本批不建页面**。
 
 > **2026-09-23 关闭的四项**（见 §5.2、§5.3、§5.7 与 §6）：**管理员敏感操作无二次认证（S-1，Batch 3）**、CSRF 纵深防御缺失（S-2）、前端"登录设备"页面（2.7-f）、自服务改密入口（F-7）。
 

@@ -70,8 +70,8 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | 项 | 状态 |
 |---|---|
 | **F-1 登录设备管理** | 设置页「登录设备」区：列出每台会话的 `user_agent` / 最近活动 / 登录时间 / 到期时间；**当前设备不提供撤销按钮**；单台撤销与"退出其它全部设备"**都必须输入当前口令**；**绝不渲染 token / token_hash** |
-| **S-1 管理员敏感操作二次认证** | `POST /api/users`、`PATCH /api/users/{id}` 的**每一次调用**都要管理员输入**自己的当前口令**（复用 `_require_password`；零 schema、零新配置）；提交 **`c3a6106`**。失败行为固定：口令错 400、无口令 422、预算尽 429 + `Retry-After`、非管理员 403、未登录 401；**校验通过前不改任何账号与会话**；两个端点与 `GET /api/users` 的响应都带 `no-store`；口令/token/`token_hash` 不进响应与审计。设计 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`，测试 `backend/tests/test_admin_reauth.py`（27 项）。**前端仍无管理员管理入口，本次未建页面** → 见 §5.2 与 §6 风险 #29 |
 | **F-7 自助修改密码** | 设置页「修改密码」区：校验当前口令 + 两次新口令一致（≥8 位、不得与旧密码相同）；成功后服务端撤销全部会话，前端回到登录页并说明原因 |
+| **S-1 管理员敏感操作二次认证** | `POST /api/users`、`PATCH /api/users/{id}` 的**每一次调用**都要管理员输入**自己的当前口令**（复用 `_require_password`；零 schema、零新配置）；提交 **`c3a6106`**。失败行为固定：口令错 400、无口令 422、预算尽 429 + `Retry-After`、非管理员 403、未登录 401；**校验通过前不改任何账号与会话**；两个端点与 `GET /api/users` 的响应都带 `no-store`；口令/token/`token_hash` 不进响应与审计。设计 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`，测试 `backend/tests/test_admin_reauth.py`（27 项）。**前端仍无管理员管理入口，本次未建页面** → 见 §5.2 与 §6 风险 #29 |
 | **S-2 CSRF 防护** | 见 §5.1 |
 
 ### 2.4 Phase 2.8 尚未完成
@@ -231,8 +231,8 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | `docs/PROJECT_ROADMAP.md` | **计划**（阶段、任务、DoD、风险登记册） | 决定做什么、验收标准 |
 | `docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md` | V1.2 设计基线（历史依据） | 需要原始设计理由时 |
 | `docs/V1.2-PHASE2.*-*.md` | Phase 2 各子阶段设计/审计 | 对应主题 |
-| `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` | **S-1 管理员二次认证**：现状审查（两个端点的全部操作与保护）、失败矩阵、无副作用承诺、验收标准、与本文件/代码的不一致登记 | 触碰管理员端点或 re-auth 守卫时 |
 | `docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md` | S-2 设计与边界 | 触碰 CSRF/认证头时 |
+| `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` | **S-1 管理员二次认证**：现状审查（两个端点的全部操作与保护）、失败矩阵、无副作用承诺、验收标准、与本文件/代码的不一致登记 | 触碰管理员端点或 re-auth 守卫时 |
 | `docs/AI_DEVELOPMENT_GUIDE.md` | AI 协作开发规范（可执行版） | 每个任务开始/结束时 |
 | `docs/0007-production-migration-runbook.md`（+`-checklist`） | 生产迁移操作规程 | **任何** migration |
 | `data/recovery/*` | 发布/校验/验收证据（**不入 Git**） | 查证据、复验 |
