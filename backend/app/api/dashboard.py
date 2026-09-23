@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter
 from sqlalchemy import func, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models import Article, ReviewEvent, UserWordState
+from app.services.day import day_bounds
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
-
-
-def _day_bounds(day: date) -> tuple[datetime, datetime]:
-    start = datetime.combine(day, time.min, tzinfo=UTC)
-    return start, start + timedelta(days=1)
 
 
 @router.get("")
@@ -24,7 +20,9 @@ def dashboard(user: CurrentUser, session: SessionDep) -> dict[str, object]:
     public lexicon therefore have completely independent numbers.
     """
     today = datetime.now(UTC).date()
-    start, end = _day_bounds(today)
+    # One definition of "today" for the whole application -- see app.services.day;
+    # the study queue's daily new-word allowance uses the same window.
+    start, end = day_bounds(today)
     now = datetime.now(UTC)
 
     new_count = (
