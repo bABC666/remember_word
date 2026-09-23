@@ -1,8 +1,8 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-23（本轮更新对应 **Phase 2.8 S-1（管理员敏感操作二次认证）** 完成）
+> 更新日期：2026-09-23（本轮记录 **Phase 2.8 T11（未知 `/api/**` 的 `GET` 返回 JSON 404）与 T17（`.env.example` 补 `VOCAB_DATABASE_PATH`）** 的完成）
 > 当前分支：`feat/v1.2-phase1-safe`；最近功能代码 `10dcfa5`（S-2）与 **`c3a6106`（S-1，本地，未 push）**，规划修订起点 `0d20a51`；实时 HEAD 以 Git 为准。
-> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 G6 审计保留、G8「每日新词数」、T8 三账号副本验收、T11–T17 卫生项）
+> 当前阶段：**V1.2 Phase 2.8 收尾阶段**（门禁已恢复、verified backup 与基线已建立、F-1/F-7/S-2/**S-1**/**G5 会话上限** 已交付；剩余 G6 审计保留、G8「每日新词数」、T8 三账号副本验收、T12/T13/T14/T16 卫生项；**T11 与 T17 已于 Batch 5 完成**）
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > 工作区另有一份**未跟踪**的 `docs/PROJECT_STATUS_V1.2.md`（另一次只读审计会话的产物，非本次交接内容）；本文与它无关，两者不要混用。
 > **工作区当前不干净，且含他人未交付的改动**：规划文档（本文件、`PROJECT_STATUS_CURRENT.md`、`PROJECT_ROADMAP.md`、`PROJECT_ARCHITECTURE.md`、`AI_DEVELOPMENT_GUIDE.md`）有**未提交**的 Phase 2.9 规划修订；本目录还出现了一组**属于另一个独立 worktree（OCR 超时修复）的前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` + 两个未跟踪测试文件）。以上都不是 S-1/G5 的内容：**不要代提交、不要合并、不要回滚**。
@@ -17,13 +17,14 @@
 |---|---|
 | HEAD | `10dcfa5` `feat(v1.2): require a same-origin write request (S-2)`（2026-09-23 12:28） |
 | 分支 / 上游 | `feat/v1.2-phase1-safe` → `origin/feat/v1.2-phase1-safe`；**本地领先于 origin，尚未 push**——截至本批依次是：S-1 实现 `c3a6106`、S-1 文档收口 `acde4f8`、笔记归位 `46e0c55`、G5 `9fef2a4`、状态表补注 `1ca1a47`（**具体提交数与是否已推送以 `git status -sb` 为准**，本行不写死数字） |
-| 最近完成 | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。提交 **`9fef2a4`**，**本地未 push** |
+| 最近完成（Batch 5） | **Phase 2.8 T11 + T17**：未知 `/api/**` 的 `GET` 返回 404 JSON（`backend/app/main.py`；测试 `backend/tests/test_spa_fallback.py` 16 项），`.env.example` 补 `VOCAB_DATABASE_PATH`（明确选择数据库环境；开发与测试不得指向 `data/vocab.db`）。代码与配置提交 **`59a8c68`**，本行所在版本即其后的文档提交，**本地未 push** |
+| 最近完成（Batch 4） | **G5 每用户会话数量上限**（`VOCAB_MAX_SESSIONS_PER_USER`，默认 10、`0` = 不限制；`services/auth.py::create_session` → `enforce_session_limit`；`backend/tests/test_session_limit.py` 16 项 + 设计记录 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`）。提交 **`9fef2a4`**，**本地未 push** |
 | 上一批 | Batch 3：S-1 管理员敏感操作二次认证（`c3a6106`）+ 其文档收口（`acde4f8`）；Batch 2A：S-2 CSRF 同源校验；Batch 1：F-1/F-7；Batch 0.5 / 0：verified backup + baseline 重建 + `check.ps1` 恢复 |
-| 本批关闭的任务 | **G5**（§6.1 功能目标）、**T9**（技术任务） |
-| 门禁 | `scripts/check.ps1` **exit 0**；后端 **408 passed** + ruff 全通过 / 前端 **29 passed** |
+| 本批关闭的任务 | **T11**（T-3：未知 `/api/**` → 404 JSON）、**T17**（`.env.example` 补 `VOCAB_DATABASE_PATH`）；上一批（Batch 4）关闭的是 **G5**（§6.1 功能目标）与 **T9**（技术任务） |
+| 门禁 | `scripts/check.ps1` **exit 0**；后端 **449 passed**（含本批 `test_spa_fallback.py` 16 项）+ ruff 全通过 / 前端 **32 passed** |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 `c3a6106` 与本批：S-1 与 G5 的代码与测试都已完成并提交，但都尚未在此进程生效。** 让它们生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
-| 下一步 | Phase 2.8 剩余：**G6 `history_event` 保留策略、G8「每日新词数」生效、T8 三账号副本验收、T11–T17 卫生项**；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
+| 下一步 | Phase 2.8 剩余：**G6 `history_event` 保留策略、G8「每日新词数」生效、T8 三账号副本验收、T12/T13/T14/T16 卫生项**（T11 与 T17 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -327,7 +328,7 @@ backend\.venv\Scripts\python.exe tools\staging_two_user_check.py        # 真实
 
 1. ✅ **已完成（2026-09-23，Batch 3）** ~~管理员操作二次认证（S-1 / 2.7-d-e，需产品决策）~~：`_require_password` 已扩展到 `POST /api/users` 与 `PATCH /api/users/{id}`（见 §5.3）。**以下为 Phase 2.8 的剩余待办**：
 2. **`history_event` 保留策略**（G6 / S-6）—— 会话数量上限（G5）已于 2026-09-23 Batch 4 完成。
-3. **`/api/**` 未知路径返回 404 JSON**（T-3）、死代码清理、版本号（E-4）、staging 残留清理（S-5）。
+3. ✅ **`/api/**` 未知路径返回 404 JSON（T-3 / T11）已于 2026-09-23 Batch 5 完成**（同批完成 T17：`.env.example` 补 `VOCAB_DATABASE_PATH`）；**仍待做**：死代码清理（T-12）、版本号（E-4）、staging 残留清理（S-5）。
 4. 部署前置：反向代理头配置、`VOCAB_COOKIE_SECURE=true`、HTTPS、备份定时器（Phase 0 §9.4）。
 
 ## 11. 给接手 AI / 开发者的工作规则

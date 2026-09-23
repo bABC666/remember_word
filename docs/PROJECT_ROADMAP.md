@@ -323,7 +323,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 G6 审计保留、G8「每日新词数」、T8 三账号验收、T11–T17 卫生项） |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 G6 审计保留、G8「每日新词数」、T8 三账号验收、T12/T13/T14/T16 卫生项；**T11（T-3）与 T17 已于 Batch 5 完成**） |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.8 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | 2.8（备份 + 门禁 + CSRF）；建议在 3 之后 | 产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
@@ -450,13 +450,13 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T8 | 副本上的**三账号验收**（管理员 / 用户 A / 用户 B）：跨用户读写、列表计数、公共词库读 vs 私有写、实例级配置与备份的管理员门槛、匿名访问；**必须把 409（词库删除守卫）纳入期望矩阵** | `tools/staging_*.py` | M |
 | T9 | ✅ **已完成（2026-09-23，Batch 4）** 会话数量上限淘汰逻辑 + 测试。落在 `services/auth.py::create_session` → `enforce_session_limit`（服务层，CLI/测试/未来登录路径共享同一语义）；**无 migration、无新字段、不引入 `revoke_reason`**；`.env.example` 记录 `VOCAB_MAX_SESSIONS_PER_USER` | `backend/app/services/auth.py`、`backend/app/config.py`、`.env.example`、`backend/tests/test_session_limit.py` | S–M ✅ |
 | T10 | `history_event` 保留策略：CLI 清理命令 + 保留窗口配置 + 测试 | `backend/app/cli.py` | S–M |
-| T11 | SPA 兜底路由加 `/api/**` 例外，返回 404 JSON | `backend/app/main.py` | S |
+| T11 | ✅ **已完成（2026-09-23，Batch 5）** SPA 兜底路由加 `/api/**` 例外，返回 404 JSON（T-3）：未知 `/api/**` 的 `GET` 返回 404 JSON，正常前端路由仍返回 SPA 页面；既有 API 与 `/assets` 挂载不变；**未放宽 CSRF**——跨源写请求仍由最外层同源中间件 403 拒绝（`POST`/`HEAD`/`OPTIONS` 打到未知 `/api/**` 由路由给出 405）。测试 `backend/tests/test_spa_fallback.py` 16 项 | `backend/app/main.py` | S ✅ |
 | T12 | 清理死代码：`helpers.word_dict`、`schemas.py::WordSummary`（`services/words.py` 视 T-1 决策一并处理） | `backend/app/api/helpers.py`、`schemas.py` | S |
 | T13 | 版本号决策与落地（E-4）：三处统一；若确定发布则打 tag | `pyproject.toml`、`package.json`、`main.py` | S |
 | T14 | 处置 `data/staging/` 残留副本（S-5）：先核对证据引用（`migration-rehearsal-0006.db` 被 `rehearsal-0006-to-0007.json` 引用，**按证据保留**），其余连同 `-shm`/`-wal` 逐个删除（**不用通配符**），删除后复核文件不存在且生产库未被触碰 | `data/staging/` | S |
 | T15 | ✅ **基本完成（2026-09-23）** 过时文档陈述（E-6）：`PROJECT_HANDOFF.md` 中与现状矛盾的陈述已就地更正（§8 的"check.ps1 必然失败"已改为已修复并新增 §8.1 校验口径）；`0007-release-record.md` 的 §11 原本就有 §12 附注（"§11 原文不改写"）。**仍存在**：`PROJECT_ROADMAP.md` 自身的历史快照（§2.2 ahead 33、§4.6 E-1 等）未逐条回填——已在 `PROJECT_STATUS_CURRENT.md` 风险 #21 登记 | `docs/` | S |
 | T16 | **让 `daily_new_words` 生效（P-5）**：`GET /api/study/today` 加入"每日新词"上限（读 `user_settings.daily_new_words`，词库级 `user_lexicon.daily_new_words` 的优先级需一并定义）。**注意**：这是行为变更，会改变用户每天看到的队列长度，需先补测试并明确"什么算新词"（`status == 'new'` 或 `first_seen` 当日） | `backend/app/api/study.py`、`services/userdata.py` | M |
-| T17 | 补 `.env.example` 的 `VOCAB_DATABASE_PATH`（T-7） | `.env.example` | S |
+| T17 | ✅ **已完成（2026-09-23，Batch 5）** 补 `.env.example` 的 `VOCAB_DATABASE_PATH`（T-7）：说明它用于**明确选择数据库环境**（留空即 `<数据目录>/vocab.db`），并写明开发与测试**不得指向生产库 `data/vocab.db`**；相对路径按进程工作目录解析，因此要求绝对路径 | `.env.example` | S ✅ |
 
 #### 数据库影响
 
@@ -507,12 +507,12 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | 2 0007 verified backup + 新 baseline | ✅ 达成 | `post-0007-verified-20260923-001237-vocab.db` + 重录的 `baseline.json`；两份旧基线归档保留 |
 | 3 ahead 归零 | ✅ 达成 | ahead 0 / behind 0 |
 | 4 设备管理 / 自助改密 / **管理员二次认证** 浏览器可用 + 前端测试 | ⚠ **部分** | 设备管理（F-1）与自助改密（F-7）已交付：10 条前端集成测试（`security.test.tsx`）+ 活实例上线新 bundle。**S-1 的后端守卫与 27 项测试已完成**，但**前端从来就没有管理员用户管理入口**（[实测] `frontend/src/` 全仓库无 `/api/users` 调用），所以"在浏览器里点一遍"这一条只对 F-1/F-7 成立，对 S-1 **不适用**（其验收口径改为后端契约 + 测试，见 `V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` §7）。是否新建管理员页面属**另一次产品决策**，本批不做。人工点击验收仍待用户确认 |
-| 5 `daily_new_words` 生效 + `.env.example` 补 `VOCAB_DATABASE_PATH` | ❌ 未达成 | G8/T16、T17 均未做（`.env.example` 本次只补了 CSRF 两个变量） |
+| 5 `daily_new_words` 生效 + `.env.example` 补 `VOCAB_DATABASE_PATH` | ⚠ **部分达成（T17 已做）** | **T17 已于 2026-09-23 Batch 5 完成**（`.env.example` 已记录 `VOCAB_DATABASE_PATH` 的数据库环境选择用途与「开发/测试不得指向生产库」）；**G8/T16 仍未做**，因此本项整体仍未达成 |
 | 6 副本**三账号**验收 `verified: true` | ❌ 未达成 | T8；现有证据为**双账号**（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`） |
 | 7 生产库仍为 0007、完整性不变 | ✅ 达成 | revision `0007`、`integrity_check=ok`、`foreign_key_check=0`；`check.ps1` 逐表行指纹比对 17/17 `ok` |
 | 8 后端 + 前端全量验收 | ✅ 达成 | 后端 **365 passed** + ruff 全通过；前端 **29 passed** + typecheck/lint/build 通过 |
 
-> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用、DoD 5/6 未满足）。剩余：DoD 5（G8 让 `daily_new_words` 生效 + T17 补 `.env.example`）、DoD 6（T8 **三账号**副本验收）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
+> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用、DoD 5/6 未满足）。剩余：DoD 5（G8 让 `daily_new_words` 生效；T17（`.env.example`）已于 Batch 5 完成）、DoD 6（T8 **三账号**副本验收）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
 
 ---
 
