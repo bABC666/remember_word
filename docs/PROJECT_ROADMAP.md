@@ -143,12 +143,14 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | 检查 | 结果 |
 |---|---|
-| 后端测试 | **312 passed**（29 个测试文件） |
+| 后端测试 | **365 passed**（30 个测试文件） |
 | 后端 lint | `ruff check` All checks passed |
-| 前端测试 | **19 passed / 4 files**（Vitest + Testing Library） |
+| 前端测试 | **29 passed / 5 files**（Vitest + Testing Library） |
 | 前端类型 / lint / 构建 | `typecheck` / `lint` / `build` 均通过 |
 | 测试隔离取证 | `tools/prove_test_isolation.py`：`data/` 零变化 + 全量测试通过 |
-| `scripts/check.ps1` | ⚠ **必然失败**（最后一步 `verify_backup.py` 基线冻结在 `0003`，见 §4.6 E-1） |
+| `scripts/check.ps1` | ✅ **exit 0**（2026-09-23 Batch 0 重建 baseline 后恢复；见 §4.6 E-1） |
+
+> 本表是**快照**。2026-09-23 的 Batch 0 / 0.5 / 1 / 2A 已使若干历史快照过期（本表数字、§2.2 的 ahead 33、§4.6 E-1「必然失败」等）；**当前事实以 `docs/PROJECT_HANDOFF.md` §8 为准**，本节其余行未逐条回填。
 
 **代码规模参考**：后端 8 个 router、**46 个业务端点 + `GET /api/health`**；`services/` 11 个模块；前端 7 个页面、4 个组件、`styles.css` 约 34 KB。
 
@@ -160,9 +162,9 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | 学习 | 一次一词、空格揭晓、1/2/3 评分、`review_event` 全量留痕 | 算法为**固定阶梯**（§6.4） | 自适应间隔 |
 | 阅读 | 选词、AI 生成 + 后端校验、测验、点词、全文翻译、生词入库 | 选词缺词频依据（§4.4 P-1） | |
 | 词库 | 搜索/筛选/详情、删除 409 守卫 | `word` 表双轨并存（§4.5 T-1） | 词频排序 |
-| 设置 | DeepSeek 配置、每日新词数、文章长度、OCR 开关 | | 自服务改密入口 |
-| 账号安全 | 登录/登出、会话列表与撤销、退出其它/全部设备、改密、管理员用户管理、防滥用、失败审计 | 管理员敏感操作**无二次认证**（§4.1 S-1） | CSRF 纵深防御（§4.1 S-2） |
-| **前端设备管理** | | | ❌ **未开始**（后端已就绪，§6.1） |
+| 设置 | DeepSeek 配置、每日新词数、文章长度、OCR 开关、**自助改密（F-7，2026-09-23）** | | |
+| 账号安全 | 登录/登出、会话列表与撤销、退出其它/全部设备、改密、管理员用户管理、防滥用、失败审计、**写请求同源校验（S-2，2026-09-23）** | 管理员敏感操作**无二次认证**（§4.1 S-1） | |
+| **前端设备管理** | **F-1 已完成（2026-09-23：设置页「登录设备」区，单设备与批量撤销都要求口令）** | | |
 | **PWA / 移动端** | | 已有响应式断点（≤900px / ≤620px / ≤720px、`prefers-reduced-motion`） | ❌ **未开始**（无 manifest / SW / 图标，§6.2） |
 | **部署** | 本机迁移 runbook 已定稿并实战过一次 | 单机启动脚本、桌面快捷方式 | ❌ **未开始**（无 `deploy/`、无 CI、仅监听回环，§6.3） |
 | **学习算法升级** | | | ❌ **未开始**（§6.4） |
@@ -250,7 +252,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | ID | 事项 | 证据 | 严重度 | 影响 | 阶段 |
 |---|---|---|---|---|---|
 | **S-1** | **管理员敏感操作无二次认证**：改他人密码/角色、停用账号、创建账号（含新建管理员）仅凭管理员会话即可执行 | handoff §5.2、`V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md` §1.2/§3.1 | 🟠 | 管理员会话一旦被盗，攻击者可创建持久后门账号 → **提权不可逆** | 2.8 |
-| **S-2** | **CSRF 纵深防御缺失**：全仓库无 `Origin`/`Referer` 校验、无 CORS 中间件，仅依赖 `SameSite=Lax` | handoff §9.1（B2） | 🟠 | 单层防御；浏览器行为变化或未来放宽 Cookie 属性时直接暴露 | 2.8 |
+| **S-2** | ~~**CSRF 纵深防御缺失**：全仓库无 `Origin`/`Referer` 校验、无 CORS 中间件，仅依赖 `SameSite=Lax`~~ → ✅ **已关闭（2026-09-23，Batch 2A）**：写请求同源校验（`backend/app/csrf.py` + `main.py` 中间件，30 个非安全端点，`GET`/`HEAD`/`OPTIONS` 放行），与 `SameSite=Lax`、JSON-only 请求体构成三层；仍无 CORS（有意为之） | handoff §5.7、`docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`、`backend/tests/test_csrf.py`（45 项） | 🟠→⚪ | 剩余边界：XSS 不在防御范围；`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层；TLS 代理须配 `--proxy-headers` | 2.8 ✅ |
 | **S-3** | **恢复路径可被短暂封锁**：持被窃会话者可烧掉 re-auth 预算，使合法用户在窗口（默认 300 s）内无法执行敏感操作 | handoff §9.3 | 🟡 | 拒绝服务窗口有限；已有 CLI `set-password` 逃生口 | 2.8（评估） |
 | **S-4** | **限流状态在内存**：重启清零；**多 worker 下每 worker 各一份计数（等效阈值 × worker 数）**；反向代理后未配置 `--proxy-headers` 会导致所有用户共用一个 IP 计数桶 | handoff §9.4 | 🟠 | 部署阶段若误开多 worker，防滥用形同虚设 | 2.8（约束固化）/ 4（部署校验） |
 | **S-5** | **`data/staging/` 残留含真实数据的副本**（`v1.1-realdata-migration-test.db`、`v1.3-acceptance.db` 等），部分含测试口令 | status §6.5 #4 | 🟡 | 含个人学习数据的文件长期驻留；须连同 `-shm`/`-wal` 处置并确认无进程占用 | 2.8 |
@@ -428,7 +430,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | G1 | **前端"登录设备"页面（2.7-f，★ 首选任务）** —— 列表、单会话撤销、退出其它设备、退出全部设备 |
 | G2 | **自服务改密入口（F-7）** —— 复用同一口令确认对话框，并修正"改密后需重新登录"的注释与行为一致性 |
 | G3 | **管理员敏感操作二次认证（S-1）** —— 改他人密码/角色、停用、建号 |
-| G4 | **CSRF 同源校验（S-2）** 覆盖 `/api/**` 写操作 |
+| G4 | ✅ **已完成（2026-09-23）** **CSRF 同源校验（S-2）** 覆盖 `/api/**` 写操作（30 个非安全端点；`POST /api/auth/login` 与 `/logout` **不豁免**） |
 | G5 | **会话数量上限（2.7-e）** —— 采用设计文档建议的"最旧未活动优先淘汰" |
 | G6 | **`history_event` 保留策略（S-6）** —— CLI 清理 + 明确保留窗口 |
 | G7 | **`/api/**` 未知路径返回 404 JSON（T-3）** |
@@ -441,7 +443,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T1 | 新增设备管理 UI：调用已就绪的 `GET /api/auth/sessions`、`DELETE /api/auth/sessions/{id}`、`POST /api/auth/sessions/revoke`；展示 `id/current/created_at/last_seen_at/expires_at/user_agent`；**仅展示，绝不渲染 token** | `frontend/src/pages/` | M |
 | T2 | 复用口令确认对话框组件，**统一展示 429 的 `Retry-After`**（登录失败窗口、re-auth 预算、并发闸门三处 429 都要有可读提示） | `frontend/src/components/` | S–M |
 | T3 | 把 `_require_password`（顺序固定：预算检查 → 共享闸门 → 一次 `verify_user_password` → 审计/计数 → 业务动作）扩展到管理员端点 `POST /api/users`、`PATCH /api/users/{id}` | `backend/app/api/auth.py` | M |
-| T4 | 新增 `Origin`/`Referer` 校验中间件（只作用于写方法；GET 不拦）；确认前端 `credentials:'same-origin'` 不受影响 | `backend/app/main.py` 或新 middleware 模块 | M |
+| T4 | ✅ **已完成（2026-09-23）** 新增 `Origin`/`Referer` 校验中间件（只作用于写方法；`GET`/`HEAD`/`OPTIONS` 不拦）；前端 `credentials:'same-origin'` 不受影响（零前端改动） | `backend/app/csrf.py`（新）+ `backend/app/main.py` + `config.py` | M |
 | T5 | **重建验收基线**：从当前 verified 0007 库执行 `verify_backup.py --write-baseline`（**保留旧 baseline 作历史，不得覆盖**）；把 `tools/verified_db.py` 里硬编码的 `0003` 参数化 | `tools/verified_db.py`、`data/recovery/baseline.json` | S |
 | T6 | **建立 0007 verified backup**：走 SQLite backup API（`app/services/backup.py` 已是此实现），**不得裸拷贝主文件**（D-3） | `data/backups/` | S |
 | T7 | 推送本地 commit 到 `origin`，并确认发布证据（`data/recovery/*`）按既定方式随源码包交接 | git | S |

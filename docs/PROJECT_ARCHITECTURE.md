@@ -163,7 +163,7 @@
 ### 3.3 每层的架构含义（后续改动不得违反）
 
 1. **Caddy 是唯一对外入口**：TLS、HTTPS 跳转、静态资源与预压缩由它负责。**FastAPI 不得直接监听公网地址**。
-2. **前端与 API 同源**：不引入 CORS；前端请求保持 `credentials:'same-origin'`；跨站写请求默认不带 Cookie（当前 CSRF 纵深防御依赖 `SameSite=Lax`，见 §7.5）。
+2. **前端与 API 同源**：不引入 CORS；前端请求保持 `credentials:'same-origin'`；跨站写请求默认不带 Cookie。CSRF 防御为**三层且互不依赖**：Cookie 的 `SameSite=Lax`、请求体只接受 `application/json`（FastAPI `strict_content_type` 默认）、**写请求同源校验**（`backend/app/csrf.py` + `main.py` 中间件：对所有非安全方法比对 `Origin`/`Referer` 与 `Host` 的 host:port，缺失即 403）。因此**新增写端点不需要额外的防 CSRF 处理**；反之，**放宽其中任何一层都必须先修改本文件**——例如为端点引入表单体、把 Cookie 改为 `SameSite=None`、或开启 `VOCAB_CSRF_ALLOW_MISSING_ORIGIN`。设计细节与边界见 `docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`。
 3. **HTTPS 下必须启用 `VOCAB_COOKIE_SECURE=true`**；`Secure` 与 HTTPS 必须同时成立，配错会导致登不上或弱化安全。
 4. **反向代理后必须正确传递客户端 IP**：`uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`。否则所有用户共用一个限流计数桶（`PROJECT_HANDOFF.md` §9.4）。
 5. **SQLite 是唯一事实来源**，且 WAL 下只有单写者 → **uvicorn 单 worker**。多 worker 会让内存限流与并发闸门各持一份计数（等效阈值×worker 数），属于当前**明令禁止**的架构变更。
@@ -381,10 +381,11 @@ ReviewEvent         每次复习的事实记录（append-only）
 
 | 检查 | 结果 |
 |---|---|
-| 后端测试 | **312 passed**（29 个测试文件） |
+| 后端测试 | **365 passed**（30 个测试文件） |
 | 后端 lint | `ruff check` All checks passed |
-| 前端测试 | **19 passed / 4 files** |
+| 前端测试 | **29 passed / 5 files** |
 | 前端类型 / lint / 构建 | 通过 |
+| 全量门禁 | `scripts/check.ps1` **exit 0**（含隔离取证与 verified backup 两步） |
 | 测试隔离取证 | `tools/prove_test_isolation.py`：`data/` 零变化 + 全量测试通过 |
 | 生产库 | 只读抽样：revision 0007、18 表、26 外键、`foreign_key_check` = 0、1 个用户（`admin`） |
 
@@ -392,16 +393,16 @@ ReviewEvent         每次复习的事实记录（append-only）
 |---|---|
 | **公网部署未开始**：仅监听回环地址，无 `deploy/`、无反向代理、无 HTTPS、无 CI | 产品无法离开本机（§2 目标形态的直接阻塞项） |
 | **PWA / 移动端未开始**：无 manifest / SW / 图标；≤900px 隐藏单词详情面板等移动端缺陷仍在 | 手机上不可用（§2.2） |
-| **CSRF 纵深防御缺失**：无 `Origin`/`Referer` 校验、无 CORS，仅依赖 `SameSite=Lax` | 单层防御 |
-| **管理员敏感操作无二次认证** | 管理员会话被盗 → 可创建持久后门账号（提权不可逆） |
+| ~~CSRF 纵深防御缺失~~ → **已建立三层（2026-09-23，Phase 2.8 S-2）**：`SameSite=Lax` + 请求体只接受 `application/json` + 写请求同源校验（`app/csrf.py`，比对 `Origin`/`Referer` 与 `Host` 的 host:port）。**仍然无 CORS（有意为之）** | 剩余边界：XSS 不在防御范围内；`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层；TLS 代理必须配 `--proxy-headers`（见 §3.3 第 4 条） |
+| **管理员敏感操作无二次认证** | 管理员会话被盗 → 可创建持久后门账号（提权不可逆）；**同源校验不替代它** |
 | **限流状态在内存**：重启清零；多 worker 会等效放大阈值 | 与 §3.3 第 5 条同一约束 |
 | **`history_event` 无保留策略**（append-only） | 审计表持续增长 |
-| **前端设备管理页缺失**：后端能力已就绪，前端未接线 | 功能可见性缺口 |
+| ~~前端设备管理页缺失~~ → **已实现**（2026-09-23，Phase 2.8 F-1：设置页「登录设备」区 + F-7 自服务改密） | 已关闭 |
 | **词频数据缺失**（`frequency_rank` 全 NULL） | 选词回落 `sequence`/`id` |
 | **生产双账号端到端验收未做**（生产仅 1 个 `user` 行） | 多用户隔离缺少生产级证据 |
-| `scripts/check.ps1` 末步必然失败：验收基线冻结在 `0003`，生产已是 `0007` | 既有工程基线问题 |
+| ~~`scripts/check.ps1` 末步必然失败~~ → **已修复**（2026-09-23，Phase 2.8 Batch 0：基线从 verified 0007 备份重录，旧基线归档保留） | 已关闭 |
 
-**结论**：当前处于「**V1.2 多用户本地应用，Phase 2 基本完成、未发布**」阶段。距 §2 的目标形态（Cloud + Web + PWA + Multi-user）在**部署**与**移动端**两个维度上尚未开始，在**前端设备管理页**与**工程基线**上有明确收尾项。
+**结论**：当前处于「**V1.2 多用户本地应用，Phase 2 基本完成、未发布**」阶段。距 §2 的目标形态（Cloud + Web + PWA + Multi-user）在**部署**与**移动端**两个维度上尚未开始；Phase 2.8 的收尾项（CSRF、设备管理页、自服务改密、工程基线）已于 2026-09-23 关闭，剩余为管理员二次认证、会话上限与审计保留策略。
 
 ---
 

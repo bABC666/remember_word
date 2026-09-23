@@ -168,6 +168,35 @@ class Settings:
         }
 
     @property
+    def csrf_allow_missing_origin(self) -> bool:
+        """Whether a write request may carry neither ``Origin`` nor ``Referer``.
+
+        Off by default. A browser always sends ``Origin`` on an unsafe method, even
+        same-origin, so a request without one is either a scripted client or an attempt
+        to dodge the check. Turn this on only for a client that cannot be given a
+        header -- and read ``docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`` first, because it
+        reopens the hole for every client at once.
+        """
+        return os.getenv("VOCAB_CSRF_ALLOW_MISSING_ORIGIN", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    @property
+    def csrf_trusted_origins(self) -> tuple[str, ...]:
+        """Extra origins accepted for write requests, comma separated.
+
+        Only needed when the ``Host`` a request arrives with is not the origin the
+        browser used: a proxy that rewrites the host, or a second entry point (a LAN
+        address beside a domain). The ordinary case needs nothing here, because the
+        request's own host is always accepted.
+        """
+        raw = os.getenv("VOCAB_CSRF_TRUSTED_ORIGINS", "")
+        return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+    @property
     def bootstrap_username(self) -> str:
         return os.getenv("VOCAB_BOOTSTRAP_USERNAME", "admin").strip() or "admin"
 

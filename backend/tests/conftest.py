@@ -36,6 +36,11 @@ os.environ["VOCAB_REAL_DATA_DIR"] = str(_REAL_DATA_DIR)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
+#: The origin every test client presents. ``TestClient`` speaks to ``http://testserver``
+#: (its default ``base_url``), so this is the same origin as the ``Host`` header -- and
+#: the same-origin write check in ``app.csrf`` compares exactly those two.
+SAME_ORIGIN = "http://testserver"
+
 # Argon2id is deliberately expensive. Real logins pay that cost once; the test
 # suite would hash on every user creation, so use the cheapest valid parameters.
 # Production keeps pwdlib's recommended defaults.
@@ -195,6 +200,38 @@ def pin_data_dir(isolated_application_engine) -> None:
     _pin()
     yield
     _pin()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _browser_like_test_clients():
+    """Give every ``TestClient`` the ``Origin`` a real browser would send.
+
+    Since Phase 2.8 the API refuses a write request that does not come from the host
+    it was addressed to (``app.csrf``, wired in ``app.main``). A browser always sends
+    ``Origin`` on an unsafe method, even same-origin, so the suite has to look like one
+    or a hundred-odd legitimate writes would be refused.
+
+    The header is added once, here, rather than at the ~126 call sites that issue
+    write requests: httpx merges client-level headers into every request, so this
+    covers clients built by the ``world`` fixture and the ones the tests build
+    themselves. Enforcement stays ON -- nothing is bypassed or configured away, and a
+    test that wants a different origin (or none at all) overrides the header per
+    request, exactly as ``tests/test_csrf.py`` does.
+    """
+    from starlette.testclient import TestClient
+
+    original_init = TestClient.__init__
+
+    def with_origin(self, *args, **kwargs):
+        headers = dict(kwargs.pop("headers", None) or {})
+        headers.setdefault("Origin", SAME_ORIGIN)
+        original_init(self, *args, headers=headers, **kwargs)
+
+    TestClient.__init__ = with_origin
+    try:
+        yield
+    finally:
+        TestClient.__init__ = original_init
 
 
 @pytest.fixture(autouse=True)

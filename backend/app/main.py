@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import app.models
+from app import csrf
 from app.api import articles, auth, dashboard, imports, lexicons, settings, study, words
 from app.config import get_settings
 from app.db import get_session_factory, verify_schema_revision
@@ -74,6 +75,47 @@ async def _no_store_auth_responses(request: Request, call_next):
     if request.url.path.startswith("/api/auth/"):
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.middleware("http")
+async def _same_origin_write_check(request: Request, call_next):
+    """Refuse write requests that did not come from this application's own origin.
+
+    The third of the three defences described in :mod:`app.csrf`. The cookie's
+    ``SameSite=Lax`` keeps a cross-site request from carrying a session at all, and the
+    JSON-only body parser keeps a cross-site form from building a valid request, but
+    neither covers a same-site page on another origin, Chromium's two-minute
+    "Lax + POST" window, or a future endpoint that accepts a form body.
+
+    It is registered after the ``no-store`` middleware, so it is the outermost one: a
+    rejected request never reaches a route dependency, which means no session is
+    resolved, no ``last_seen_at`` is touched and nothing is written. Safe methods,
+    ``/assets`` and the SPA fallback are all GETs and are untouched, and ``/docs``
+    keeps working because "Try it out" is same-origin.
+
+    ``POST /api/auth/login`` is checked as well, deliberately: a forged login signs the
+    victim into the attacker's account, and that request carries no session cookie of
+    its own to be protected by anything else.
+    """
+    config = get_settings()
+    if not csrf.write_is_allowed(
+        method=request.method,
+        origin=request.headers.get("origin", ""),
+        referer=request.headers.get("referer", ""),
+        host_header=request.headers.get("host", ""),
+        scheme=request.url.scheme,
+        allow_missing_origin=config.csrf_allow_missing_origin,
+        trusted_origins=config.csrf_trusted_origins,
+    ):
+        return JSONResponse(
+            status_code=403,
+            # Generic on purpose: the rejected value is caller-controlled and is never
+            # echoed back or recorded. ``no-store`` for the same reason the auth
+            # responses carry it -- this answer must never be reused by a cache.
+            content={"detail": "请求来源不可信，已拒绝"},
+            headers={"Cache-Control": "no-store"},
+        )
+    return await call_next(request)
 
 
 @app.get("/api/health")
