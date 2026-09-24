@@ -42,7 +42,7 @@
 | **Backend** | FastAPI（Python）+ SQLAlchemy 2 + Pydantic v2 + Alembic；8 个 router、**46 个业务端点 + `GET /api/health`**（其中非安全方法 **30 个**）；口令哈希 pwdlib(Argon2id) |
 | **Database** | **SQLite（WAL）**，`data/vocab.db` 是唯一事实来源；revision **0007**（迁移链 0001→0007 线性）；18 表 / 26 物理外键；单写者 → **uvicorn 必须单 worker** |
 | **Authentication** | **服务器端会话 + HttpOnly Cookie**：Cookie 名 `shici_session`（`HttpOnly` + `SameSite=lax` + `Path=/` + host-only 无 `Domain`，`Secure` 由 `VOCAB_COOKIE_SECURE` 控制）；数据库只存 token 的 SHA-256；**账号由管理员/CLI 创建，不开放注册、不接 OAuth** |
-| **Deployment 方向** | 当前：本机 Windows 应用，`scripts/start-vocab.ps1` 单 worker 监听 `127.0.0.1:8000`，同时托管 API 与 `frontend/dist`。目标：**Caddy + HTTPS + systemd + PWA**（Phase 3/4，尚未开始） |
+| **Deployment 方向** | 当前：本机 Windows 应用，`scripts/start-vocab.ps1` 单 worker 监听 `127.0.0.1:8000`，同时托管 API 与 `frontend/dist`。Phase 3 已有安全 PWA 外壳；目标仍为 **Caddy + HTTPS + systemd**（Phase 4，尚未开始） |
 
 ---
 
@@ -184,7 +184,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 | 1 | ~~**S-1 管理员敏感操作无二次认证**~~ → ✅ **已关闭（2026-09-23，Batch 3）** | 🟠→⚪ | 原风险：管理员会话被盗即可建**持久后门管理员**、改他人密码/角色、停用账号。现两个端点每次调用都要求管理员自己的当前口令，且**校验通过前不改账号与会话**（见 §2.3、§5.2）。剩余：恢复路径仍可被短暂封锁（#30，S-3）与 `PUT /api/settings` 无二次认证（#29） |
 | 2 | **Phase 4 部署必须配 `uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`** | 🟠 | 不配则两处同时出错：①所有用户共用一个 IP 限流桶（S-4）②TLS 终止后裸域名 `Host` 被推导为 80 端口 → https 来源的写请求被 CSRF 校验 **403**。必须写进部署脚本 |
 | 3 | **公网部署未开始**（D-1） | 🔴 | 仅监听回环地址，无 `deploy/`、无 HTTPS、无 CI；产品无法离开本机 |
-| 4 | **PWA / 移动端未开始**（F-2…F-6） | 🟠 | 无 manifest/SW/图标；≤900px 隐藏单词详情面板等移动端缺陷仍在 → 手机上不可用 |
+| 4 | **PWA / 移动端部分完成**（F-2、F-6） | 🟠 | manifest、专用图标、Apple 元信息、iOS bottom safe-area、移动端导入图片列表和只缓存静态资源的 SW 已完成；≤900px 隐藏单词详情面板等移动端缺陷仍在 → 手机上尚不可完整使用 |
 | 5 | **XSS 不在 CSRF 防御范围** | 🟠 | 同源脚本可同时伪造请求与请求头；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说 |
 | 6 | **`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层** | 🟡 | 脚本客户端逃生口，默认关闭；开启前须读设计文档 §6 |
 | 7 | **限流与闸门状态在内存**（S-4） | 🟠 | 重启清零；**多 worker 会让等效阈值 ×worker 数**；单 worker 是架构硬约束 |
@@ -226,8 +226,8 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
    ✅ T11、T17、G8、G6 策略与 staging 演练、T8、T12 低风险部分、T14、DoD 1–8 已完成；1.2.0 的合并与 tag 见正式发布记录。G6 未来生产清理仅在有到期候选及具体计划获批后另行执行。
 3. **Phase 2.9 · 外部电子词库与公共词库交付**（Phase 4 上线硬前置）
    先确定真实词库的来源、版本、使用范围和文件格式；设计可预览、可确认、可重复执行的导入流程，把完整原始释义写入公共 `LexiconEntry`，不得写旧 `word` 或覆盖个人学习状态；在副本验证双用户启用与隔离。没有真实资料时保持“未完成”，不得拿 AI 生成词义或词频填空。
-4. **Phase 3 · PWA 与移动端可用性**（可与 2.9 并行；先做设计决策）
-   `manifest` + Service Worker + 图标（`/api/**` **永不缓存**）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-4 safe-area；F-6 底部导航。
+4. **Phase 3 · PWA 与移动端可用性**（可与 2.9 并行；部分完成）
+   已完成 `manifest` + Service Worker + 专用图标（`/api/**` **永不缓存**）、Apple 元信息、F-4 iOS safe-area（固定底部导航、内容区和查词浮层共用 `--safe-area-bottom`）和 F-3（≤900px 单列保留导入图片列表，可查看、添加、移除）；**F-2 移动端单词详情面板**（当前 ≤900px 直接 `display:none`，违反"完整释义永远可查"的可见性承诺，是本阶段最高风险项，需先定交互形式：抽屉 / 贴底卡片 / 独立路由）；F-6 底部导航和移动端实机验收仍待完成。
 5. **Phase 4 · 生产部署上线**（必须先完成 2.8 + 2.9；建议 Phase 3 也已完成）
    Caddy + HTTPS + systemd；`VOCAB_COOKIE_SECURE=true`；**固化 `--proxy-headers --forwarded-allow-ips`**（风险 #2）；将已验收的公共词库交付服务器；备份定时器 + 保留 + 异地 + 恢复演练。
 6. （更远）Phase 5 学习算法升级与独立的外部词频资料接入、Phase 6 平台化（`word` 表退场 + CI）。

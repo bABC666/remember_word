@@ -2,7 +2,7 @@
 
 > 更新日期：2026-09-24（1.2.0 本机多用户版正式发布；下文保留各历史批次记录）。
 > 当前分支：`main`；由 `feat/v1.2-phase1-safe` fast-forward 合并。实时 HEAD 和远端 tag 以 Git 核验为准。
-> 当前阶段：**1.2.0 本机多用户版正式发布**。发布对象为 `main` 上的 `v1.2.0` tag，范围与证据见 `V1.2-RELEASE-RECORD.md`。Phase 2.8 DoD 1–8 已有证据；Phase 2.9 公共电子词库仍未开始。G6 生产库当前无到期候选，未来清理另行批准。
+> 当前阶段：**1.2.0 本机多用户版正式发布**。发布对象为 `main` 上的 `v1.2.0` tag，范围与证据见 `V1.2-RELEASE-RECORD.md`。Phase 2.8 DoD 1–8 已有证据；Phase 2.9 公共电子词库仍待真实资料。Phase 3 的安全 PWA 外壳已落地，移动端详情与布局仍待完成。G6 生产库当前无到期候选，未来清理另行批准。
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > `docs/PROJECT_STATUS_V1.2.md` 是 2026-09-22 的只读审计快照，已加当前状态索引；旧数字保留为历史证据，不作为当前状态来源。当前事实以代码、`PROJECT_STATUS_CURRENT.md` 及 `docs/V1.2-RELEASE-RECORD.md` 为准。
 
@@ -30,7 +30,8 @@
 | 门禁 | `scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9 外部公共词库的真实资料、授权与导入设计；可与 Phase 3 移动端设计并行。Phase 4 云部署前须完成 2.9 验收。G6 生产库无到期候选，未来具体清理仍需独立计划与批准。 |
+| 最近完成（Phase 3 基础） | **安全 PWA 外壳 + F-3/F-4**：`frontend/public/manifest.webmanifest` 声明 standalone 安装；专用 `192×192`、`512×512` 与 Apple `180×180` 图标由桌面源图机械缩放而来，不复用 741 KB 启动图；`sw.js` 只缓存应用壳、manifest 与 `/assets/`、`/icons/` 静态资源，**`/api/**`、所有非 GET 与其它路径一律网络直通**，因此不会在切换账号后重放私有数据；`index.html` 已有 Apple 元信息与 `viewport-fit=cover`；`styles.css` 的统一 `--safe-area-bottom` 让固定底部导航、内容区和查词浮层避开 iPhone Home Indicator，且 ≤900px 导入流程改为单列并保留已上传图片列表的查看、添加与移除操作。定向后端 **9 项**、前端 **37 项** + typecheck/lint/build 已通过；仍待 iPhone 实机验收。Phase 3 的 F-2/F-6 仍未完成。 |
+| 下一步 | Phase 2.9 外部公共词库的真实资料、授权与导入设计；并行推进 Phase 3 的移动端详情交互决策（D6）与 F-2/F-3/F-4/F-6。Phase 4 云部署前须完成 2.9 验收。G6 生产库无到期候选，未来具体清理仍需独立计划与批准。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -326,7 +327,7 @@ backend\.venv\Scripts\python.exe tools\staging_three_user_check.py      # T8：�
 7. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
 8. `word` 表已无写入方。~~`helpers.word_dict`、`schemas.py::WordSummary`~~ → ✅ **已于 2026-09-23（Batch 9 / T12）删除**（两者在删除前全仓库只有定义、没有任何调用）。**剩余**：`services/words.py::apply_learning_update`（只被 `test_import_flow.py` 引用，属旧 `word` 路径）与 `schemas.py::ORMModel`（已无使用者）；`POST /api/words/quick-add`（Phase 0 规划）未实现。
 9. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
-10. **PWA / 移动端**：无 manifest/SW/图标；Phase 0 §8.3 记录的移动端缺陷（≤900px 隐藏单词详情面板等）仍在。
+10. **PWA / 移动端（部分完成）**：已具备 manifest、专用安装图标、Apple 元信息与**只缓存静态资源、永不缓存 `/api/**`** 的 Service Worker；Phase 0 §8.3 记录的移动端缺陷仍在，尤其 ≤900px 隐藏单词详情面板仍无替代入口，且尚未做手机实机安装验收。
 11. **公网部署未开始**：当前只监听回环地址。
 11a. **云端公共词库来源未交付**：关闭 PaddleOCR 的配置已规划，但外部电子词库 → 公共 `Lexicon` 的导入和副本验收仍是 Phase 2.9 待办；与 Phase 5 的词频资料导入不同。
 12. **CSRF 的天然边界**：同源校验不防 XSS（同源脚本可同时伪造请求与请求头）；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说，避免"上了 CSRF 就安全"的错觉。
