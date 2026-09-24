@@ -17,7 +17,7 @@ Usage::
     python -m app.cli create-user userb
     python -m app.cli promote userb
     python -m app.cli prune-sessions
-    python -m app.cli public-lexicon preview synthetic.csv --map word=head
+    python -m app.cli public-lexicon preview synthetic.csv --source-root sources --map word=head
 """
 
 from __future__ import annotations
@@ -197,7 +197,7 @@ def command_public_lexicon_preview(args: argparse.Namespace) -> int:
             encoding=args.encoding,
             delimiter=args.delimiter,
         )
-        report = preview_file(args.file, mapping)
+        report = preview_file(args.file, mapping, source_root=args.source_root)
     except (LookupError, OSError, ValueError) as error:
         print(f"公共词库预览失败：{error}", file=sys.stderr)
         return 2
@@ -374,6 +374,10 @@ def build_parser() -> argparse.ArgumentParser:
     public_sub = public_lexicon.add_subparsers(dest="public_command", required=True)
     file_preview = public_sub.add_parser("preview", help="只读校验分隔文本文件")
     file_preview.add_argument("file", type=Path)
+    file_preview.add_argument(
+        "--source-root", type=Path, required=True,
+        help="允许读取的来源根目录；文件解析后的路径必须留在此目录内",
+    )
     file_preview.add_argument(
         "--map", dest="field_map", action="append", required=True,
         metavar="FIELD=COLUMN", help="规范字段到原文件列名的映射，可重复",

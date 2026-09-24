@@ -23,6 +23,7 @@ def test_preview_maps_fields_preserves_raw_values_and_flags_duplicate(tmp_path: 
             columns={"word": "head", "meaning": "cn", "phonetic": "ipa"},
             required_fields=("word", "meaning"),
         ),
+        source_root=tmp_path,
     )
 
     assert report["file"]["sha256"] == hashlib.sha256(raw).hexdigest()
@@ -56,6 +57,7 @@ def test_preview_reports_missing_mapped_header_without_candidates(tmp_path: Path
             columns={"word": "head", "meaning": "cn"},
             required_fields=("word", "meaning"),
         ),
+        source_root=tmp_path,
     )
 
     assert report["rows"] == []
@@ -73,6 +75,7 @@ def test_preview_reports_bad_encoding_with_original_byte_fingerprint(tmp_path: P
     report = preview_file(
         source,
         PreviewMapping(columns={"word": "head", "meaning": "cn"}, encoding="utf-8"),
+        source_root=tmp_path,
     )
 
     assert report["file"]["sha256"] == hashlib.sha256(raw).hexdigest()
@@ -97,6 +100,7 @@ def test_preview_reports_each_bad_row_and_keeps_later_rows(tmp_path: Path) -> No
             required_fields=("word", "meaning"),
             delimiter="\t",
         ),
+        source_root=tmp_path,
     )
 
     assert report["summary"] == {
@@ -119,7 +123,8 @@ def test_preview_reports_blank_line_and_continues(tmp_path: Path) -> None:
     source.write_text("head,cn\nfirst,首词\n\nlast,末词\n", encoding="utf-8")
 
     report = preview_file(
-        source, PreviewMapping(columns={"word": "head", "meaning": "cn"})
+        source, PreviewMapping(columns={"word": "head", "meaning": "cn"}),
+        source_root=tmp_path,
     )
 
     assert report["summary"] == {
@@ -143,7 +148,8 @@ def test_preview_does_not_change_business_rows_or_source_file(world, tmp_path: P
         )
 
     report = preview_file(
-        source, PreviewMapping(columns={"word": "head", "meaning": "cn"})
+        source, PreviewMapping(columns={"word": "head", "meaning": "cn"}),
+        source_root=tmp_path,
     )
 
     with world.session() as session:
@@ -165,6 +171,7 @@ def test_preview_decodes_explicit_gb18030_without_rewriting_source(tmp_path: Pat
     report = preview_file(
         source,
         PreviewMapping(columns={"word": "head", "meaning": "cn"}, encoding="gb18030"),
+        source_root=tmp_path,
     )
 
     assert report["file"]["sha256"] == hashlib.sha256(raw).hexdigest()
@@ -186,7 +193,7 @@ def test_cli_preview_does_not_initialize_or_verify_database(tmp_path: Path, caps
     monkeypatch.setattr(cli, "verify_schema_revision", unexpected_database_call)
 
     result = cli.main([
-        "public-lexicon", "preview", str(source),
+        "public-lexicon", "preview", str(source), "--source-root", str(tmp_path),
         "--map", "word=head", "--map", "meaning=cn", "--required", "meaning",
     ])
 
