@@ -48,7 +48,7 @@
 ### 0.3 修改代码前的三步
 
 1. 读本文件对应章节，确认改动落在哪条约束之内；
-2. `git status`，保留他人未提交/未跟踪的文件（例如本机那份未跟踪的 `docs/PROJECT_STATUS_V1.2.md`）；
+2. `git status`，保留当时属于他人的未提交/未跟踪文件，先确认归属再暂存；
 3. 涉及 Source / Learning / History / AI / 认证的改动，按 §4、§5、§6 的硬规定执行，并遵守 `PROJECT_HANDOFF.md` §11 的工作规则。
 
 ---
@@ -160,6 +160,8 @@
 
 当前（V1.2）形态是上图去掉 Caddy 的退化版本：FastAPI 同时提供 API 与 `frontend/dist`，只监听 `127.0.0.1:8000`。
 
+**部署目标（用户决策快照，非当前运行事实）**：阿里云 ECS `ecs.e-c1m1.large`、2 vCPU / 2 GiB、40 GB ESSD Entry、1 Mbps 公网带宽、Alibaba Cloud Linux 3.2104 LTS 64 位、华北 1；预期约 2 位用户。实际服务器、域名、备案与资源余量在 Phase 4 上线前核实。该资源选择以**服务器不运行 OCR、不运行本地 LLM、保持单 worker**为前提；电子词库由 §3.6 的导入交付链路进入 SQLite。
+
 ### 3.3 每层的架构含义（后续改动不得违反）
 
 1. **Caddy 是唯一对外入口**：TLS、HTTPS 跳转、静态资源与预压缩由它负责。**FastAPI 不得直接监听公网地址**。
@@ -185,8 +187,18 @@
 ### 3.5 OCR 的架构位置
 
 - PaddleOCR/PaddlePaddle 是**本地能力**，用于电脑（管理终端）侧的图片导入流程，不属于服务化组件。
-- 云端部署时以 **`VOCAB_ENABLE_OCR=false`** 关闭；导入/校对限定在本地或管理终端完成。
+- 云端部署时以 **`VOCAB_ENABLE_OCR=false`** 关闭；本地图片 OCR 流程仍可在本地实例使用。云端管理终端通过 §3.6 的电子词库导入流程提供词条，**不能假设浏览器里的管理页面会在用户电脑上运行 PaddleOCR**。
 - `OCRProvider.extract(path) -> OCRDocument` 是稳定接口：替换 provider 不需要改变上层流程。
+
+### 3.6 云端词条来源与外部公共词库（待实现）
+
+**产品决策**：云端关闭 OCR 后，以来源可核验的**外部电子词库**作为公共词库的主要初始数据源；手机继续以学习、复习和阅读为主，电脑管理终端负责词库导入与校对。已有 OCR 代码、历史数据和本地图片导入能力保留，不因云端停用而删除。
+
+外部词库导入的目标关系是 `Lexicon(owner_user_id=NULL, visibility=public)` → `LexiconEntry`。导入**不得**直接写旧 `word` 表、`user_word_state` 或 `review_event`，也不得把“给现有词条补 `frequency_*`”当作建立词库。多个用户共享公共词条内容，通过各自的 `UserLexicon` 启用词库；个人学习状态始终隔离。
+
+**Source 与确认边界**：导入前须记录资料名称、版本、授权/使用范围及原始文件指纹；保留原始词形与完整释义，映射为可检查的候选词条。字段映射、词形规范化、去重、冲突和错误行应先产生预览/报告，由管理员确认后才写入公共 `LexiconEntry`。AI 可建议 anchor 或解释，不能覆盖原始释义，也不能编造词频。具体文件格式、来源、导入入口与幂等规则须在实施前的独立设计中定稿。
+
+**部署依赖**：Phase 4 公网交付前，必须用一份授权与格式均已确认的真实外部词库，在隔离副本验证导入、重复导入、错误行、人工确认、双用户共享内容与学习状态隔离；再按发布流程将公共词库交付到服务器。单纯设置 `VOCAB_ENABLE_OCR=false` 只解决运行依赖，**不等于**解决词条来源。任务与验收见 `PROJECT_ROADMAP.md` Phase 2.9。
 
 ---
 
@@ -297,7 +309,7 @@ ReviewEvent         每次复习的事实记录（append-only）
 - **不开放注册、不接 OAuth / 第三方登录**：账号由管理员或 CLI 创建（这是有意的，见 §9）。
 - **公共词库 v1 不提供"用户贡献 / 共享编辑"**：公共词库的内容治理属 §8 Phase 2 的范围。
 - **认证不变量**（改动认证相关代码必须保持）：明文口令永不落库（只有 Argon2id 哈希）；会话 token 只存 SHA-256，明文仅在 HttpOnly Cookie；失败登录/敏感操作的审计与响应**不得**包含口令、token 或 `token_hash`。
-- 已知缺口（有意保留，待产品决策）：管理员修改他人密码/角色、停用账号、创建账号目前**无需二次输入口令**。详见 `PROJECT_HANDOFF.md` §5.2 与 `docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`。
+- **S-1 已完成**：`POST /api/users` 与 `PATCH /api/users/{id}` 的每次调用均要求管理员输入自己的当前口令，包括空更新；前端尚无管理员用户管理入口。逐次二次认证的契约与边界见 `docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`。
 
 ---
 
@@ -339,7 +351,7 @@ ReviewEvent         每次复习的事实记录（append-only）
 
 ### 7.1 版本口径
 
-**「V1.2」目前只是分支名与阶段名，不是已发布的版本号。** 三处版本号仍为 `1.0.0`（`backend/pyproject.toml`、`frontend/package.json`、`FastAPI(version="1.0.0")`）；状态为**未发布 / 未合并 / 未打 tag**。
+**1.2.0 目前是本机多用户版发布候选，不是已发布版本。** `backend/pyproject.toml`、`frontend/package.json`、`frontend/package-lock.json` 的顶层与根包条目、`FastAPI(version="1.2.0")` 已统一；仍未合并、推送或打 tag。发布边界与待审事项见 `docs/V1.2-RELEASE-CANDIDATE.md`。
 
 | 项 | 值 |
 |---|---|
@@ -396,13 +408,14 @@ ReviewEvent         每次复习的事实记录（append-only）
 | ~~CSRF 纵深防御缺失~~ → **已建立三层（2026-09-23，Phase 2.8 S-2）**：`SameSite=Lax` + 请求体只接受 `application/json` + 写请求同源校验（`app/csrf.py`，比对 `Origin`/`Referer` 与 `Host` 的 host:port）。**仍然无 CORS（有意为之）** | 剩余边界：XSS 不在防御范围内；`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层；TLS 代理必须配 `--proxy-headers`（见 §3.3 第 4 条） |
 | ~~管理员敏感操作无二次认证~~ → **已要求管理员自己的当前口令**（2026-09-23，Phase 2.8 S-1，提交 `c3a6106`）：`POST /api/users`、`PATCH /api/users/{id}` **每次调用**都要 `current_password`，且**校验通过前不改账号与会话** | 剩余：`PUT /api/settings` 的实例级字段仍只需管理员会话（**同源校验同样不替代它**）；当前运行实例尚未重启，故该修复在该进程上未生效 |
 | **限流状态在内存**：重启清零；多 worker 会等效放大阈值 | 与 §3.3 第 5 条同一约束 |
-| **`history_event` 无保留策略**（append-only） | 审计表持续增长 |
+| **`history_event` 保留策略（G6）** | 365 天、仅四类事件可归档；CLI 与严格核验已实现，staging 清理及恢复演练通过。生产库当前无到期候选，未执行生产清理；未来须针对具体计划另行批准 |
 | ~~前端设备管理页缺失~~ → **已实现**（2026-09-23，Phase 2.8 F-1：设置页「登录设备」区 + F-7 自服务改密） | 已关闭 |
 | **词频数据缺失**（`frequency_rank` 全 NULL） | 选词回落 `sequence`/`id` |
-| **生产双账号端到端验收未做**（生产仅 1 个 `user` 行） | 多用户隔离缺少生产级证据 |
+| **外部公共电子词库导入未实现** | 云端虽可关闭 OCR，但尚无已验收的替代词条来源；Phase 2.9 在公网交付前完成 |
+| **T8 三账号隔离验收已在副本完成**（生产库仍仅 1 个 `user` 行） | 126/126 PASS、`verified: true`；验收按约定不在生产创建测试账号 |
 | ~~`scripts/check.ps1` 末步必然失败~~ → **已修复**（2026-09-23，Phase 2.8 Batch 0：基线从 verified 0007 备份重录，旧基线归档保留） | 已关闭 |
 
-**结论**：当前处于「**V1.2 多用户本地应用，Phase 2 基本完成、未发布**」阶段。距 §2 的目标形态（Cloud + Web + PWA + Multi-user）在**部署**与**移动端**两个维度上尚未开始；Phase 2.8 的收尾项（CSRF、设备管理页、自服务改密、工程基线）已于 2026-09-23 关闭，剩余为管理员二次认证、会话上限与审计保留策略。
+**结论**：当前是**1.2.0 本机多用户版发布候选，未正式发布**。S-1 管理员二次认证、G5 会话上限、G6 保留策略实现与 staging 验收、T8 副本三账号验收及 DoD 4 已完成；DoD 3 仍待推送核验。距 §2 的长期目标形态，**Phase 2.9 外部公共词库、Phase 3 移动端/PWA、Phase 4 公网部署**均未交付。G6 生产清理在有到期候选及具体计划获批后另行安排，不作为本次候选必须执行的删除。
 
 ---
 
@@ -411,14 +424,16 @@ ReviewEvent         每次复习的事实记录（append-only）
 > 本节只声明**阶段划分与顺序**，不写任务列表。任务、DoD、风险登记见 `docs/PROJECT_ROADMAP.md`。
 
 ```
-Phase 1: 数据模型升级
-Phase 2: 公共词库系统
-Phase 3: PWA
-Phase 4: 云部署
-Phase 5: 算法升级
+Phase 1: 数据模型升级（已完成）
+Phase 2/2.8: 认证与工程基线收尾（进行中）
+Phase 2.9: 外部电子词库 → 公共 Lexicon（新增，部署前置）
+Phase 3: 手机 UI + PWA
+Phase 4: 云部署 + 定时备份 + 恢复演练
+Phase 5: 算法升级与独立的词频资料接入
+Phase 6: 平台化与长期演进
 ```
 
-编号说明：本编号是 **V1.2 之后的阶段编号**，其中 Phase 3 / 4 / 5 与既有文档口径一致（Phase 0 §G.4 已声明 PWA → Phase 3、Caddy/systemd/部署 → Phase 4；Phase 5 为学习算法升级）。`PROJECT_ROADMAP.md` 当前从 Phase 2.8（认证收尾与工程基线修复）起排，与本编号衔接。
+编号说明：用户早期的“项目决策快照”把**外部词库**列为 Phase 3、手机/PWA 列为 Phase 4、云部署列为 Phase 5；后来的现行路线图已把手机/PWA、云部署、算法升级分别固定为 Phase 3/4/5。为避免重命名现有阶段及其设计文档，现将遗漏的外部公共词库交付补为 **Phase 2.9**，并规定它是 Phase 4 的前置验收项。旧快照的阶段编号是历史规划，不代表该产品决策被取消。
 
 ---
 

@@ -29,6 +29,8 @@
 
 按主题补充阅读：触碰 CSRF/请求头 → `docs/V1.2-PHASE2.8-B-CSRF-DESIGN.md`；触碰认证语义 → `docs/V1.2-PHASE2.3-AUTH-FLOW-AUDIT.md` 与 `docs/V1.2-PHASE2.7-D-A-REAUTH-DESIGN.md`；任何 migration → `docs/0007-production-migration-runbook.md`。
 
+**云端词条来源**：开发外部词库导入前读 `PROJECT_ARCHITECTURE.md` §3.6 与 `PROJECT_ROADMAP.md` §6.1.1。Phase 2.9 的外部电子词库用于建立**公共词条内容**；Phase 5 的外部词频文件只用于给**已有词条补排名**；Phase 6 的 JSON/SQLite 数据导入是**数据可移植/恢复**。三者的源、目标与验收不同，不得混为一项或互相宣告完成。
+
 ### 1.2 动手前的三件事
 
 ```powershell
@@ -52,6 +54,7 @@ powershell -File scripts\check.ps1   # 3. 确认起点是绿的；起点不绿�
 | **安全策略** | CSRF 层、re-auth 守卫范围、限流阈值语义、审计内容 | 需要判定边界与失败模式，代码里写不清 |
 | **架构级技术选型** | 引入 PostgreSQL / Redis / 多 worker / 本地 LLM / OCR 服务化 / JWT | `PROJECT_ARCHITECTURE.md` §3.4 / §9 **明确排除**；要引入必须先改那份文件并说明触发条件 |
 | **删除或改写既有约束** | 移除某个测试、放宽某条校验、删除 `IGNORED_COLUMNS` 条目 | 删约束必须写明"为什么原约束不再成立" |
+| **外部公共词库导入规则** | 来源/授权、字段映射、完整释义、去重、确认、管理员权限、重复导入与发布路径 | 云端关闭 OCR 后这是主要数据来源；错误导入会污染共享内容并波及所有用户。先有独立设计与副本预演，再实现 |
 
 **设计文档的合格线**（沿用本仓库 Phase 2.x 的成例）：① 现状实测（含代码位置）；② 方案对比与取舍；③ 失败模式与边界（**明确写出挡不住什么**）；④ 测试策略；⑤ 回滚/逃生口；⑥ 明确"本次不改什么"。产出放在 `docs/V1.2-<阶段>-<主题>-DESIGN.md`，**历史设计文档不再修改**，新阶段另建新文档。
 
@@ -114,7 +117,7 @@ cd frontend; npm test; npm run typecheck; npm run lint; npm run build
 2. **message 说明目的**：主题行用约定式前缀（`feat(v1.2):` / `fix(tools):` / `test(v1.2):` / `docs:` / `refactor(v1.2):`），正文写**为什么**（现状缺陷 + 取舍 + 边界），不是复述 diff。
 3. **提交前自查**（`PROJECT_ROADMAP.md` §7.3）：无 `DROP TABLE`/`DROP COLUMN`、未删改生产库、未提交密钥、`git diff` 已人工过目、未提交他人未跟踪文件。
 4. **不 push 强制**、不 rebase/squash 已推送历史（本仓库历史上以 fast-forward 方式推送）。
-5. **不自动创建 tag**：tag 需明确确认（当前 `1.0.0` 与 `V1.2` 阶段名的口径尚未统一，属待决策项 D4）。
+5. **不自动创建 tag**：项目版本已统一为 `1.2.0` 本机多用户版发布候选，但尚未正式发布；须先审阅候选、推送并复核 DoD 3，再明确决定合并与 tag（见 `docs/V1.2-RELEASE-CANDIDATE.md`）。
 6. **阶段收尾时**按 `PROJECT_ROADMAP.md` §10.2 的完成协议执行（DoD 逐条有可复现证据 → 关闭登记册条目 → 更新文档 → 全量验收 → 若涉 schema 则核对 revision）。
 7. 需要"完成的定义"时认这一条：**代码 + 测试 + 文档 + `check.ps1` exit 0 + commit**，并在交付说明里列出**修改文件、测试结果、commit hash、剩余风险**。
 
@@ -149,7 +152,7 @@ cd frontend; npm test; npm run typecheck; npm run lint; npm run build
 | 重写历史 | 不改已推送的 commit、不改历史 migration（`0001`–`0007`）、不强推 |
 | 触碰生产数据 | 不在 `data/vocab.db` 上做任何开发期写入/迁移；不删除或重建它 |
 | 读取/输出密钥 | `data/config/settings.json`、`.env`、DeepSeek Key、会话 token/`token_hash` 一律不读、不打印、不写入任何文档或提交 |
-| 顺手提交他人的东西 | 先 `git status`；他人未跟踪文件（如 `docs/PROJECT_STATUS_V1.2.md`）保持原样 |
+| 顺手提交他人的东西 | 先 `git status`；对当时存在的他人未提交/未跟踪文件逐项确认归属，不因它们在工作区就顺手暂存 |
 
 ---
 
