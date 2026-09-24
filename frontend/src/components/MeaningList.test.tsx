@@ -13,4 +13,11 @@ describe('MeaningList', () => {
   it('keeps IPA and ordinary punctuation out of meaning splitting', () => {
     expect(splitMeanings(['尤指长期保持；保留'])).toEqual(['尤指长期保持；保留'])
   })
+
+  it('keeps a standalone part of speech with its following meaning', () => {
+    expect(splitMeanings(['vt.', '影响，使改变', 'vt.', '感动，打动'])).toEqual([
+      'vt. 影响，使改变',
+      'vt. 感动，打动',
+    ])
+  })
 })
