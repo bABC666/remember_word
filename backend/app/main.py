@@ -39,7 +39,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="拾词", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="拾词", version="1.2.0", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(imports.router)
