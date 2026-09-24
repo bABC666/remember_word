@@ -9,11 +9,11 @@
 | 当前版本 | **`1.2.0` 本机多用户版**；发布对象为 `main` 上的附注 tag `v1.2.0`，边界与验证见 `docs/V1.2-RELEASE-RECORD.md`。Phase 2.9、3、4 尚未交付 |
 | 当前分支 | `main`（由 `feat/v1.2-phase1-safe` fast-forward 合并） |
 | 最近功能代码 / 文档冻结起点 | `10dcfa5`（S-2 写请求同源校验）/ `0d20a51`（其后的文档冻结提交）/ **`c3a6106`（S-1 管理员二次认证，`feat(v1.2): require the admin's own password (S-1)`）**；实时 HEAD 以 `git rev-parse HEAD` 为准 |
-| 上游 | 发布前 GitHub 实时核对的候选分支 HEAD 为 `57418e7`；`74dfd75` 是更早的推送快照。正式发布以远端 `main` 与 `v1.2.0` tag 的对象为准，勿用旧快照代替实时 Git 核对 |
+| 上游 | GitHub 默认分支已切至 `main`；正式发布 tag `v1.2.0` 指向 `9367f55`。发布前候选分支实时核对为 `57418e7`，`74dfd75` 是更早的推送快照；发布后的运行状态文档提交可使 `main` 领先 tag |
 | 安全基线分支 | `recovery/v1.1-guarded`（2026-09-22 数据事故后的安全基线） |
 | 工作区 | 实时状态以 `git status -sb` 为准。历史审计中的旧版本/提交数只是快照；本地 pytest 临时目录和 `data/` 证据不属于发布源码 |
 | 门禁状态 | 发布前 `scripts/check.ps1` → **exit 0**；后端 **522 passed**、前端 **32 passed / 7 files**、隔离证明 `data/` 194 文件零变化、VERIFIED BACKUP（2026-09-24 实测） |
-| 运行实例 | ⚠ 2026-09-24 核验时 `127.0.0.1:8000` 无监听，`data/server.pid` 是旧记录。DoD 4 浏览器验收运行于独立端口的 staging 副本，不能声称本机实例已运行 S-1/G5 等候选代码。恢复前须按发布候选清单完成安全启动前检查；`start-vocab.bat` 会迁移目标数据库，应用启动还会备份并清理失效会话，不能直接当作只读启动测试 |
+| 运行实例 | ✅ 2026-09-24 发布后已按启动前检查恢复：`127.0.0.1:8000/api/health` 返回 `ok`，OpenAPI 版本 `1.2.0`；PID 文件记录的虚拟环境 Python 进程启动了实际监听的子进程。显式设置 `VOCAB_DATA_DIR` 和 `VOCAB_DATABASE_PATH` 指向本仓库 `data/` 与 `data/vocab.db`；启动后数据库仍为 0007，完整性、外键及基线核验通过。DoD 4 的原始浏览器验收在独立 staging 实例完成，不把它改写为本机正式实例的浏览器验收 |
 | 冻结基线 | 本文件描述的代码状态已通过全量门禁；**数据侧**另有一份 0007 verified backup 与重录基线（见 §4） |
 
 ---
@@ -83,7 +83,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 | G6 / S-6 `history_event` 保留策略 | **实现、严格核验与 staging 清理/恢复演练已完成**：365 天、仅四类事件可到期归档。生产 `data/vocab.db` 当前无到期候选、未执行清理；未来若有候选，须针对具体计划与运行 ID 另行获批并安排维护窗口。1.2.0 正式发布不要求实际删除生产行 |
 | T8 / E-3 副本三账号验收 | ✅ **已于 2026-09-23（Batch 8）完成**：`data/recovery/t8-three-user-report-20260923T134500Z.json`，**126/126 PASS**、`verified: true`、`failures: []`（新文件名；旧双账号证据未覆盖）。生产 `data/vocab.db` 只被只读复制，验收前后与其 WAL/SHM 逐字节一致——本表不再有它的缺口 |
 | T9–T17 卫生项 | T11、T17、T12 死代码的低风险部分、T14 staging 残留处置已完成；**T13 的 `1.2.0` 候选已按本机多用户版边界发布**。T12 随 `word` 表退场的剩余部分仍属 Phase 6 |
-| T-7 浏览器人工验收 | ✅ **达成（2026-09-24，Batch 12 按负责人确认的口径收口）**：**F-1/F-7 以 staging 上真实 Chrome 的 13/13 浏览器验收为证据**（Batch 11 实测，`data/recovery/dod4-browser-acceptance-20260923T162528Z.json` + `test-artifacts/dod4-browser-20260923T162528Z/`：设备列表与「当前设备」标记、错误口令被拒且会话不变、正确口令撤销其他设备、429 等待提示与倒计时、改密后全部会话失效并回登录页）；**S-1 以 27 项管理员二次认证测试（`backend/tests/test_admin_reauth.py`）、安全回归与 T8 三账号副本 126/126 为证据**（前端无管理员入口，不适用浏览器点击）。口径与证据 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`。**活实例 `127.0.0.1:8000` 仍未重启，不能声称它已运行新代码** |
+| T-7 浏览器人工验收 | ✅ **达成（2026-09-24，Batch 12 按负责人确认的口径收口）**：**F-1/F-7 以 staging 上真实 Chrome 的 13/13 浏览器验收为证据**（Batch 11 实测，`data/recovery/dod4-browser-acceptance-20260923T162528Z.json` + `test-artifacts/dod4-browser-20260923T162528Z/`：设备列表与「当前设备」标记、错误口令被拒且会话不变、正确口令撤销其他设备、429 等待提示与倒计时、改密后全部会话失效并回登录页）；**S-1 以 27 项管理员二次认证测试（`backend/tests/test_admin_reauth.py`）、安全回归与 T8 三账号副本 126/126 为证据**（前端无管理员入口，不适用浏览器点击）。口径与证据 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`。验收当时本机 `127.0.0.1:8000` 无监听；正式实例后来恢复，见本文件运行实例行 |
 
 **Phase 2.8 之后新增 Phase 2.9**：以来源可核验的外部电子词库建立系统公共 `Lexicon`，作为云端关闭 OCR 后的主要初始词条来源。该阶段**未开始**，与 Phase 5 的外部**词频**资料接入不同；是 Phase 4 公网部署的硬前置。原始产品决策见用户“项目决策快照”§4/§22，现行约束见 `PROJECT_ARCHITECTURE.md` §3.6，任务与 DoD 见 `PROJECT_ROADMAP.md` §6.1.1。
 
