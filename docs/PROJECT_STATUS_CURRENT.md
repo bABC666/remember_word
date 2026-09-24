@@ -12,7 +12,7 @@
 | 上游 | GitHub 默认分支已切至 `main`；正式发布 tag `v1.2.0` 指向 `9367f55`。发布前候选分支实时核对为 `57418e7`，`74dfd75` 是更早的推送快照；发布后的运行状态文档提交可使 `main` 领先 tag |
 | 安全基线分支 | `recovery/v1.1-guarded`（2026-09-22 数据事故后的安全基线） |
 | 工作区 | 实时状态以 `git status -sb` 为准。历史审计中的旧版本/提交数只是快照；本地 pytest 临时目录和 `data/` 证据不属于发布源码 |
-| 门禁状态 | 1.2.0 发布基线：`scripts/check.ps1` exit 0，后端 522、前端 32（历史记录）。本 F-2 worktree：[实测] `scripts/check.ps1` exit 0：后端 522 passed（2 warnings）、前端 46 passed / 8 files、typecheck/lint/build 通过；隔离证明 `data/` 2 文件零变化，worktree 内已验证备份副本通过 `VERIFIED BACKUP` |
+| 门禁状态 | 1.2.0 发布基线：`scripts/check.ps1` exit 0，后端 522、前端 32（历史记录）。本 F-2 worktree：[实测] `scripts/check.ps1` exit 0：后端 522 passed（2 warnings）、前端 50 passed / 8 files、typecheck/lint/build 通过；隔离证明 `data/` 4 文件零变化，worktree 内已验证备份副本通过 `VERIFIED BACKUP` |
 | 运行实例 | ✅ 2026-09-24 发布后已按启动前检查恢复：`127.0.0.1:8000/api/health` 返回 `ok`，OpenAPI 版本 `1.2.0`；PID 文件记录的虚拟环境 Python 进程启动了实际监听的子进程。显式设置 `VOCAB_DATA_DIR` 和 `VOCAB_DATABASE_PATH` 指向本仓库 `data/` 与 `data/vocab.db`；启动后数据库仍为 0007，完整性、外键及基线核验通过。DoD 4 的原始浏览器验收在独立 staging 实例完成，不把它改写为本机正式实例的浏览器验收 |
 | 冻结基线 | 1.2.0 发布基线曾通过全量门禁，**数据侧**有 0007 verified backup 与重录基线（见 §4）；本 F-2 worktree 已用隔离备份副本通过完整门禁；这不等于对当前生产数据库的核验 |
 
@@ -184,7 +184,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 | 1 | ~~**S-1 管理员敏感操作无二次认证**~~ → ✅ **已关闭（2026-09-23，Batch 3）** | 🟠→⚪ | 原风险：管理员会话被盗即可建**持久后门管理员**、改他人密码/角色、停用账号。现两个端点每次调用都要求管理员自己的当前口令，且**校验通过前不改账号与会话**（见 §2.3、§5.2）。剩余：恢复路径仍可被短暂封锁（#30，S-3）与 `PUT /api/settings` 无二次认证（#29） |
 | 2 | **Phase 4 部署必须配 `uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`** | 🟠 | 不配则两处同时出错：①所有用户共用一个 IP 限流桶（S-4）②TLS 终止后裸域名 `Host` 被推导为 80 端口 → https 来源的写请求被 CSRF 校验 **403**。必须写进部署脚本 |
 | 3 | **公网部署未开始**（D-1） | 🔴 | 仅监听回环地址，无 `deploy/`、无 HTTPS、无 CI；产品无法离开本机 |
-| 4 | **Phase 3 部分完成**（F-2 手机详情工作流已实现；F-3～F-6/PWA 待做） | 🟠 | ≤900px 词库列表可进入 `/library/:wordStateId` 查看完整释义、音标、复习历史及文章暴露（含首次/最近时间）；返回及再次经浏览器历史进入详情后均恢复筛选、滚动、焦点。无 manifest/SW/图标，导入图片列表与 safe-area/底栏仍待做；Phase 3/M2 未完成 |
+| 4 | **Phase 3 部分完成**（F-2 手机详情工作流已实现；F-3～F-6/PWA 待做） | 🟠 | ≤900px 词库列表可进入 `/library/:wordStateId` 查看完整释义、音标、复习历史及文章暴露（含首次/最近时间）；A 退出后 B 登录不继承 A 的 URL 筛选或列表位置；进入详情滚动到顶部，返回及再次经浏览器历史进入详情后恢复筛选、文档/列表滚动（含 0）与焦点。无 manifest/SW/图标，导入图片列表与 safe-area/底栏仍待做；Phase 3/M2 未完成 |
 | 5 | **XSS 不在 CSRF 防御范围** | 🟠 | 同源脚本可同时伪造请求与请求头；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说 |
 | 6 | **`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层** | 🟡 | 脚本客户端逃生口，默认关闭；开启前须读设计文档 §6 |
 | 7 | **限流与闸门状态在内存**（S-4） | 🟠 | 重启清零；**多 worker 会让等效阈值 ×worker 数**；单 worker 是架构硬约束 |
@@ -227,7 +227,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 3. **Phase 2.9 · 外部电子词库与公共词库交付**（Phase 4 上线硬前置）
    先确定真实词库的来源、版本、使用范围和文件格式；设计可预览、可确认、可重复执行的导入流程，把完整原始释义写入公共 `LexiconEntry`，不得写旧 `word` 或覆盖个人学习状态；在副本验证双用户启用与隔离。没有真实资料时保持“未完成”，不得拿 AI 生成词义或词频填空。
 4. **Phase 3 · PWA 与移动端可用性**（可与 2.9 并行，部分完成）
-   **F-2 手机词库详情工作流已在独立分支实现**：独立路由、反复经浏览器历史往返仍返回原筛选并恢复滚动/焦点、详情与文章暴露时间；保留桌面双栏。[实测] 本分支完整 `check.ps1` 已在隔离备份副本上通过。待做：`manifest` + Service Worker + 图标（`/api/**` **永不缓存**）、F-3 导入图片列表、F-4 safe-area、F-6 底部导航及 Android/iOS 真机验收。
+   **F-2 手机词库详情工作流已在独立分支实现**：独立路由、反复经浏览器历史往返仍返回原筛选并恢复文档/列表滚动和焦点；A 退出后 B 不继承 A 的筛选与位置；详情入场回顶部，保留桌面双栏。[实测] 本分支完整 `check.ps1` 已在隔离备份副本上通过；390×620 的模拟 Chrome 长详情往返通过，账号切换在 900px 侧栏通过。待做：`manifest` + Service Worker + 图标（`/api/**` **永不缓存**）、F-3 导入图片列表、F-4 safe-area、F-6 底部导航及 Android/iOS 真机验收。
 5. **Phase 4 · 生产部署上线**（必须先完成 2.8 + 2.9；建议 Phase 3 也已完成）
    Caddy + HTTPS + systemd；`VOCAB_COOKIE_SECURE=true`；**固化 `--proxy-headers --forwarded-allow-ips`**（风险 #2）；将已验收的公共词库交付服务器；备份定时器 + 保留 + 异地 + 恢复演练。
 6. （更远）Phase 5 学习算法升级与独立的外部词频资料接入、Phase 6 平台化（`word` 表退场 + CI）。

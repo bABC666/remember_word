@@ -84,7 +84,7 @@ export function LibraryPage({ positions }: { positions: Map<string, LibraryPosit
     const previous = positions.get(positionKey)
     if (!previous || !list.data || !listRef.current) return
     listRef.current.scrollTop = previous.listTop
-    if (previous.pageY) window.scrollTo(0, previous.pageY)
+    window.scrollTo(0, previous.pageY)
     const row = [...listRef.current.querySelectorAll<HTMLAnchorElement>('a[data-word-state-id]')]
       .find((item) => item.dataset.wordStateId === String(previous.focusedId))
     if (row) row.focus({ preventScroll: true })

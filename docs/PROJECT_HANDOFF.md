@@ -30,7 +30,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 3 F-2 手机详情工作流在 `codex/phase3-mobile-design` 独立 worktree 已实现（未合并/未推送）：`/library/:wordStateId`、返回原筛选/滚动/焦点、文章暴露首次/最近时间；桌面双栏保留。[实测] 用 worktree 内独立的已验证备份副本运行 `scripts/check.ps1` exit 0：后端 522 passed（2 warnings）、前端 46 passed、typecheck/lint/build 通过；隔离证明 `data/` 2 文件零变化、`VERIFIED BACKUP`。首次运行因缺环境退出，补齐隔离资料后重跑通过；未指向或改动生产数据库。后续 F-3、底栏/safe-area、PWA 与 Android/iOS 真机验收仍待做。Phase 2.9 公共词库仍是 Phase 4 前置。 |
+| 下一步 | Phase 3 F-2 手机详情工作流在 `codex/phase3-mobile-design` 独立 worktree 已实现（未合并/未推送）：`/library/:wordStateId`、返回原筛选/滚动/焦点、文章暴露首次/最近时间；桌面双栏保留。[实测] 用 worktree 内独立的已验证备份副本运行 `scripts/check.ps1` exit 0：后端 522 passed（2 warnings）、前端 50 passed、typecheck/lint/build 通过；隔离证明 `data/` 4 文件零变化、`VERIFIED BACKUP`。首次运行因缺环境退出，补齐隔离资料后重跑通过；未指向或改动生产数据库。模拟 Chrome 390×620 长详情往返通过（文档 250→0→250、列表 135、焦点 42）；账号切换在 900px 侧栏通过。390px 退出按钮仍因既有底栏布局不可直接点击，归 F-6 待办。后续 F-3、底栏/safe-area、PWA 与 Android/iOS 真机验收仍待做。Phase 2.9 公共词库仍是 Phase 4 前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -326,7 +326,7 @@ backend\.venv\Scripts\python.exe tools\staging_three_user_check.py      # T8：�
 7. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
 8. `word` 表已无写入方。~~`helpers.word_dict`、`schemas.py::WordSummary`~~ → ✅ **已于 2026-09-23（Batch 9 / T12）删除**（两者在删除前全仓库只有定义、没有任何调用）。**剩余**：`services/words.py::apply_learning_update`（只被 `test_import_flow.py` 引用，属旧 `word` 路径）与 `schemas.py::ORMModel`（已无使用者）；`POST /api/words/quick-add`（Phase 0 规划）未实现。
 9. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
-10. **PWA / 移动端**：F-2 手机词库详情独立路由已在未合并的开发 worktree 实现，支持完整原始释义、音标、复习历史、文章暴露（含首次/最近时间）及返回列表状态恢复；再次经浏览器历史进入详情后返回仍保留原筛选、滚动和焦点；桌面仍为双栏。无 manifest/SW/图标；导入图片列表、底栏与 safe-area 仍待修。
+10. **PWA / 移动端**：F-2 手机词库详情独立路由已在未合并的开发 worktree 实现，支持完整原始释义、音标、复习历史、文章暴露（含首次/最近时间）及返回列表状态恢复；再次经浏览器历史进入详情后返回仍保留原筛选、文档/列表滚动和焦点；A 从筛选列表退出、B 登录后不继承 A 的 URL 与位置；长详情入场回顶部，返回可恢复原文档位置 0 或非 0；桌面仍为双栏。无 manifest/SW/图标；导入图片列表、底栏与 safe-area 仍待修。
 11. **公网部署未开始**：当前只监听回环地址。
 11a. **云端公共词库来源未交付**：关闭 PaddleOCR 的配置已规划，但外部电子词库 → 公共 `Lexicon` 的导入和副本验收仍是 Phase 2.9 待办；与 Phase 5 的词频资料导入不同。
 12. **CSRF 的天然边界**：同源校验不防 XSS（同源脚本可同时伪造请求与请求头）；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说，避免"上了 CSRF 就安全"的错觉。

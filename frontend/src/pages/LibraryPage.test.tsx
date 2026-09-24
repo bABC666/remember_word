@@ -82,6 +82,7 @@ function mockApi(options: {
 beforeEach(() => {
   window.history.replaceState({}, '', '/library')
   mobile(true)
+  vi.stubGlobal('scrollTo', vi.fn())
 })
 
 afterEach(() => {
@@ -207,6 +208,75 @@ describe('mobile library detail', () => {
     const exposure = await screen.findByRole('region', { name: '文章暴露' })
     expect(within(exposure).queryByText(/首次/)).not.toBeInTheDocument()
     expect(within(exposure).getByText(/最近.*2026\/9\/23/)).toBeInTheDocument()
+  })
+
+  it('clears a filtered library URL and position before another account signs in', async () => {
+    vi.stubGlobal('scrollY', 240)
+    vi.stubGlobal('scrollTo', vi.fn((_x: number, y: number) => vi.stubGlobal('scrollY', y)))
+    let userId = 1
+    const requests = mockApi({ currentUser: () => userId })
+    render(<App />)
+    await userEvent.type(await screen.findByRole('textbox', { name: '搜索单词' }), 'amber')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '学习状态' }), 'weak')
+    await userEvent.click(screen.getByRole('button', { name: '最近加入' }))
+    document.querySelector<HTMLElement>('.word-list')!.scrollTop = 135
+    await userEvent.click(screen.getByRole('button', { name: '退出登录' }))
+    await screen.findByRole('form', { name: '登录拾词' })
+    userId = 2
+    await userEvent.type(screen.getByLabelText('用户名'), 'beta')
+    await userEvent.type(screen.getByLabelText('密码'), 'secret')
+    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    const search = await screen.findByRole('textbox', { name: '搜索单词' })
+    expect(window.location.pathname).toBe('/library')
+    expect(window.location.search).toBe('')
+    expect(search).toHaveValue('')
+    expect(screen.getByRole('combobox', { name: '学习状态' })).toHaveValue('')
+    expect(screen.getByRole('button', { name: '最近加入' })).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(0)
+    expect(window.scrollY).toBe(0)
+    expect(requests.at(-1)).toBe('/api/words?search=&status=&view=')
+  })
+
+  it('keeps a filtered library URL through a normal refresh of the same account', async () => {
+    mockApi()
+    const first = render(<App />)
+    await userEvent.type(await screen.findByRole('textbox', { name: '搜索单词' }), 'amber')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '学习状态' }), 'weak')
+    await userEvent.click(screen.getByRole('button', { name: '最近加入' }))
+    first.unmount()
+    render(<App />)
+    expect(await screen.findByRole('textbox', { name: '搜索单词' })).toHaveValue('amber')
+    expect(screen.getByRole('combobox', { name: '学习状态' })).toHaveValue('weak')
+    expect(screen.getByRole('button', { name: '最近加入' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it.each([0, 240])('moves to detail top and restores document scroll %i on return', async (initialY) => {
+    let pageY = initialY
+    vi.stubGlobal('scrollY', pageY)
+    const scrollTo = vi.fn((_x: number, y: number) => {
+      pageY = y
+      vi.stubGlobal('scrollY', pageY)
+    })
+    vi.stubGlobal('scrollTo', scrollTo)
+    mockApi({ detailResponse: () => Promise.resolve(Response.json({
+      ...detail,
+      source_meanings: Array.from({ length: 40 }, (_, index) => `长释义 ${index + 1}`),
+    })) })
+    render(<App />)
+    const wordLink = await screen.findByRole('link', { name: /amber/ })
+    document.querySelector<HTMLElement>('.word-list')!.scrollTop = 135
+    await userEvent.click(wordLink)
+    expect(await screen.findByText('长释义 40')).toBeInTheDocument()
+    expect(window.scrollY).toBe(0)
+    expect(scrollTo).toHaveBeenCalledWith(0, 0)
+    vi.stubGlobal('scrollY', 500)
+    await userEvent.click(screen.getByRole('link', { name: '返回词库' }))
+    await waitFor(() => {
+      expect(window.scrollY).toBe(initialY)
+      expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(135)
+      expect(screen.getByRole('link', { name: /amber/ })).toHaveFocus()
+    })
+    expect(scrollTo).toHaveBeenLastCalledWith(0, initialY)
   })
 
   it('keeps desktop selection in the existing two-column page', async () => {

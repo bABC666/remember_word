@@ -1,3 +1,4 @@
+import { useLayoutEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Clock3, TriangleAlert } from 'lucide-react'
 import { Link, useLocation, useParams } from 'react-router-dom'
@@ -74,6 +75,7 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
 export function WordDetailPage({ positions }: { positions: Map<string, LibraryPosition> }) {
   const { wordStateId } = useParams()
   const location = useLocation()
+  useLayoutEffect(() => { window.scrollTo(0, 0) }, [location.key])
   const stateId = wordStateId && /^[1-9]\d*$/.test(wordStateId) && Number.isSafeInteger(Number(wordStateId))
     ? Number(wordStateId) : null
   const detail = useQuery({

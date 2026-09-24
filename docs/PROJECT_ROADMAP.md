@@ -274,7 +274,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | ID | 事项 | 证据 | 严重度 | 影响 | 阶段 |
 |---|---|---|---|---|---|
 | **F-1** | **前端"登录设备"页面未做（2.7-f）**：后端能力**全部就绪**（列表 / 单撤销 / 批量撤销），前端未接线 | handoff §9.6；`frontend/src/` 无相关页面 | 🟠 | 已投入的后端能力无法被用户使用；"退出其它设备"这一安全能力对用户不可见 | **2.8（首选）** |
-| **F-2** | ✅ **手机词库详情工作流已在独立开发分支实现**：≤900px 列表进入 `/library/:wordStateId`，查看音标、完整释义、复习历史、文章暴露及首次/最近时间；返回原筛选、滚动和焦点；桌面双栏保留 | `frontend/src/pages/LibraryPage.test.tsx`；本地分支 `codex/phase3-mobile-design`（未合并） | 🟠（开发分支已修，未合并） | 前端交互测试通过；本 worktree 已用隔离备份副本通过完整 `check.ps1`；Android/iOS 真机验收及 Phase 3/M2 仍未完成 | 3 |
+| **F-2** | ✅ **手机词库详情工作流已在独立开发分支实现**：≤900px 列表进入 `/library/:wordStateId`，查看音标、完整释义、复习历史、文章暴露及首次/最近时间；A 退出后 B 不继承筛选与位置；详情入场回顶部，返回原筛选、文档/列表滚动（含 0）和焦点；桌面双栏保留 | `frontend/src/pages/LibraryPage.test.tsx`；本地分支 `codex/phase3-mobile-design`（未合并） | 🟠（开发分支已修，未合并） | 前端交互测试通过；本 worktree 已用隔离备份副本通过完整 `check.ps1`；Android/iOS 真机验收及 Phase 3/M2 仍未完成 | 3 |
 | **F-3** | 移动端 ≤900px 隐藏导入图片列表（`.image-list`） | Phase 0 §8.3 M2 | 🟡 | 手机上无法查看/移除已上传图片 | 3 |
 | **F-4** | 缺 iOS safe-area 适配：全文件零处 `env(safe-area-inset-*)`，未设 `viewport-fit=cover` | Phase 0 §8.3 M3 | 🟡 | 固定底部导航被 iPhone Home Indicator 遮挡 | 3 |
 | **F-5** | 无 PWA viewport / apple 元信息 | Phase 0 §8.3 M4 | 🟡 | 无法"添加到主屏幕"独立运行 | 3 |
@@ -554,7 +554,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 
 | ID | 目标 |
 |---|---|
-| G1 | ✅ **F-2 手机词库详情工作流已在独立开发分支实现**：≤900px 列表进入独立详情路由，返回及再次从浏览器历史进入详情后均恢复原列表状态；Android/iOS 真机验收仍待做 |
+| G1 | ✅ **F-2 手机词库详情工作流已在独立开发分支实现**：≤900px 列表进入独立详情路由，返回及再次从浏览器历史进入详情后均恢复原列表状态，切号清除 A 的筛选与位置；Android/iOS 真机验收仍待做 |
 | G2 | **F-3** 导入图片列表移动化（或明确产品上"导入是桌面功能"并给出移动端提示） |
 | G3 | **F-4** iOS safe-area 适配 + `viewport-fit=cover` |
 | G4 | **F-5** PWA viewport + apple 元信息 |
@@ -567,7 +567,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | # | 任务 | 涉及位置 | 规模 |
 |---|---|---|---|
 | T1 | ✅ F-2 已选择独立路由；设计与避让说明见 `V1.2-PHASE3-MOBILE-WORKFLOW-DESIGN.md` | `docs/` 设计文档 | S ✅ |
-| T2 | ✅ F-2 手机词库列表→详情→返回工作流已在独立开发分支实现；含反复历史往返、详情时间与错误态测试；隔离 worktree 的完整 `check.ps1` exit 0；尚未合并，真机验收待做 | `frontend/src/pages/LibraryPage.tsx`、`WordDetailPage.tsx`、测试 | M–L（开发分支） |
+| T2 | ✅ F-2 手机词库列表→详情→返回工作流已在独立开发分支实现；含反复历史往返、双账号 URL/位置隔离、文档滚动 0/非 0、详情时间与错误态测试；隔离 worktree 的完整 `check.ps1` exit 0（后端 522 / 前端 50）；尚未合并，真机验收待做 | `frontend/src/pages/LibraryPage.tsx`、`WordDetailPage.tsx`、测试 | M–L（开发分支） |
 | T3 | 实现 F-3 | `frontend/src/pages/ImportPage.tsx`、`styles.css` | S–M |
 | T4 | 新建 `frontend/public/manifest.webmanifest`（`name` / `short_name` / `start_url` / `display: standalone` / `theme_color` / `icons`） | `frontend/public/`（**当前不存在，需新建**） | S |
 | T5 | 生成 PWA 图标 192/512/180（apple-touch）。**注意** `assets/shici-app.png`(741KB) 与 `.ico` 是**桌面快捷方式**用的，不要直接复用 | `frontend/public/` | S |
