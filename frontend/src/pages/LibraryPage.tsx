@@ -79,7 +79,9 @@ export function LibraryPage({ positions }: { positions: Map<string, LibraryPosit
   }
 
   useLayoutEffect(() => {
-    const previous = positions.get(location.key)
+    const restoreFromKey = (location.state as { restoreFromKey?: string } | null)?.restoreFromKey
+    const positionKey = restoreFromKey && positions.has(restoreFromKey) ? restoreFromKey : location.key
+    const previous = positions.get(positionKey)
     if (!previous || !list.data || !listRef.current) return
     listRef.current.scrollTop = previous.listTop
     if (previous.pageY) window.scrollTo(0, previous.pageY)
@@ -87,8 +89,8 @@ export function LibraryPage({ positions }: { positions: Map<string, LibraryPosit
       .find((item) => item.dataset.wordStateId === String(previous.focusedId))
     if (row) row.focus({ preventScroll: true })
     else titleRef.current?.focus({ preventScroll: true })
-    positions.delete(location.key)
-  }, [list.data, location.key, positions])
+    positions.delete(positionKey)
+  }, [list.data, location.key, location.state, positions])
 
   return (
     <div className="page library-page">

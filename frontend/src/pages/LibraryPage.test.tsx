@@ -68,6 +68,7 @@ function mockApi(options: {
     if (url === '/api/auth/logout') return Promise.resolve(Response.json({ ok: true }))
     if (url === '/api/auth/login') return Promise.resolve(Response.json(me(options.currentUser?.() ?? 1)))
     if (url === '/api/settings/onboarding') return Promise.resolve(Response.json({ seen: true }))
+    if (url === '/api/dashboard') return Promise.resolve(Response.json({ today_new: 0, due_reviews: 0, weak_words: 0, reading_status: 'not_generated', streak_days: 0 }))
     if (url.startsWith('/api/words?')) return Promise.resolve(Response.json({ total: 1, words: [savedWord] }))
     if (url === '/api/words/state/42') {
       if (options.detailResponse) return options.detailResponse()
@@ -119,6 +120,66 @@ describe('mobile library detail', () => {
       expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(135)
       expect(screen.getByRole('link', { name: /amber/ })).toHaveFocus()
     })
+  })
+
+  it('returns to the original filtered list after visiting another page and browser back', async () => {
+    mockApi()
+    render(<App />)
+    await userEvent.type(await screen.findByRole('textbox', { name: '搜索单词' }), 'amber')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '学习状态' }), 'weak')
+    await userEvent.click(screen.getByRole('button', { name: '最近加入' }))
+    document.querySelector<HTMLElement>('.word-list')!.scrollTop = 135
+    await userEvent.click(await screen.findByRole('link', { name: /amber/ }))
+    await screen.findByText('The amber caught the morning light.')
+    await userEvent.click(screen.getByRole('link', { name: '今日概览' }))
+    expect(await screen.findByRole('heading', { name: '今天也从一个词开始。' })).toBeInTheDocument()
+    window.history.back()
+    await waitFor(() => expect(window.location.pathname).toBe('/library/42'))
+    await screen.findByText('The amber caught the morning light.')
+    const historyGo = vi.spyOn(window.history, 'go')
+    await userEvent.click(screen.getByRole('link', { name: '返回词库' }))
+    expect(historyGo).not.toHaveBeenCalled()
+    expect(window.location.pathname).toBe('/library')
+    expect(new URLSearchParams(window.location.search).get('search')).toBe('amber')
+    expect(new URLSearchParams(window.location.search).get('status')).toBe('weak')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('recent')
+    await waitFor(() => {
+      expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(135)
+      expect(screen.getByRole('link', { name: /amber/ })).toHaveFocus()
+    })
+  })
+
+  it('shows first and latest article exposure times and omits absent dates', async () => {
+    mockApi()
+    window.history.replaceState({}, '', '/library/42')
+    render(<App />)
+    const exposure = await screen.findByRole('region', { name: '文章暴露' })
+    expect(within(exposure).getByText(/首次.*2026\/9\/21/)).toBeInTheDocument()
+    expect(within(exposure).getByText(/最近.*2026\/9\/23/)).toBeInTheDocument()
+  })
+
+  it('does not render invalid article exposure dates when timestamps are null', async () => {
+    window.history.replaceState({}, '', '/library/42')
+    mockApi({ detailResponse: () => Promise.resolve(Response.json({
+      ...detail,
+      article_exposures: [{ ...detail.article_exposures[0], first_exposed_at: null, last_exposed_at: null }],
+    })) })
+    render(<App />)
+    const exposure = await screen.findByRole('region', { name: '文章暴露' })
+    expect(within(exposure).getByText('The amber caught the morning light.')).toBeInTheDocument()
+    expect(within(exposure).queryByText(/首次|最近|Invalid Date/)).not.toBeInTheDocument()
+  })
+
+  it('shows the available article exposure date when the first time is null', async () => {
+    window.history.replaceState({}, '', '/library/42')
+    mockApi({ detailResponse: () => Promise.resolve(Response.json({
+      ...detail,
+      article_exposures: [{ ...detail.article_exposures[0], first_exposed_at: null }],
+    })) })
+    render(<App />)
+    const exposure = await screen.findByRole('region', { name: '文章暴露' })
+    expect(within(exposure).queryByText(/首次/)).not.toBeInTheDocument()
+    expect(within(exposure).getByText(/最近.*2026\/9\/23/)).toBeInTheDocument()
   })
 
   it('keeps desktop selection in the existing two-column page', async () => {

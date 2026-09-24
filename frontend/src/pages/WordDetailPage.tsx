@@ -1,10 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Clock3, TriangleAlert } from 'lucide-react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { MeaningList } from '../components/MeaningList'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { statusLabels, type LibraryPosition, type WordDetail } from './wordDetailModel'
+
+function exposureTime(value: string | null | undefined) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleString('zh-CN')
+}
 
 export function WordDetailContent({ word }: { word: WordDetail }) {
   const rawIsFallback = word.source_meanings.every((meaning) => !meaning.trim())
@@ -53,6 +59,8 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
           <blockquote key={item.article_id}>
             {item.context}
             {item.exposure_count != null && <small>出现 {item.exposure_count} 次</small>}
+            {exposureTime(item.first_exposed_at) && <small>首次：{exposureTime(item.first_exposed_at)}</small>}
+            {exposureTime(item.last_exposed_at) && <small>最近：{exposureTime(item.last_exposed_at)}</small>}
           </blockquote>
         )) : <p className="muted">还没有在阅读文章中出现。</p>}
       </section>
@@ -66,7 +74,6 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
 export function WordDetailPage({ positions }: { positions: Map<string, LibraryPosition> }) {
   const { wordStateId } = useParams()
   const location = useLocation()
-  const navigate = useNavigate()
   const stateId = wordStateId && /^[1-9]\d*$/.test(wordStateId) && Number.isSafeInteger(Number(wordStateId))
     ? Number(wordStateId) : null
   const detail = useQuery({
@@ -76,20 +83,15 @@ export function WordDetailPage({ positions }: { positions: Map<string, LibraryPo
     retry: false,
   })
   const from = location.state as { fromListKey?: string; returnTo?: string } | null
-  const canGoBack = Boolean(from?.fromListKey && positions.has(from.fromListKey))
+  const hasListPosition = Boolean(from?.fromListKey && positions.has(from.fromListKey))
   const returnTo = from?.returnTo && /^\/library(?:\?|$)/.test(from.returnTo) ? from.returnTo : '/library'
 
   return (
     <div className="page library-detail-page">
       <Link
         className="library-back"
-        to={canGoBack ? returnTo : '/library'}
-        onClick={(event) => {
-          if (canGoBack) {
-            event.preventDefault()
-            navigate(-1)
-          }
-        }}
+        to={hasListPosition ? returnTo : '/library'}
+        state={hasListPosition ? { restoreFromKey: from?.fromListKey } : undefined}
       >
         <ArrowLeft size={18} />返回词库
       </Link>

@@ -13,8 +13,8 @@ export type WordDetail = Word & {
     article_id: number
     context: string
     exposure_count?: number
-    first_exposed_at?: string
-    last_exposed_at?: string
+    first_exposed_at?: string | null
+    last_exposed_at?: string | null
   }>
 }
 
