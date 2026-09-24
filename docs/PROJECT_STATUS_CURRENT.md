@@ -20,7 +20,7 @@
 
 ---
 
-> **同分支代码审查修订（2026-09-24）**：预览现强制 8 MiB 文件、20,000 数据物理行、16 MiB JSON 报告上限；CLI 必填 `--source-root` 并拒绝解析后的路径逃逸；仅 CR/LF 构成物理行。聚焦测试 **16 passed、1 skipped**（本机无文件 symlink 权限，Windows junction 逃逸测试通过）。补齐独立 worktree 的匹配前端构建物与只读 baseline 元数据后，全后端 **536 passed、2 failed、1 skipped**；原 12 失败中的 10 项为环境缺件，余 2 项是停服脚本端口检测在未改动主工作区亦可复现的真实既有问题。完整门禁未通过，不得合并或启动确认写入；逐项证据见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`。
+> **同分支代码审查修订（2026-09-24）**：预览现强制 8 MiB 文件、20,000 数据物理行、16 MiB JSON 报告上限；CLI 必填 `--source-root` 并拒绝解析后的路径逃逸；仅 CR/LF 构成物理行。聚焦测试 **16 passed、1 skipped**（本机无文件 symlink 权限，Windows junction 逃逸测试通过）。补齐独立 worktree 的匹配前端构建物与只读 baseline 元数据后，全后端 **536 passed、2 failed、1 skipped**；原 12 失败中的 10 项为环境缺件，余 2 项停服脚本测试在该次受限沙箱运行中仍失败。随后在完整隔离合成环境以正常权限运行原样 `scripts/check.ps1` **exit 0**：后端 **538 passed、1 skipped**、前端 **32 passed**、隔离证明 2 文件零变化、合成数据库与合成 baseline 核验通过。停服脚本及测试未修改；此结果不代表生产库或 Phase 2.9-A/B 已验收。逐项证据见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`。
 
 ## 1. 项目定位
 

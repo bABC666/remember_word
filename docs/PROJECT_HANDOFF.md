@@ -10,7 +10,7 @@
 
 ---
 
-> **同分支审查修订与复核**：预览容量、来源根目录和 CR/LF 物理行边界已补测试；聚焦测试 16 passed / 1 skipped，ruff 通过。独立 worktree 补齐匹配构建物和只读 baseline 后，全后端 536 passed / 2 failed / 1 skipped；原 12 失败的 10 项属缺件，停服脚本 2 项在未改动主工作区同样失败，属于真实既有运维问题。完整门禁未通过，本分支不得合并或开始确认写入。细节与逐项分类见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`。
+> **同分支审查修订与复核**：预览容量、来源根目录和 CR/LF 物理行边界已补测试；聚焦测试 16 passed / 1 skipped，ruff 通过。最初独立 worktree 的全后端 12 失败中，10 项因缺构建物或 baseline，另 2 项停服测试仅在受限沙箱运行中失败。现已在该 worktree 用合成 0007 数据库、合成 baseline、独立复制的依赖，以正常权限完成原样 `scripts/check.ps1`：**exit 0**；后端 **538 passed / 1 skipped**、前端 **32 passed**、隔离证明 worktree `data/` 2 文件零变化，合成库核验通过。停服脚本和测试未改，生产数据库未用于补环境。完整结果与信任边界见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`；本分支仍未合并，2.9-A/B 未验收，未开始确认写入。
 
 ## 当前状态
 

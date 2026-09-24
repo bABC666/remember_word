@@ -376,7 +376,7 @@ def build_parser() -> argparse.ArgumentParser:
     file_preview.add_argument("file", type=Path)
     file_preview.add_argument(
         "--source-root", type=Path, required=True,
-        help="允许读取的来源根目录；文件解析后的路径必须留在此目录内",
+        help="管理员控制、预览期间不变的本地来源目录；文件解析后不得越界",
     )
     file_preview.add_argument(
         "--map", dest="field_map", action="append", required=True,
