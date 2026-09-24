@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth'
@@ -8,6 +8,8 @@ import { LoadingState } from './components/States'
 import { DashboardPage } from './pages/DashboardPage'
 import { ImportPage } from './pages/ImportPage'
 import { LibraryPage } from './pages/LibraryPage'
+import { WordDetailPage } from './pages/WordDetailPage'
+import type { LibraryPosition } from './pages/wordDetailModel'
 import { LoginPage } from './pages/LoginPage'
 import { ReadingPage } from './pages/ReadingPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -25,6 +27,7 @@ const NO_RETRY_ON_AUTH_FAILURE = (failureCount: number, error: unknown) => {
 }
 
 function AuthenticatedApp() {
+  const libraryPositions = useRef(new Map<string, LibraryPosition>())
   return (
     <AppShell>
       <Routes>
@@ -32,7 +35,8 @@ function AuthenticatedApp() {
         <Route path="/import" element={<ImportPage />} />
         <Route path="/study" element={<StudyPage />} />
         <Route path="/reading" element={<ReadingPage />} />
-        <Route path="/library" element={<LibraryPage />} />
+        <Route path="/library" element={<LibraryPage positions={libraryPositions.current} />} />
+        <Route path="/library/:wordStateId" element={<WordDetailPage positions={libraryPositions.current} />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </AppShell>
