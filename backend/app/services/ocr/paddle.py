@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -14,6 +15,9 @@ from PIL import Image
 
 from app.config import get_settings
 from app.services.ocr.base import OCRDocument, OCRLine, OCRProviderError
+
+_MODEL_CONFIG_FILES = ("inference.yml", "inference.json")
+_MODEL_PARAMETER_SUFFIX = ".pdiparams"
 
 
 @contextmanager
@@ -69,6 +73,58 @@ def configure_paddle_environment() -> Path:
     return cache_path
 
 
+def _is_complete_model_directory(model_dir: Path) -> bool:
+    """Return whether a PaddleX model directory has the files needed to load it.
+
+    PaddleX treats an existing directory as a cache hit, even if an interrupted
+    copy or download left it without its configuration or parameter file.  A
+    non-empty file check catches that state before PaddleOCR decides not to
+    download the model again.
+    """
+    for filename in _MODEL_CONFIG_FILES:
+        candidate = model_dir / filename
+        if not candidate.is_file() or candidate.stat().st_size == 0:
+            return False
+    return any(
+        candidate.is_file() and candidate.stat().st_size > 0
+        for candidate in model_dir.glob(f"*{_MODEL_PARAMETER_SUFFIX}")
+    )
+
+
+def repair_incomplete_paddle_model_cache(cache_path: Path) -> list[Path]:
+    """Remove incomplete PaddleX official-model caches so PaddleOCR re-downloads them.
+
+    Only immediate model directories under ``official_models`` are candidates;
+    cache metadata, locks and temporary download directories are left untouched.
+    The returned paths are useful to callers and make the repair easy to test.
+    """
+    models_root = cache_path / "official_models"
+    if not models_root.is_dir():
+        return []
+
+    try:
+        model_dirs = [path for path in models_root.iterdir() if path.is_dir()]
+    except OSError as error:
+        raise OCRProviderError(f"无法检查 PaddleOCR 模型缓存：{error}") from error
+
+    removed: list[Path] = []
+    for model_dir in model_dirs:
+        try:
+            complete = _is_complete_model_directory(model_dir)
+        except OSError as error:
+            raise OCRProviderError(f"无法检查 PaddleOCR 模型缓存 {model_dir.name}：{error}") from error
+        if complete:
+            continue
+        try:
+            shutil.rmtree(model_dir)
+        except OSError as error:
+            raise OCRProviderError(
+                f"PaddleOCR 模型缓存 {model_dir.name} 不完整，且无法自动清理：{error}"
+            ) from error
+        removed.append(model_dir)
+    return removed
+
+
 class PaddleOCRProvider:
     name = "paddleocr"
 
@@ -80,7 +136,8 @@ class PaddleOCRProvider:
     def _get_engine(self) -> Any:
         if self._engine is not None:
             return self._engine
-        self._configure_model_cache()
+        cache_path = self._configure_model_cache()
+        repair_incomplete_paddle_model_cache(cache_path)
         try:
             from paddleocr import PaddleOCR
         except (ImportError, OSError) as error:
@@ -104,10 +161,10 @@ class PaddleOCRProvider:
             raise OCRProviderError(f"PaddleOCR 初始化失败：{error}") from error
         return self._engine
 
-    def _configure_model_cache(self) -> None:
+    def _configure_model_cache(self) -> Path:
         # Paddle 3.3 on Windows currently fails on the default oneDNN/PIR path for
         # OCR detection models. The plain CPU executor is stable and deterministic.
-        configure_paddle_environment()
+        return configure_paddle_environment()
 
     def extract(self, image_path: Path) -> OCRDocument:
         engine = self._get_engine()
