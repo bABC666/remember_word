@@ -12,8 +12,8 @@
 | 上游 | `origin/feat/v1.2-phase1-safe`；S-1 提交**仅在本地**（未 push、未打 tag） |
 | 安全基线分支 | `recovery/v1.1-guarded`（2026-09-22 数据事故后的安全基线） |
 | 工作区 | **未收口，且含他人未交付的改动**：①S-1 的代码/测试/设计文档已提交（`c3a6106`）；②**并发协作者**修订中的规划文档（`PROJECT_ARCHITECTURE.md`、`PROJECT_ROADMAP.md`、`PROJECT_STATUS_CURRENT.md`、`PROJECT_HANDOFF.md`、`AI_DEVELOPMENT_GUIDE.md` 均**未提交**，内容是 Phase 2.9 规划）；③**本目录内出现的他人前端改动**（`frontend/src/api.ts`、`frontend/src/pages/ImportPage.tsx` 修改 + 未跟踪 `frontend/src/api.test.ts`、`frontend/src/pages/ImportPage.test.tsx`；内容是 OCR 请求超时修复，归属另一个独立 worktree 的任务）——**未提交、未合并、未回滚**；④未跟踪产物 `docs/PROJECT_STATUS_V1.2.md`、`backend/.pytest-tmp-codex-*`。**不要顺手提交或回滚②③④** |
-| 门禁状态 | `scripts/check.ps1` → **exit 0**（见 §3）；后端 **408 passed** |
-| 运行实例 | `127.0.0.1:8000` 单 worker 进程**启动于 12:27，早于 `c3a6106` 与本批 G5**。因此必须把两件事分开读：**S-1 与 G5 的代码与测试都已完成并提交**（后端 408 passed、设计文档齐备），但**当前运行实例尚未重启，两者在该进程上都尚未生效**。重启命令：`stop-vocab.bat` → `start-vocab.bat`（无新 migration，其中 `alembic upgrade head` 是空操作）。本批**未重启实例、未触碰生产库**（2026-09-24 Batch 11：F-1/F-7 的浏览器验收走的是独立端口的 staging 副本，**仍未重启本实例**；生产库三文件指纹验收前后逐字节一致） |
+| 门禁状态 | `scripts/check.ps1` → **exit 0**（见 §3）；后端 **522 passed**、前端 **32 passed / 7 files**（2026-09-24 实测） |
+| 运行实例 | `127.0.0.1:8000` 单 worker 进程**启动于 12:27，早于 `c3a6106` 与本批 G5**。因此必须把两件事分开读：**S-1 与 G5 的代码与测试都已完成并提交**（后端 522 passed、设计文档齐备），但**当前运行实例尚未重启，两者在该进程上都尚未生效**。重启命令：`stop-vocab.bat` → `start-vocab.bat`（无新 migration，其中 `alembic upgrade head` 是空操作）。本批**未重启实例、未触碰生产库**（2026-09-24 Batch 11：F-1/F-7 的浏览器验收走的是独立端口的 staging 副本，**仍未重启本实例**；生产库三文件指纹验收前后逐字节一致）——因此 **DoD 4 的达成（2026-09-24 Batch 12）不能读作本实例已运行 S-1/G5 等新代码**，它的浏览器验收用的是独立端口的 staging 副本 |
 | 冻结基线 | 本文件描述的代码状态已通过全量门禁；**数据侧**另有一份 0007 verified backup 与重录基线（见 §4） |
 
 ---
@@ -83,7 +83,7 @@ Phase 2（认证体系，2.1–2.7）此前已完成。Phase 2.8 于 2026-09-23 
 | G6 / S-6 `history_event` 保留策略 | **已实现并在副本验收（2026-09-23 Batch 7 / T10）**：365 天、四类事件；`preview --plan` 固定候选 ID、UTC cutoff 与逐行 hash，`apply --plan --confirm <运行 ID>` 在 `BEGIN IMMEDIATE` 内只按明确 ID 删除并核对数量，提交后核验通过才发布 committed 凭证。**生产 `data/vocab.db` 从未执行 preview/apply**，而且**当前生产库没有到期候选行**（12 条 `history_event` 全在 365 天窗口内），未来生产清理必须先有到期候选并针对具体计划与运行 ID 获批、在维护窗口内执行——因此这条在"尚未完成"表里只保留生产侧 |
 | T8 / E-3 副本三账号验收 | ✅ **已于 2026-09-23（Batch 8）完成**：`data/recovery/t8-three-user-report-20260923T134500Z.json`，**126/126 PASS**、`verified: true`、`failures: []`（新文件名；旧双账号证据未覆盖）。生产 `data/vocab.db` 只被只读复制，验收前后与其 WAL/SHM 逐字节一致——本表不再有它的缺口 |
 | T9–T17 卫生项 | **T11（T-3 未知 `/api/**` → 404 JSON）与 T17（`.env.example` 补 `VOCAB_DATABASE_PATH`）已于 2026-09-23 Batch 5 完成**；**T12 死代码的低风险部分已于 Batch 9 清理**；**T-14 `data/staging/` 残留已于 Batch 10 处置**；未完成部分见 §6（T-12 死代码、T-13 版本号、T-14 staging 残留） |
-| T-7 浏览器人工验收 | **F-1/F-7 已于 2026-09-24 Batch 11 在真实浏览器（Chrome）里对独立端口的 staging 副本实例完整点过一遍：13/13 步骤通过**（设备列表与「当前设备」标记、错误口令被拒且会话不变、正确口令撤销其他设备、429 等待提示与倒计时、改密后全部会话失效并回登录页），证据 `data/recovery/dod4-browser-acceptance-20260923T162528Z.json` + `test-artifacts/dod4-browser-20260923T162528Z/`。**S-1 无前端入口，不适用浏览器点击**；建议口径（F-1/F-7 浏览器验收 + S-1 后端契约/安全测试/T8 副本验收）见 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`，**待负责人确认** |
+| T-7 浏览器人工验收 | ✅ **达成（2026-09-24，Batch 12 按负责人确认的口径收口）**：**F-1/F-7 以 staging 上真实 Chrome 的 13/13 浏览器验收为证据**（Batch 11 实测，`data/recovery/dod4-browser-acceptance-20260923T162528Z.json` + `test-artifacts/dod4-browser-20260923T162528Z/`：设备列表与「当前设备」标记、错误口令被拒且会话不变、正确口令撤销其他设备、429 等待提示与倒计时、改密后全部会话失效并回登录页）；**S-1 以 27 项管理员二次认证测试（`backend/tests/test_admin_reauth.py`）、安全回归与 T8 三账号副本 126/126 为证据**（前端无管理员入口，不适用浏览器点击）。口径与证据 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`。**活实例 `127.0.0.1:8000` 仍未重启，不能声称它已运行新代码** |
 
 ---
 

@@ -143,9 +143,9 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | 检查 | 结果 |
 |---|---|
-| 后端测试 | **365 passed**（30 个测试文件） |
+| 后端测试 | **522 passed**（38 个测试文件；2026-09-24 实测） |
 | 后端 lint | `ruff check` All checks passed |
-| 前端测试 | **29 passed / 5 files**（Vitest + Testing Library） |
+| 前端测试 | **32 passed / 7 files**（Vitest + Testing Library；2026-09-24 实测） |
 | 前端类型 / lint / 构建 | `typecheck` / `lint` / `build` 均通过 |
 | 测试隔离取证 | `tools/prove_test_isolation.py`：`data/` 零变化 + 全量测试通过 |
 | `scripts/check.ps1` | ✅ **exit 0**（2026-09-23 Batch 0 重建 baseline 后恢复；见 §4.6 E-1） |
@@ -323,7 +323,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6**/**7**/**8**/**9**/**10**/**11** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 T13 版本决策、G6 的**生产执行**与 DoD 4 口径的负责人确认（F-1/F-7 已于 Batch 11 在真实浏览器验收通过）（保留策略已于 Batch 7 实现并在副本验收、T8 三账号验收已于 Batch 8 完成、T12 死代码已于 Batch 9 清理、**T14 staging 残留已于 Batch 10 处置**）；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **进行中**（2026-09-23：Batch 0/0.5/1/2A/**3**/**4**/**5**/**6**/**7**/**8**/**9**/**10**/**11**/**12** 已完成门禁恢复、verified backup + 新 baseline、F-1、F-7、S-2、**S-1**、**G5**；剩余 T13 版本与发布边界决策、G6 的**生产执行**（保留策略已于 Batch 7 实现并在副本验收、T8 三账号验收已于 Batch 8 完成、T12 死代码已于 Batch 9 清理、**T14 staging 残留已于 Batch 10 处置**；**DoD 4 已于 Batch 12 按负责人确认的口径达成**：F-1/F-7 真实浏览器 13/13、S-1 后端契约 27 项 + 安全回归 + T8 副本 126/126）；**T11（T-3）与 T17 已于 Batch 5 完成、G8「每日新词数」已于 Batch 6 完成**） |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.8 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | 2.8（备份 + 门禁 + CSRF）；建议在 3 之后 | 产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
@@ -499,20 +499,20 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 7. 生产库仍为 `0007`（或经批准的新 revision），`integrity_check=ok`、`foreign_key_check=0`、行数与行指纹不变。
 8. 后端 + 前端全量验收通过（后端 pytest、ruff；前端 test/typecheck/lint/build）。
 
-#### 出口标准达成情况（2026-09-23 知识冻结时实测）
+#### 出口标准达成情况（2026-09-23 知识冻结快照；下表的**测试与文件数字**已按最新门禁刷新，并标出冻结时的旧值）
 
 | DoD | 状态 | 证据 / 缺口 |
 |---|---|---|
-| 1 `check.ps1` exit 0 | ✅ 达成 | `All checks passed.`，含 `prove_test_isolation.py`（`data/` 106 文件零变化）与 `verify_backup.py`（VERIFIED BACKUP） |
+| 1 `check.ps1` exit 0 | ✅ 达成 | 最新（2026-09-24 Batch 12）：`All checks passed.`，含 `prove_test_isolation.py`（`data/` **194 文件零变化**）与 `verify_backup.py`（VERIFIED BACKUP）。**历史快照**：2026-09-23 冻结时为 `data/` 106 文件——该数字随证据目录增减而变，结论不变 |
 | 2 0007 verified backup + 新 baseline | ✅ 达成 | `post-0007-verified-20260923-001237-vocab.db` + 重录的 `baseline.json`；两份旧基线归档保留 |
 | 3 ahead 归零 | ✅ 达成 | ahead 0 / behind 0 |
-| 4 设备管理 / 自助改密 / **管理员二次认证** 浏览器可用 + 前端测试 | ⚠ **部分** | 设备管理（F-1）与自助改密（F-7）已交付：10 条前端集成测试（`security.test.tsx`）+ 活实例上线新 bundle。**S-1 的后端守卫与 27 项测试已完成**，但**前端从来就没有管理员用户管理入口**（[实测] `frontend/src/` 全仓库无 `/api/users` 调用），所以"在浏览器里点一遍"这一条只对 F-1/F-7 成立，对 S-1 **不适用**（其验收口径改为后端契约 + 测试，见 `V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` §7）。是否新建管理员页面属**另一次产品决策**，本批不做。**2026-09-24 Batch 11 已在真实浏览器上完成 F-1/F-7 的完整点击验收（13/13 步骤通过，记录 `data/recovery/dod4-browser-acceptance-20260923T162528Z.json`），并给出建议口径：F-1/F-7 走浏览器验收、S-1 走后端契约 + 安全测试 + T8 三账号副本验收——证据与口径见 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`，**待负责人确认，故本行仍为 ⚠ 部分** |
+| 4 设备管理 / 自助改密 / **管理员二次认证** 浏览器可用 + 前端测试 | ✅ **达成（2026-09-24，Batch 12 按负责人确认的口径收口）** | 设备管理（F-1）与自助改密（F-7）已交付：10 条前端集成测试（`security.test.tsx`），且其 bundle 早于12:27 启动的活实例进程（`c3a6106` 之后的提交至今未在该进程生效，见本行末尾）。**S-1 的后端守卫与 27 项测试已完成**，但**前端从来就没有管理员用户管理入口**（[实测] `frontend/src/` 全仓库无 `/api/users` 调用），所以"在浏览器里点一遍"这一条只对 F-1/F-7 成立，对 S-1 **不适用**（其验收口径改为后端契约 + 测试，见 `V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` §7）。是否新建管理员页面属**另一次产品决策**，本批不做。**F-1/F-7：以 staging 上真实 Chrome 的 13/13 浏览器验收为证据**——当前代码 + 最新 `frontend/dist`、独立端口上的 online-backup 副本，2026-09-24 Batch 11 实测逐步截图/网络日志/副本侧证（`data/recovery/dod4-browser-acceptance-20260923T162528Z.json`、`test-artifacts/dod4-browser-20260923T162528Z/`），覆盖设备列表与「当前设备」标记、错误口令被拒且会话不变、正确口令撤销其他设备、429 等待提示与倒计时、改密后全部会话失效并回登录页。**S-1：以 `backend/tests/test_admin_reauth.py` 的 27 项契约测试 + 安全回归（CSRF 同源、限流 429/`Retry-After`、审计事件）+ T8 三账号副本 126/126 为证据**（`data/recovery/t8-three-user-report-20260923T134500Z.json`）；前端从无管理员用户管理入口，故「在浏览器里点一遍」对其不成立（是否新建页面属另一次产品决策，本批不新建）。口径与证据见 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`。**⚠ 但 `127.0.0.1:8000` 活实例至今未重启**（进程启动早于 `c3a6106`/G5），因此本行达成**不能**读作「活实例已运行这些新代码」 |
 | 5 `daily_new_words` 生效 + `.env.example` 补 `VOCAB_DATABASE_PATH` | ✅ **达成（2026-09-23）** | **T17 已于 Batch 5 完成**、**G8/T16 已于 Batch 6 完成**：额度按当天已开始学的新词累计（跨请求不叠加、复习后不补词），到期词不被新词额度或 `limit` 挤掉；测试 `backend/tests/test_daily_new_words.py`（25 项） |
 | 6 副本**三账号**验收 `verified: true` | ✅ **达成（2026-09-23，Batch 8）** | `data/recovery/t8-three-user-report-20260923T134500Z.json`：**126/126 PASS**、`failures: []`、`verified: true`，新文件名；既有双账号证据（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`）未被覆盖 |
 | 7 生产库仍为 0007、完整性不变 | ✅ 达成 | revision `0007`、`integrity_check=ok`、`foreign_key_check=0`；`check.ps1` 逐表行指纹比对 17/17 `ok` |
-| 8 后端 + 前端全量验收 | ✅ 达成 | 后端 **365 passed** + ruff 全通过；前端 **29 passed** + typecheck/lint/build 通过 |
+| 8 后端 + 前端全量验收 | ✅ 达成 | 最新（2026-09-24 Batch 12）：后端 **522 passed** + ruff 全通过；前端 **32 passed / 7 files** + typecheck/lint/build 通过。**历史快照**：2026-09-23 冻结时为后端 365 passed / 前端 29 passed |
 
-> **结论**：Phase 2.8 **尚未完成**（S-1 已于 2026-09-23 Batch 3 关闭、T11 与 T17 已于 Batch 5 关闭、G8/T16 已于 Batch 6 关闭，但 DoD 4 对 S-1 的"浏览器可用"口径不适用）。剩余：**DoD 4 口径的负责人确认**（F-1/F-7 已于 Batch 11 在真实浏览器验收通过，证据与建议口径见 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`；S-1 无前端入口，其口径见该文件 §4）、T13 版本决策，以及 **G6 保留策略的生产执行**（需负责人批准具体计划与运行 ID 并安排维护窗口）。**不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
+> **结论**：**DoD 1–8 全部达成**（DoD 4 于 2026-09-24 Batch 12 按负责人确认的口径收口：F-1/F-7 真实浏览器 13/13、S-1 后端契约 27 项 + 安全回归 + T8 副本 126/126），但 **Phase 2.8 尚未正式结束**：剩余 **T13 版本与发布边界决策**（三处 `1.0.0` 是否统一为 `1.2.0`、`v1.2` 的边界、何时打 tag）与 **G6 保留策略的生产执行**（需负责人批准具体计划与运行 ID 并安排维护窗口）。另注：活实例 `127.0.0.1:8000` 至今未重启，DoD 4 的达成不等于它已运行新代码。**在 T13 决策前不要把本阶段标记为已完成，也不要提前统一版本号或打 tag。**
 
 ---
 

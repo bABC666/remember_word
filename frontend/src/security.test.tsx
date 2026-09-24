@@ -15,6 +15,11 @@ import { App } from './App'
  *   be signed out by accident;
  * * both revocations and a password change go through the password prompt, and a
  *   refused or rate-limited attempt changes nothing on screen.
+ *
+ * One assertion here is deliberately jsdom-only: the component's too-short branch is
+ * pre-empted in a real browser by the field's native `minLength` validation, so it
+ * guards the branch rather than the message a user actually sees (see the DoD 4
+ * browser acceptance, §3).
  */
 
 const json = (value: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -286,7 +291,19 @@ describe('changing your own password', () => {
     expect(screen.getByRole('link', { name: '设置' })).toBeInTheDocument()
   })
 
-  it('refuses a too-short new password without calling the server', async () => {
+  /**
+   * The component's own too-short branch -- and a jsdom-only one.
+   *
+   * A real browser never reaches this branch: the 新密码 field carries minLength={8},
+   * so Chrome refuses the submit itself and the user sees the browser's own message
+   * ("请将该文本增加为 8 个字符或更多…") instead of 新密码至少 8 位。. That is the
+   * behaviour the DoD 4 browser acceptance recorded as step S10
+   * (docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md §3), and the native check is kept
+   * deliberately. jsdom implements no native constraint validation, so this test pins
+   * the branch as a regression guard -- it does not describe what a user sees in a
+   * browser, and the assertion below is not weakened to pretend otherwise.
+   */
+  it('refuses a too-short new password in the component, without calling the server', async () => {
     await openSettings()
     const form = await screen.findByRole('form', { name: '修改密码' })
     await fill(form, 'secret', 'short', 'short')
