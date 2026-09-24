@@ -47,6 +47,8 @@ backend\.venv\Scripts\python.exe -m pip install -e "backend[ocr]"
 
 在包含中文用户名或中文项目路径的 Windows 上，Paddle Inference 可能无法直接读取模型路径。应用会把模型实体保存在 `data/ocr-models/`，并在系统临时目录自动创建一个仅用于兼容底层推理库的 ASCII 目录联接；模型数据仍然集中在项目 data 目录。
 
+OCR 首次初始化会检查 `official_models/` 中已有模型的 `inference.yml`、`inference.json` 与参数文件。若更新或下载中断留下不完整模型目录，应用只删除该可再下载的目录并让 PaddleOCR 重新获取它；不会触碰词库、上传图片或配置。
+
 当前 Windows CPU 组合会关闭 PaddleX 默认 oneDNN 路径，绕过 Paddle 3.3 PIR 执行器对 OCR 检测模型中数组属性的未实现转换；实际 OCR 仍由 PaddleOCR/PaddlePaddle 完成。
 
 ## 开发方式
