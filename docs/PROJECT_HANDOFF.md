@@ -30,7 +30,7 @@
 | 本批关闭的任务 | **DoD 4 的人工验收项**（按负责人 2026-09-24 确认的口径：F-1/F-7 浏览器验收 + S-1 契约/安全/副本验收）—— **但 Phase 2.8 本身未关闭**，留待 T13 版本与发布边界决策。Batch 11 交付验收证据与口径、不关闭任务；Batch 10 关闭 **T14 + S-5**；Batch 9 关闭 **T12 的低风险部分** |
 | 门禁 | `scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
-| 运行实例 | `127.0.0.1:8000`（本机，单 worker；交付时在运行，PID 见 `data/server.pid`）。**该进程启动于 2026-09-23 12:27，早于 `c3a6106` 与本批：S-1 与 G5 的代码与测试都已完成并提交，但都尚未在此进程生效。** 让它们生效需重启（`stop-vocab.bat` → `start-vocab.bat`；无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
+| 运行实例 | ⚠ **当前没有实例在运行**：`127.0.0.1:8000` 的 PID 96988/83180 在 2026-09-24 00:42 的系统休眠窗口之后消失（端口无监听；实例日志 `data/logs/server-out.log` 停在 21:33:03 且**没有优雅停机记录**；`data/server.pid` 仍是旧值 96988，而 `stop-vocab.ps1` 成功时会删除该文件）——**Batch 11/12 未重启也未停止它**，本批也不重启。 它此前是 `127.0.0.1:8000` 的单 worker 进程，启动于 2026-09-23 12:27，早于 `c3a6106` 与 G5，**因此那些代码虽已提交，却从未在任何活实例上生效**；要让它们生效需 `start-vocab.bat`（无新 migration，`alembic upgrade head` 是空操作）——本批**未重启**（不触碰生产实例） |
 | 下一步 | Phase 2.8 剩余：**T13 版本决策、G6 保留策略的生产执行（需负责人针对具体 preview 计划与运行 ID 批准 + 维护窗口）；**DoD 4 已于 Batch 12 按确认口径达成，Phase 2.8 的正式结束留待 T13 版本与发布边界决策**（T11、T17、G8/T16、T8、T12 与 T14 已完成）；之后 Phase 2.9 外部公共词库（可并行 Phase 3 移动端设计） |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
