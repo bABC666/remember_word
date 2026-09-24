@@ -149,6 +149,33 @@ describe('mobile library detail', () => {
     })
   })
 
+  it('keeps the filtered return URL after returning to detail through browser history', async () => {
+    mockApi()
+    render(<App />)
+    await userEvent.type(await screen.findByRole('textbox', { name: '搜索单词' }), 'amber')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '学习状态' }), 'weak')
+    await userEvent.click(screen.getByRole('button', { name: '最近加入' }))
+    document.querySelector<HTMLElement>('.word-list')!.scrollTop = 135
+    await userEvent.click(await screen.findByRole('link', { name: /amber/ }))
+    await screen.findByText('The amber caught the morning light.')
+    await userEvent.click(screen.getByRole('link', { name: '返回词库' }))
+    await waitFor(() => expect(window.location.pathname).toBe('/library'))
+    window.history.back()
+    await waitFor(() => expect(window.location.pathname).toBe('/library/42'))
+    await screen.findByText('The amber caught the morning light.')
+    const returnLink = screen.getByRole('link', { name: '返回词库' })
+    expect(returnLink).toHaveAttribute('href', '/library?search=amber&status=weak&view=recent')
+    await userEvent.click(returnLink)
+    expect(window.location.pathname).toBe('/library')
+    expect(new URLSearchParams(window.location.search).get('search')).toBe('amber')
+    expect(new URLSearchParams(window.location.search).get('status')).toBe('weak')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('recent')
+    await waitFor(() => {
+      expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(135)
+      expect(screen.getByRole('link', { name: /amber/ })).toHaveFocus()
+    })
+  })
+
   it('shows first and latest article exposure times and omits absent dates', async () => {
     mockApi()
     window.history.replaceState({}, '', '/library/42')

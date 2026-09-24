@@ -89,7 +89,7 @@ export function LibraryPage({ positions }: { positions: Map<string, LibraryPosit
       .find((item) => item.dataset.wordStateId === String(previous.focusedId))
     if (row) row.focus({ preventScroll: true })
     else titleRef.current?.focus({ preventScroll: true })
-    positions.delete(positionKey)
+    // Keep the source entry while its detail route remains in browser history.
   }, [list.data, location.key, location.state, positions])
 
   return (
