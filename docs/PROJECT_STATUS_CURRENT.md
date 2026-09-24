@@ -16,6 +16,8 @@
 | 运行实例 | ✅ 2026-09-24 发布后已按启动前检查恢复：`127.0.0.1:8000/api/health` 返回 `ok`，OpenAPI 版本 `1.2.0`；PID 文件记录的虚拟环境 Python 进程启动了实际监听的子进程。显式设置 `VOCAB_DATA_DIR` 和 `VOCAB_DATABASE_PATH` 指向本仓库 `data/` 与 `data/vocab.db`；启动后数据库仍为 0007，完整性、外键及基线核验通过。DoD 4 的原始浏览器验收在独立 staging 实例完成，不把它改写为本机正式实例的浏览器验收 |
 | 冻结基线 | 本文件描述的代码状态已通过全量门禁；**数据侧**另有一份 0007 verified backup 与重录基线（见 §4） |
 
+> **独立开发分支增量（2026-09-24，`codex/phase-2-9-preview`，基于 `e03bd82`；未合入发布版）**：Phase 2.9 首个来源无关切片已加入本地分隔文件只读预览与 CLI，使用合成文件验证字段映射、编码、原始字节 SHA-256、规范词形、文件内重复和逐行错误。预览绕开数据库初始化；测试核对 `LexiconEntry`、`UserWordState`、`ReviewEvent` 行数与源文件字节不变。聚焦测试 **8 passed**，ruff `app tests` 和 `tools` 均通过。独立 worktree 的全后端测试 **516 passed、12 failed、1 skipped**：缺 `frontend/dist` 导致 SPA 相关 8 失败，缺 `data/recovery/baseline.json` 导致历史保留 1 失败，停服脚本断言 2 失败，另有 CSRF 首页读取 1 失败（亦因缺构建物）。`scripts/check.ps1` **exit 1**：worktree 没有 `backend/.venv`，脚本在启动检查退出。此增量不表示 2.9-A 或 2.9-B 验收，发布门禁仍未通过；详细记录见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`。
+
 ---
 
 ## 1. 项目定位

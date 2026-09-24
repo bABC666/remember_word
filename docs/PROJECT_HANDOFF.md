@@ -6,6 +6,8 @@
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > `docs/PROJECT_STATUS_V1.2.md` 是 2026-09-22 的只读审计快照，已加当前状态索引；旧数字保留为历史证据，不作为当前状态来源。当前事实以代码、`PROJECT_STATUS_CURRENT.md` 及 `docs/V1.2-RELEASE-RECORD.md` 为准。
 
+> **2026-09-24 独立分支接手补充**：`codex/phase-2-9-preview` 从设计 `e03bd82` 开始，只实现合成文件的只读预览和校验。聚焦测试 8 passed；ruff 后端与 tools 通过；全后端测试 516 passed / 12 failed / 1 skipped，失败涉及独立 worktree 缺少构建物及 baseline、停服脚本断言；`scripts/check.ps1` 因 worktree 没有 `.venv` 为 exit 1。未确认任何真实来源许可，未导入、迁移或写生产库，Phase 2.9-A/B 仍未验收。复验命令、失败分类及后续依赖见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`。下文 1.2.0 发布数字是历史发布记录，不应误作该分支的门禁结果。
+
 ---
 
 ## 当前状态

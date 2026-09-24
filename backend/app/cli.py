@@ -17,6 +17,7 @@ Usage::
     python -m app.cli create-user userb
     python -m app.cli promote userb
     python -m app.cli prune-sessions
+    python -m app.cli public-lexicon preview synthetic.csv --map word=head
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from app.history_retention_preview import preview_history_retention
 from app.models import User, UserSession, UserSettings
 from app.security import hash_password, password_is_usable
 from app.services.auth import normalize_username, prune_sessions
+from app.services.public_lexicon_preview import PreviewMapping, preview_file
 from app.testing_guards import assert_not_real_data
 
 MIN_PASSWORD_LENGTH = 8
@@ -176,6 +178,30 @@ def command_prune_sessions(_args: argparse.Namespace) -> int:
         removed = prune_sessions(session)
         remaining = session.scalar(select(func.count()).select_from(UserSession)) or 0
     print(f"已清理 {removed} 条失效会话（已撤销／已过期／闲置超时），保留 {remaining} 条。")
+    return 0
+
+
+def command_public_lexicon_preview(args: argparse.Namespace) -> int:
+    """Print a source-file report without opening an application database."""
+    columns: dict[str, str] = {}
+    for item in args.field_map:
+        field, separator, column = item.partition("=")
+        if not separator or not field or not column or field in columns:
+            print(f"无效或重复的字段映射：{item}", file=sys.stderr)
+            return 2
+        columns[field] = column
+    try:
+        mapping = PreviewMapping(
+            columns=columns,
+            required_fields=tuple(dict.fromkeys(("word", *args.required))),
+            encoding=args.encoding,
+            delimiter=args.delimiter,
+        )
+        report = preview_file(args.file, mapping)
+    except (LookupError, OSError, ValueError) as error:
+        print(f"公共词库预览失败：{error}", file=sys.stderr)
+        return 2
+    print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -344,6 +370,22 @@ def build_parser() -> argparse.ArgumentParser:
     prune = sub.add_parser("prune-sessions", help="清理已撤销／已过期／闲置超时的会话")
     prune.set_defaults(func=command_prune_sessions)
 
+    public_lexicon = sub.add_parser("public-lexicon", help="公共词库文件工具")
+    public_sub = public_lexicon.add_subparsers(dest="public_command", required=True)
+    file_preview = public_sub.add_parser("preview", help="只读校验分隔文本文件")
+    file_preview.add_argument("file", type=Path)
+    file_preview.add_argument(
+        "--map", dest="field_map", action="append", required=True,
+        metavar="FIELD=COLUMN", help="规范字段到原文件列名的映射，可重复",
+    )
+    file_preview.add_argument(
+        "--required", action="append", default=[], metavar="FIELD",
+        help="要求非空的字段，word 始终必填，可重复",
+    )
+    file_preview.add_argument("--encoding", default="utf-8-sig")
+    file_preview.add_argument("--delimiter", default=",")
+    file_preview.set_defaults(func=command_public_lexicon_preview, file_only_preview=True)
+
     retention = sub.add_parser("history-retention", help="history_event 保留策略（已确认 365 天）")
     retention_sub = retention.add_subparsers(dest="retention_command", required=True)
     preview = retention_sub.add_parser("preview", help="只读预览候选事件，不执行清理")
@@ -388,6 +430,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "file_only_preview", False):
+        return int(args.func(args))
     if getattr(args, "read_only_preview", False):
         args.database_path = _preview_database_path()
         if getattr(args, "baseline", None) is None:
