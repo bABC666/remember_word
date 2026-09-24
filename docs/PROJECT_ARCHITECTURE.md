@@ -351,7 +351,7 @@ ReviewEvent         每次复习的事实记录（append-only）
 
 ### 7.1 版本口径
 
-**1.2.0 目前是本机多用户版发布候选，不是已发布版本。** `backend/pyproject.toml`、`frontend/package.json`、`frontend/package-lock.json` 的顶层与根包条目、`FastAPI(version="1.2.0")` 已统一；仍未合并、推送或打 tag。发布边界与待审事项见 `docs/V1.2-RELEASE-CANDIDATE.md`。
+**1.2.0 是本机多用户版正式发布。** `backend/pyproject.toml`、`frontend/package.json`、`frontend/package-lock.json` 的顶层与根包条目、`FastAPI(version="1.2.0")` 已统一；合并、tag、发布边界与验证见 `docs/V1.2-RELEASE-RECORD.md`。Phase 2.9/3/4 不包含在本次发布内。
 
 | 项 | 值 |
 |---|---|
@@ -393,9 +393,9 @@ ReviewEvent         每次复习的事实记录（append-only）
 
 | 检查 | 结果 |
 |---|---|
-| 后端测试 | **365 passed**（30 个测试文件） |
+| 后端测试 | **522 passed**（2026-09-24 发布前全量门禁） |
 | 后端 lint | `ruff check` All checks passed |
-| 前端测试 | **29 passed / 5 files** |
+| 前端测试 | **32 passed / 7 files** |
 | 前端类型 / lint / 构建 | 通过 |
 | 全量门禁 | `scripts/check.ps1` **exit 0**（含隔离取证与 verified backup 两步） |
 | 测试隔离取证 | `tools/prove_test_isolation.py`：`data/` 零变化 + 全量测试通过 |
@@ -415,7 +415,7 @@ ReviewEvent         每次复习的事实记录（append-only）
 | **T8 三账号隔离验收已在副本完成**（生产库仍仅 1 个 `user` 行） | 126/126 PASS、`verified: true`；验收按约定不在生产创建测试账号 |
 | ~~`scripts/check.ps1` 末步必然失败~~ → **已修复**（2026-09-23，Phase 2.8 Batch 0：基线从 verified 0007 备份重录，旧基线归档保留） | 已关闭 |
 
-**结论**：当前是**1.2.0 本机多用户版发布候选，未正式发布**。S-1 管理员二次认证、G5 会话上限、G6 保留策略实现与 staging 验收、T8 副本三账号验收及 DoD 4 已完成；DoD 3 仍待推送核验。距 §2 的长期目标形态，**Phase 2.9 外部公共词库、Phase 3 移动端/PWA、Phase 4 公网部署**均未交付。G6 生产清理在有到期候选及具体计划获批后另行安排，不作为本次候选必须执行的删除。
+**结论**：**1.2.0 本机多用户版已通过 Phase 2.8 DoD 1–8 并正式发布**，合并、tag 和验证证据见 `V1.2-RELEASE-RECORD.md`。S-1 管理员二次认证、G5 会话上限、G6 保留策略实现与 staging 验收、T8 副本三账号验收及 DoD 4 已完成；DoD 3 已通过推送及远端核验。距 §2 的长期目标形态，**Phase 2.9 外部公共词库、Phase 3 移动端/PWA、Phase 4 公网部署**均未交付。G6 生产清理在有到期候选及具体计划获批后另行安排，不属于本次发布。
 
 ---
 

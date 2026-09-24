@@ -117,7 +117,7 @@ cd frontend; npm test; npm run typecheck; npm run lint; npm run build
 2. **message 说明目的**：主题行用约定式前缀（`feat(v1.2):` / `fix(tools):` / `test(v1.2):` / `docs:` / `refactor(v1.2):`），正文写**为什么**（现状缺陷 + 取舍 + 边界），不是复述 diff。
 3. **提交前自查**（`PROJECT_ROADMAP.md` §7.3）：无 `DROP TABLE`/`DROP COLUMN`、未删改生产库、未提交密钥、`git diff` 已人工过目、未提交他人未跟踪文件。
 4. **不 push 强制**、不 rebase/squash 已推送历史（本仓库历史上以 fast-forward 方式推送）。
-5. **不自动创建 tag**：项目版本已统一为 `1.2.0` 本机多用户版发布候选，但尚未正式发布；须先审阅候选、推送并复核 DoD 3，再明确决定合并与 tag（见 `docs/V1.2-RELEASE-CANDIDATE.md`）。
+5. **不自动创建 tag**：`v1.2.0` 的正式发布由负责人明确授权，发布证据见 `docs/V1.2-RELEASE-RECORD.md`。以后任何版本仍须先审阅候选、推送并复核，再分别决定合并与 tag。
 6. **阶段收尾时**按 `PROJECT_ROADMAP.md` §10.2 的完成协议执行（DoD 逐条有可复现证据 → 关闭登记册条目 → 更新文档 → 全量验收 → 若涉 schema 则核对 revision）。
 7. 需要"完成的定义"时认这一条：**代码 + 测试 + 文档 + `check.ps1` exit 0 + commit**，并在交付说明里列出**修改文件、测试结果、commit hash、剩余风险**。
 

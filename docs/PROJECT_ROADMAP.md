@@ -70,7 +70,7 @@
 | 形态 | 状态 | 说明 |
 |---|---|---|
 | **V1.0/V1.1 · 单机本地应用** | 已完成 | Windows 优先，`127.0.0.1:8000`，单用户 |
-| **V1.2 · 多用户本地应用** | **当前**（Phase 2 基本完成，未发布） | 账号、会话、权限隔离、登录防滥用；仍只监听回环地址 |
+| **V1.2 · 多用户本地应用** | **1.2.0 已发布** | 账号、会话、权限隔离、登录防滥用；仍只监听回环地址 |
 | **目标形态 · 多用户 + 公共电子词库 + 移动可用 + 公网可访问** | 未完成 | 外部公共词库导入、PWA 安装到手机主屏、HTTPS 公网访问、自动备份；自适应复习另属 Phase 5 |
 
 ### 1.3 不可让渡的产品承诺（红线）
@@ -102,7 +102,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | 手机上能装、能读、能看到完整释义 | ❌ 不满足（§4.3 F-1） |
 | 离开本机也能访问，且数据不丢 | ❌ 不满足（§4.2 D-1） |
 | 复习间隔随个人记忆表现自适应 | ❌ 不满足（固定阶梯，§6.4） |
-| 任意时刻有一份经过校验的可用备份 | ❌ 不满足（§4.2 D-2） |
+| 任意时刻有一份经过校验的可用备份 | ✅ 本机已有 verified backup；异地副本与自动化仍待 Phase 4（§4.2 D-2） |
 | 换一台机器能完整恢复 | ⚠ 部分满足（迁移 runbook 已就绪，但缺异地副本） |
 
 ---
@@ -111,9 +111,9 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 ### 2.1 版本口径（重要，避免误判）
 
-> **"V1.2"目前只是分支名与阶段名，不是已发布的版本号。**
+> **V1.2 已以 `v1.2.0` 正式发布本机多用户版。** 以下旧批次记录保留各自形成时的状态；当前发布对象以 tag 为准。
 
-**[2026-09-24 候选状态]** 项目自身版本已统一为 `1.2.0`：`backend/pyproject.toml`、`frontend/package.json`、`frontend/package-lock.json` 顶层及根包、`backend/app/main.py` 的 FastAPI 版本。范围是**本机多用户版发布候选**；分支已推送且 DoD 3 已满足，但仍未发布、未合并、未打 tag。见 `docs/V1.2-RELEASE-CANDIDATE.md`。
+**[2026-09-24 正式发布]** 项目自身版本已统一为 `1.2.0`：`backend/pyproject.toml`、`frontend/package.json`、`frontend/package-lock.json` 顶层及根包、`backend/app/main.py` 的 FastAPI 版本。范围是**1.2.0 本机多用户正式版**；合并、发布 tag 与证据见 `docs/V1.2-RELEASE-RECORD.md`。见 `docs/V1.2-RELEASE-CANDIDATE.md`。
 
 ### 2.2 代码与 Git 状态 [实测]
 
@@ -312,7 +312,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | **E-1** | ✅ **已关闭（2026-09-23，Batch 0 / T5）** ~~**`scripts/check.ps1` 必然失败（B6）**：`tools/verify_backup.py` 的基线 `data/recovery/baseline.json` 仍冻结在 `0003_article_reading_tools`，而生产库已是 `0007`~~ → 基线已从 verified 0007 备份重录（旧基线归档保留），`check.ps1` 恢复 **exit 0**；另注：`tools/verified_db.py` 并无硬编码 `0003`（实际位置见 T5 行） | handoff §8 | 🟠→⚪ | 已恢复自动兜底 | 2.8 ✅ |
 | **E-2** | **33 个 commit 只在本地**，`origin` 停在 `6ad8fce`；发布证据（`data/recovery/*`）按设计不入 Git | [实测] `git status -sb` | 🔴 | 本机故障即丢失 P1.0–P1.3 与 0007 迁移成果 | **2.8** |
 | **E-3** | ✅ **已关闭（2026-09-23，Batch 8 / T8）** 原缺陷：生产双账号/三账号端到端隔离验收未做（须**在副本上**，禁止在生产建测试账号） | status §6.1；证据 `data/recovery/t8-three-user-report-20260923T134500Z.json` | ✅ 已关闭 | 副本三账号矩阵 126 项全通过，含 409 守卫与跨用户 404 等价性 | 2.8 |
-| **E-4** | ✅ **候选版本已统一为 `1.2.0`**（后端包、前端包及 lock 根包、FastAPI） | `d1805b3` | ⚪ | 只表示候选代码版本；正式发布、推送与 tag 尚未发生 | 2.8 / T13 |
+| **E-4** | ✅ **候选版本已统一为 `1.2.0`**（后端包、前端包及 lock 根包、FastAPI） | `d1805b3` | ⚪ | 候选提交时只表示版本目标；正式发布、合并与 tag 见 `V1.2-RELEASE-RECORD.md` | 2.8 / T13 |
 | **E-5** | 无 CI（`.github/` 不存在） | [实测] | 🟡 | 所有门禁依赖人工执行 `check.ps1`；2026-09-24 T13 最近一次完整执行通过 | 6 |
 | **E-6** | 文档过时陈述：`0007-release-record.md` §11.2、`PROJECT_HANDOFF.md` 早期版本关于 P1.3/登录页"尚未实施"的说法与现状矛盾 | status §6.1 | 🟡 | **会诱导接手者重复实施已完成工作** | 2.8 |
 | **E-7** | `data/recovery/acceptance-report.json` 是 V1.1 / `0003` 时期证据 | status §6.5 #6 | ⚪ | 易被误当作 0007 之后的证据 | 2.8 |
@@ -325,7 +325,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
-| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **发布候选审阅中**：S-1、S-2、G5、G6 策略及 staging 演练、G8、T8、T11、T12 低风险清理、T14、T17 与 DoD 4 已有验收；T13 已统一 `1.2.0` 并提出本机多用户版边界。**DoD 3 已满足**：`74dfd75` 推送并核对远端，推送后 ahead 0 / behind 0。生产库当前无 G6 到期候选；将来的清理另行批准，不作为本次发布必做删除。正式发布、合并、tag 均未发生。 |
+| **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **1.2.0 本机多用户版已发布**：S-1、S-2、G5、G6 策略及 staging 演练、G8、T8、T11、T12 低风险清理、T14、T17 与 DoD 4 已有验收；T13 已统一 `1.2.0` 并提出本机多用户版边界。**DoD 3 已满足**：候选分支 `57418e7` 已在 GitHub 实时核对；`74dfd75` 是此前的推送快照。生产库当前无 G6 到期候选；将来的清理另行批准，不作为本次发布必做删除。本机多用户版的合并、正式 tag 与发布见 `V1.2-RELEASE-RECORD.md`。 |
 | **2.9** | 外部电子词库与公共词库交付 | **P1** | L–XL（以真实资料定） | 2.8 安全与门禁收尾；外部词库来源可用 | 云端关闭 OCR 后仍有受控、可溯源的主要词条来源 | **未开始；Phase 4 硬前置** |
 | **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.9 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
 | **4** | 生产部署上线 | **P1** | L–XL | **2.8 + 2.9**；建议在 3 之后 | 公共词库可用，产品离开本机；自动备份与灾难恢复 | 未开始 |
@@ -436,7 +436,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | T10 | ✅ **已完成（2026-09-23，Batch 7）** `history_event` 保留策略：`history-retention preview [--plan]` 与 `apply --plan --confirm <运行 ID>`；窗口由 `VOCAB_HISTORY_EVENT_RETENTION_DAYS` 控制（默认 365、最小 365、`0` = 关闭）；归档 + 清理前备份 + 待提交→committed 凭证，任何失败都故障关闭。测试 `backend/tests/test_history_retention_apply.py`（39 项）与副本演练 `tools/history_retention_staging_drill.py`（含恢复演练） | `backend/app/cli.py`、`backend/app/history_retention.py`、`backend/app/history_retention_preview.py`、`tools/history_archive.py`、`.env.example` | M ✅ |
 | T11 | ✅ **已完成（2026-09-23，Batch 5）** SPA 兜底路由加 `/api/**` 例外，返回 404 JSON（T-3）：未知 `/api/**` 的 `GET` 返回 404 JSON，正常前端路由仍返回 SPA 页面；既有 API 与 `/assets` 挂载不变；**未放宽 CSRF**——跨源写请求仍由最外层同源中间件 403 拒绝（`POST`/`HEAD`/`OPTIONS` 打到未知 `/api/**` 由路由给出 405）。测试 `backend/tests/test_spa_fallback.py` 16 项 | `backend/app/main.py` | S ✅ |
 | T12 | ✅ **已完成（2026-09-23，Batch 9）** 清理死代码：删除 `backend/app/api/helpers.py::word_dict`（连带因此多余的 `Word` import）与 `backend/app/schemas.py::WordSummary`（连带因此多余的 `from datetime import datetime`）。依据是全仓库引用搜索（`word_dict(` 只命中定义自身，`WordSummary` 只命中定义与文档），**未改动任何序列化路径、未改任何 API 响应**。`services/words.py::apply_learning_update` **按 T-2 决策保留**（`test_import_flow.py` 仍在使用）；剩余候选 `schemas.py::ORMModel` （已无使用者）留待 `word` 表退场决策 | `backend/app/api/helpers.py`、`backend/app/schemas.py` | S ✅ |
-| T13 | ✅ **发布候选准备已完成**：四处项目版本统一为 `1.2.0`，建议定义为本机多用户版；发布审阅、推送、合并与 tag 尚待单独决策 | `pyproject.toml`、`package.json`、`package-lock.json`、`main.py`、`docs/V1.2-RELEASE-CANDIDATE.md` | S |
+| T13 | ✅ **发布候选准备已完成**：四处项目版本统一为 `1.2.0`，建议定义为本机多用户版；候选审阅已完成；合并与 tag 见 `V1.2-RELEASE-RECORD.md` | `pyproject.toml`、`package.json`、`package-lock.json`、`main.py`、`docs/V1.2-RELEASE-CANDIDATE.md` | S |
 | T14 | ✅ **已完成（2026-09-23，Batch 10）** 处置 `data/staging/` 残留副本（S-5）：只读盘点 **顶层 21 个文件 + 12 个一级目录**（绝对路径/大小/SHA-256/revision/行数；整棵树 86 个文件 / 40 个目录见记录 §addendum），逐项搜索 `data/recovery`、`test-artifacts`、`docs`、`tools`、`backend/tests` 的引用后分三类处置。**删除（第二类：可从可信来源重建且无有效引用）6 个文件 = 两次中止的 G6 演练副本及其 sidecar**；**保留（第一类）**：`migration-rehearsal-0006.db`（被 `rehearsal-0006-to-0007.json` 等引用）、`v1.1-realdata-migration-test.db` 与 `v1.3-acceptance.db`（各自被报告引用，且是 `tools/staging_*_check.py` 的默认目标）、`fresh-clone-0003-to-head.db`（**被 `tests/test_downgrade_guard.py` 引用**）、`batch05-normaluse-baseline.json`（被 Batch 0.5 证据引用）、G6 演练 `…131041Z.db`（设计文档 §8.3 引用其路径与哈希）、T8 采纳运行的副本目录；**保留并报告（第三类）**：`batch05-ab-*.json`、`batch05-normaluse-verification.json`（零引用但记录了过去库状态，不可重建）、`backups/2026-09-22-vocab.db`（用途未定）、6 个 T8 运行副本目录（各自被自己的报告引用；其中 4 个是失败运行）。删除逐条显式路径、无通配符、删除前校验解析路径位于 `data/staging/` 内且无进程占用；删除后复核保留数据库 `integrity_check=ok` 且内容哈希未变、证据文件仍可解析、生产库及 WAL/SHM 逐字节一致（`74442def…`/`6a65ddfe…`/`1c8eced5…`） | `data/staging/`、`data/recovery/t14-staging-disposal-20260923T155046Z.json` | S ✅ |
 | T15 | ✅ **基本完成（2026-09-23）** 过时文档陈述（E-6）：`PROJECT_HANDOFF.md` 中与现状矛盾的陈述已就地更正（§8 的"check.ps1 必然失败"已改为已修复并新增 §8.1 校验口径）；`0007-release-record.md` 的 §11 原本就有 §12 附注（"§11 原文不改写"）。**仍存在**：`PROJECT_ROADMAP.md` 自身的历史快照（§2.2 ahead 33、§4.6 E-1 等）未逐条回填——已在 `PROJECT_STATUS_CURRENT.md` 风险 #21 登记 | `docs/` | S |
 | T16 | ✅ **已完成（2026-09-23，Batch 6）** 让 `daily_new_words` 生效（P-5）：额度 = 当天（UTC）`review_event.status_before = 'new'` 的**不同词条数**，所以多次请求、复习后再请求都不会叠加；用户级设置封顶当日总量，词库级 `user_lexicon.daily_new_words` 各自限制本词库，两层取 `min`；`limit` 仍是整份队列的长度上限，到期/`weak` 词优先占用它。**零 schema、零 migration、未改调度算法**。（原计划写的 `services/userdata.py` 未改：队列组装落在 `services/study.py`，UTC 日边界抽到 `services/day.py` 与 dashboard 共用） | `backend/app/services/study.py`、`backend/app/services/day.py`、`backend/app/api/study.py`、`backend/app/api/dashboard.py` | M ✅ |
@@ -477,7 +477,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 1. `scripts/check.ps1` **exit 0 全绿**（含 `prove_test_isolation.py` 与 `verify_backup.py`）。
 2. 存在 0007 生产库的 **verified backup**，且新 baseline 已记录（旧 baseline 归档保留）。
 3. `git status -sb` 的 ahead 数已归零或已按记录推送。
-4. 设备管理、自服务改密、管理员二次认证三者在浏览器中可用，且有前端测试。
+4. 设备管理与自服务改密有真实浏览器和前端测试；管理员二次认证按负责人确认的后端契约、安全回归与三账号副本证据验收（前端无管理员管理入口）。
 5. 「每日新词数」设置确实影响学习队列（P-5），有后端测试断言；`.env.example` 已补 `VOCAB_DATABASE_PATH`（T-7）。
 6. 副本三账号验收报告 `verified: true` / `failures: []`，证据落盘为**新文件名**（不得覆盖既有证据）。
 7. 生产库仍为 `0007`（或经批准的新 revision），`integrity_check=ok`、`foreign_key_check=0`、行数与行指纹不变。
@@ -489,14 +489,14 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 |---|---|---|
 | 1 `check.ps1` exit 0 | ✅ 达成 | 最新（2026-09-24 Batch 12）：`All checks passed.`，含 `prove_test_isolation.py`（`data/` **194 文件零变化**）与 `verify_backup.py`（VERIFIED BACKUP）。**历史快照**：2026-09-23 冻结时为 `data/` 106 文件——该数字随证据目录增减而变，结论不变 |
 | 2 0007 verified backup + 新 baseline | ✅ 达成 | `post-0007-verified-20260923-001237-vocab.db` + 重录的 `baseline.json`；两份旧基线归档保留 |
-| 3 ahead 归零或按记录推送 | ✅ **达成** | 经负责人决定，远端 HEAD 已核对为 `74dfd75ca67736f29147703c0789e0923bf420e6`；推送后 ahead 0 / behind 0。文档提交前 ahead 27 是历史快照。 |
+| 3 ahead 归零或按记录推送 | ✅ **达成** | 经负责人决定，候选分支远端 HEAD 已核对为 `57418e77f5e576400492b1f06b517ddbb6a92704`；此前 `74dfd75` 是历史推送记录。文档提交前 ahead 27 是历史快照。 |
 | 4 设备管理 / 自助改密 / **管理员二次认证** 浏览器可用 + 前端测试 | ✅ **达成（2026-09-24，Batch 12 按负责人确认的口径收口）** | 设备管理（F-1）与自助改密（F-7）已交付：10 条前端集成测试（`security.test.tsx`），且其 bundle 早于12:27 启动的活实例进程（`c3a6106` 之后的提交至今未在该进程生效，见本行末尾）。**S-1 的后端守卫与 27 项测试已完成**，但**前端从来就没有管理员用户管理入口**（[实测] `frontend/src/` 全仓库无 `/api/users` 调用），所以"在浏览器里点一遍"这一条只对 F-1/F-7 成立，对 S-1 **不适用**（其验收口径改为后端契约 + 测试，见 `V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md` §7）。是否新建管理员页面属**另一次产品决策**，本批不做。**F-1/F-7：以 staging 上真实 Chrome 的 13/13 浏览器验收为证据**——当前代码 + 最新 `frontend/dist`、独立端口上的 online-backup 副本，2026-09-24 Batch 11 实测逐步截图/网络日志/副本侧证（`data/recovery/dod4-browser-acceptance-20260923T162528Z.json`、`test-artifacts/dod4-browser-20260923T162528Z/`），覆盖设备列表与「当前设备」标记、错误口令被拒且会话不变、正确口令撤销其他设备、429 等待提示与倒计时、改密后全部会话失效并回登录页。**S-1：以 `backend/tests/test_admin_reauth.py` 的 27 项契约测试 + 安全回归（CSRF 同源、限流 429/`Retry-After`、审计事件）+ T8 三账号副本 126/126 为证据**（`data/recovery/t8-three-user-report-20260923T134500Z.json`）；前端从无管理员用户管理入口，故「在浏览器里点一遍」对其不成立（是否新建页面属另一次产品决策，本批不新建）。口径与证据见 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`。**⚠ 但 `127.0.0.1:8000` 活实例至今未重启**（进程启动早于 `c3a6106`/G5），因此本行达成**不能**读作「活实例已运行这些新代码」 |
 | 5 `daily_new_words` 生效 + `.env.example` 补 `VOCAB_DATABASE_PATH` | ✅ **达成（2026-09-23）** | **T17 已于 Batch 5 完成**、**G8/T16 已于 Batch 6 完成**：额度按当天已开始学的新词累计（跨请求不叠加、复习后不补词），到期词不被新词额度或 `limit` 挤掉；测试 `backend/tests/test_daily_new_words.py`（25 项） |
 | 6 副本**三账号**验收 `verified: true` | ✅ **达成（2026-09-23，Batch 8）** | `data/recovery/t8-three-user-report-20260923T134500Z.json`：**126/126 PASS**、`failures: []`、`verified: true`，新文件名；既有双账号证据（`post-0007-two-user-report.json`、`post-0007-isolation-report.json`）未被覆盖 |
 | 7 生产库仍为 0007、完整性不变 | ✅ 达成 | revision `0007`、`integrity_check=ok`、`foreign_key_check=0`；`check.ps1` 逐表行指纹比对 17/17 `ok` |
 | 8 后端 + 前端全量验收 | ✅ 达成 | 最新（2026-09-24 Batch 12）：后端 **522 passed** + ruff 全通过；前端 **32 passed / 7 files** + typecheck/lint/build 通过。**历史快照**：2026-09-23 冻结时为后端 365 passed / 前端 29 passed |
 
-> **当前结论**：DoD **1–8 均有验收证据或推送核对记录**；其中 DoD 3 在 `74dfd75` 推送及远端核对后达成，DoD 4 按负责人确认口径达成（F-1/F-7 真实浏览器 13/13，S-1 后端契约 27 项、安全回归与 T8 副本 126/126）。T13 已将项目版本统一为 `1.2.0` 并准备本机多用户版候选，但尚未发布、合并或打 tag。G6 的策略实现和 staging 清理/恢复演练完成；生产库当前无到期候选，未来生产清理需针对具体计划与运行 ID 另行批准，不作为本次候选的必做删除。当前 8000 端口没有实例，不能把验收读作本机实例已运行候选代码。
+> **当前结论**：DoD **1–8 均有验收证据或推送核对记录**；其中 DoD 3 在候选分支 `57418e7` 的实时远端核对后达成，DoD 4 按负责人确认口径达成（F-1/F-7 真实浏览器 13/13，S-1 后端契约 27 项、安全回归与 T8 副本 126/126）。T13 已将项目版本统一为 `1.2.0` 并准备本机多用户版候选，并按本机多用户版边界完成合并与正式 tag，见发布记录。G6 的策略实现和 staging 清理/恢复演练完成；生产库当前无到期候选，未来生产清理需针对具体计划与运行 ID 另行批准，不作为本次候选的必做删除。DoD 4 验收在独立 staging 实例完成；本机正式实例的恢复结果另见发布后交接记录。
 
 ---
 
@@ -993,7 +993,7 @@ def calculate_schedule(current_status, result, consecutive_failures, *, now=None
 | **D1** | ✅ **已决策并落地（2026-09-23，Batch 3）**：管理员敏感操作是否要求二次认证（S-1） | Phase 2.8 | (a) 全部要求二次口令 ← **采用**（两个端点的**每一次调用**都要求）(b) 仅"创建管理员/改角色"要求（折中）(c) 保持现状 | **按 (a) 实现并验收**：`docs/V1.2-PHASE2.8-A-ADMIN-REAUTH-DESIGN.md`。理由：(a) 的判据单一可执行，不给"哪种字段组合需要口令"留实现缝隙；(b)/(c) 被否决的取舍记录见设计文档 §2.2 |
 | **D2** | ✅ **已决策并落地（2026-09-23，Batch 4）**：会话数量上限策略（G5/2.7-e） | Phase 2.8 | 上限数值 + 淘汰规则 | **上限 = 10**（`VOCAB_MAX_SESSIONS_PER_USER`，`0` = 不限制），**淘汰 = "最久未活动优先"**（`COALESCE(last_seen_at, created_at)` 最早，并列取 id 最小），**当前会话永不淘汰**，**新登录永不因超限被拒**。实现见 `docs/V1.2-PHASE2.8-C-SESSION-LIMIT-DESIGN.md`；`revoke_reason` 仍不做 |
 | **D3** | **是否需要 `revoke_reason`**（migration `0008`） | Phase 2.8 / 5 | (a) 需要 → UI 能解释"某设备为何被登出"，代价是一次 migration (b) 不需要 → 零 schema 变更 | 建议 **(b)**，本阶段不加 |
-| **D4** | **发布版本号与边界**（E-4） | Phase 2.8 收尾 / Phase 4 发布 | 项目版本已为 `1.2.0`，T13 候选建议边界为**本机多用户版**；Phase 2.9 公共词库、Phase 3 移动端/PWA、Phase 4 云部署属于后续。历史“V1.2 Multi-user Cloud PWA”是旧目标形态口径 | 候选边界见 `docs/V1.2-RELEASE-CANDIDATE.md`；正式发布、合并与 tag 尚待审阅，不因版本号自动创建 |
+| **D4** | **发布版本号与边界**（E-4） | Phase 2.8 收尾 / Phase 4 发布 | 项目版本已为 `1.2.0`，T13 候选建议边界为**本机多用户版**；Phase 2.9 公共词库、Phase 3 移动端/PWA、Phase 4 云部署属于后续。历史“V1.2 Multi-user Cloud PWA”是旧目标形态口径 | 正式发布边界、合并与 tag 见 `docs/V1.2-RELEASE-RECORD.md`；仅有版本号不等于发布 |
 | **D5** | **部署目标环境的剩余确认** | Phase 4 | 用户决策快照给定阿里云 ECS 2C2G / 40 GB / 1 Mbps、Alibaba Cloud Linux 3、华北 1；还需核实实例已开通与实际规格、域名和中国大陆备案要求 | 以用户快照为目标配置，部署前实测并完成域名/备案决策 |
 | **D6** | **移动端单词详情交互形式**（F-2/G1 of Phase 3） | Phase 3 | (a) 抽屉 (b) 贴底卡片 (c) 独立路由。需与既有 `.lookup-card`（≤720px 变贴底卡片 `bottom:78px`）避让 | 建议先做设计决策再实现 |
 | **D7** | **学习算法选型**（G1 of Phase 5） | Phase 5 | SM-2 风格（可解释、参数少）vs FSRS 风格（更强、需更多历史数据）。当前生产仅 10 条 `review_event` | 建议先用 SM-2 风格落地，FSRS 作为后续演进 |
@@ -1009,7 +1009,7 @@ def calculate_schedule(current_status, result, consecutive_failures, *, now=None
 | 里程碑 | 名称 | 判定证据（必须可复现） | 对应阶段 |
 |---|---|---|---|
 | **M0** | 当前基线 | 312 后端测试 / 19 前端测试通过；revision `0007`；26 外键；`foreign_key_check=0` | 现状 |
-| **M1** | **工程基线恢复（发布候选，DoD 3 已达成）** | ①`scripts/check.ps1` 通过：522 后端、32 前端 ✅ ②存在 0007 verified backup + 新 baseline ✅ ③`74dfd75` 已推送并核对远端，推送后 ahead 0 / behind 0 ✅ ④F-1/F-7 真实浏览器 13/13；S-1 按已确认口径以 27 项后端契约、安全回归和 T8 副本验收 ✅ ⑤T8 副本三账号 126/126、`verified: true` ✅。本机 8000 端口当前无实例，未运行候选代码。 | 2.8 |
+| **M1** | **工程基线恢复（1.2.0 已发布，DoD 3 已达成）** | ①`scripts/check.ps1` 通过：522 后端、32 前端 ✅ ②存在 0007 verified backup + 新 baseline ✅ ③候选分支 `57418e7` 已在 GitHub 实时核对 ✅ ④F-1/F-7 真实浏览器 13/13；S-1 按已确认口径以 27 项后端契约、安全回归和 T8 副本验收 ✅ ⑤T8 副本三账号 126/126、`verified: true` ✅。本机正式实例的恢复结果另见发布后交接记录。 | 2.8 |
 | **M1.5** | **云端公共词库就绪**（未开始） | ①真实外部电子词库来源、版本、授权、原始文件指纹已记录 ②公共 `Lexicon` 导入/重复导入/错误行/确认验收通过 ③双用户共享词条而学习状态隔离 ④Level 2 副本证据 `verified: true`；云端无需 OCR | 2.9 |
 | **M2** | **移动端可用** | ①≤900px 可见完整释义/音标/复习历史/文章暴露 ②Android + iOS 可添加到主屏并 standalone 启动 ③SW 断言：`/api/**` 未被缓存、切号无残留 ④桌面端无回归 | 3 |
 | **M3** | **公网可服务** | ①M1 与 M1.5 均已达成 ②域名 + HTTPS + `/api/health` 200 ③`VOCAB_COOKIE_SECURE=true` ④单 worker + `--proxy-headers` 经双 IP 验证 ⑤systemd timer 连续 3 天备份 + 异地副本 ⑥**完成一次真实恢复演练** | 4 |
