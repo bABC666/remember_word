@@ -1,9 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookOpenCheck, CircleHelp, Database, ScanText, Sparkles, X } from 'lucide-react'
 import { api } from '../api'
 
-export function HelpCenter() {
+interface HelpCenterProps {
+  /**
+   * Bumped by the phone "更多" sheet, which is the only help entry below 620px.
+   *
+   * The dialog's own open state stays here: the onboarding prompt and the
+   * sidebar entry both need it, and a caller only ever has to ask for the dialog
+   * to appear, not to own it.
+   */
+  openRequest?: number
+}
+
+export function HelpCenter({ openRequest = 0 }: HelpCenterProps = {}) {
   const client = useQueryClient()
   const [manualOpen, setManualOpen] = useState(false)
   const onboarding = useQuery({ queryKey: ['onboarding'], queryFn: () => api<{ seen: boolean }>('/api/settings/onboarding'), staleTime: Infinity })
@@ -13,6 +24,10 @@ export function HelpCenter() {
   })
   const open = manualOpen || onboarding.data?.seen === false
   const close = () => onboarding.data?.seen === false ? dismiss.mutate() : setManualOpen(false)
+
+  useEffect(() => {
+    if (openRequest > 0) setManualOpen(true)
+  }, [openRequest])
 
   return (
     <>
