@@ -274,7 +274,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | ID | 事项 | 证据 | 严重度 | 影响 | 阶段 |
 |---|---|---|---|---|---|
 | **F-1** | **前端"登录设备"页面未做（2.7-f）**：后端能力**全部就绪**（列表 / 单撤销 / 批量撤销），前端未接线 | handoff §9.6；`frontend/src/` 无相关页面 | 🟠 | 已投入的后端能力无法被用户使用；"退出其它设备"这一安全能力对用户不可见 | **2.8（首选）** |
-| **F-2** | **移动端 ≤900px 隐藏单词详情面板**（`.word-detail { display: none }`），**无替代入口** | Phase 0 §8.3 M1；`styles.css` | 🟠 | 手机上**完全看不到音标、完整释义、复习历史、文章暴露** —— 直接违反"完整中文释义永久保留"的可见性承诺。**最严重的移动端缺陷** | 3 |
+| **F-2** | ✅ **手机词库详情工作流已在独立开发分支实现**：≤900px 列表进入 `/library/:wordStateId`，查看音标、完整释义、复习历史、文章暴露及首次/最近时间；显式退出或 401 清会话后，B 登录及经浏览器历史返回均不继承 A 的筛选、滚动与焦点，同账号有效会话刷新保留筛选；详情入场回顶部，返回原筛选、文档/列表滚动（含 0）和焦点；桌面双栏保留 | `frontend/src/pages/LibraryPage.test.tsx`；本地分支 `codex/phase3-mobile-design`（未合并） | 🟠（开发分支已修，未合并） | 前端交互测试通过；本 worktree 已用隔离备份副本通过完整 `check.ps1`；Android/iOS 真机验收及 Phase 3/M2 仍未完成 | 3 |
 | **F-3** | 移动端 ≤900px 隐藏导入图片列表（`.image-list`） | Phase 0 §8.3 M2 | 🟡 | 手机上无法查看/移除已上传图片 | 3 |
 | **F-4** | 缺 iOS safe-area 适配：全文件零处 `env(safe-area-inset-*)`，未设 `viewport-fit=cover` | Phase 0 §8.3 M3 | 🟡 | 固定底部导航被 iPhone Home Indicator 遮挡 | 3 |
 | **F-5** | 无 PWA viewport / apple 元信息 | Phase 0 §8.3 M4 | 🟡 | 无法"添加到主屏幕"独立运行 | 3 |
@@ -327,7 +327,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 |---|---|---|---|---|---|---|
 | **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **1.2.0 本机多用户版已发布**：S-1、S-2、G5、G6 策略及 staging 演练、G8、T8、T11、T12 低风险清理、T14、T17 与 DoD 4 已有验收；T13 已统一 `1.2.0` 并提出本机多用户版边界。**DoD 3 已满足**：候选分支 `57418e7` 已在 GitHub 实时核对；`74dfd75` 是此前的推送快照。生产库当前无 G6 到期候选；将来的清理另行批准，不作为本次发布必做删除。本机多用户版的合并、正式 tag 与发布见 `V1.2-RELEASE-RECORD.md`。 |
 | **2.9** | 外部电子词库与公共词库交付 | **P1** | L–XL（以真实资料定） | 2.8 安全与门禁收尾；外部词库来源可用 | 云端关闭 OCR 后仍有受控、可溯源的主要词条来源 | **未开始；Phase 4 硬前置** |
-| **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.9 并行） | 手机上真正可用；核心承诺在移动端成立 | 未开始 |
+| **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.9 并行） | 手机上真正可用；核心承诺在移动端成立 | 部分完成：F-2 详情工作流在独立开发分支；M2 未达成 |
 | **4** | 生产部署上线 | **P1** | L–XL | **2.8 + 2.9**；建议在 3 之后 | 公共词库可用，产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
 | **6** | 平台化与长期演进 | **P3** | XL | 4 + 5 | 降低长期维护成本；支撑规模增长 | 未开始 |
@@ -346,7 +346,7 @@ Phase 2.8 认证与工程基线
                          Phase 6 平台化与长期演进
 ```
 
-Phase 2.9 建的是**词条内容**；Phase 5 的 P-1 补的是**已有词条的词频**。Phase 3 的最高移动端风险项仍是 F-2 单词详情不可见。
+Phase 2.9 建的是**词条内容**；Phase 5 的 P-1 补的是**已有词条的词频**。Phase 3 的 F-2 手机词库详情工作流已在独立开发分支实现；该分支未合并，F-3/底栏/PWA 等仍待交付。
 
 ### 5.3 编号说明（与既有文档对齐）
 
@@ -554,7 +554,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 
 | ID | 目标 |
 |---|---|
-| G1 | **F-2（★ 最高风险项）单词详情面板移动化**：≤900px 不再 `display:none`，改为抽屉 / 底部卡片 / 独立路由（**需先做 UI 设计决策**） |
+| G1 | ✅ **F-2 手机词库详情工作流已在独立开发分支实现**：≤900px 列表进入独立详情路由，返回及再次从浏览器历史进入详情后均恢复原列表状态；显式退出、401 清会话及浏览器返回 A 历史项均清理跨账号筛选、滚动与焦点；同账号刷新保留筛选；Android/iOS 真机验收仍待做 |
 | G2 | **F-3** 导入图片列表移动化（或明确产品上"导入是桌面功能"并给出移动端提示） |
 | G3 | **F-4** iOS safe-area 适配 + `viewport-fit=cover` |
 | G4 | **F-5** PWA viewport + apple 元信息 |
@@ -566,8 +566,8 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 
 | # | 任务 | 涉及位置 | 规模 |
 |---|---|---|---|
-| T1 | 为 F-2 做**移动端交互设计决策**（三选一：抽屉 / 贴底卡片 / 独立路由）并记录理由。**注意**：≤720px 时 `.lookup-card` 已变贴底卡片（`bottom: 78px`），需与其避让 | `docs/` 设计文档 | S |
-| T2 | 实现 F-2 | `frontend/src/pages/LibraryPage.tsx`、`styles.css` | M–L |
+| T1 | ✅ F-2 已选择独立路由；设计与避让说明见 `V1.2-PHASE3-MOBILE-WORKFLOW-DESIGN.md` | `docs/` 设计文档 | S ✅ |
+| T2 | ✅ F-2 手机词库列表→详情→返回工作流已在独立开发分支实现；含反复历史往返、显式退出与 401 后的双账号 URL/位置/焦点隔离、同账号刷新、文档滚动 0/非 0、详情时间与错误态测试；隔离 worktree 的完整 `check.ps1` exit 0（后端 522 / 前端 51）；尚未合并，真机验收待做 | `frontend/src/App.tsx`、`frontend/src/pages/LibraryPage.tsx`、`WordDetailPage.tsx`、测试 | M–L（开发分支） |
 | T3 | 实现 F-3 | `frontend/src/pages/ImportPage.tsx`、`styles.css` | S–M |
 | T4 | 新建 `frontend/public/manifest.webmanifest`（`name` / `short_name` / `start_url` / `display: standalone` / `theme_color` / `icons`） | `frontend/public/`（**当前不存在，需新建**） | S |
 | T5 | 生成 PWA 图标 192/512/180（apple-touch）。**注意** `assets/shici-app.png`(741KB) 与 `.ico` 是**桌面快捷方式**用的，不要直接复用 | `frontend/public/` | S |
@@ -592,7 +592,7 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | 新增文件 | `frontend/public/`（manifest、图标）、Service Worker 注册代码 |
 | 修改 | `styles.css`（约 34 KB，多个断点）、`index.html`、`LibraryPage.tsx`、`ImportPage.tsx`、`AppShell.tsx`、构建脚本 |
 | 构建产物 | `frontend/dist` 新增 manifest/图标/SW/`.br`；由 `scripts/start-vocab.ps1` 构建，**构建或迁移失败即中止**（不会运行旧页面） |
-| 路由 | 若 F-2 选择"独立路由"，`App.tsx` 需新增路由；`main.py` 的 SPA 兜底**已能正确优先返回真实文件**（Phase 0 §B8），无需改后端 |
+| 路由 | F-2 已选择独立路由，`App.tsx` 已新增 `/library/:wordStateId`；`main.py` 的 SPA 兜底**已能正确优先返回真实文件**（Phase 0 §B8），无需改后端 |
 
 #### 风险
 
@@ -995,7 +995,7 @@ def calculate_schedule(current_status, result, consecutive_failures, *, now=None
 | **D3** | **是否需要 `revoke_reason`**（migration `0008`） | Phase 2.8 / 5 | (a) 需要 → UI 能解释"某设备为何被登出"，代价是一次 migration (b) 不需要 → 零 schema 变更 | 建议 **(b)**，本阶段不加 |
 | **D4** | **发布版本号与边界**（E-4） | Phase 2.8 收尾 / Phase 4 发布 | 项目版本已为 `1.2.0`，T13 候选建议边界为**本机多用户版**；Phase 2.9 公共词库、Phase 3 移动端/PWA、Phase 4 云部署属于后续。历史“V1.2 Multi-user Cloud PWA”是旧目标形态口径 | 正式发布边界、合并与 tag 见 `docs/V1.2-RELEASE-RECORD.md`；仅有版本号不等于发布 |
 | **D5** | **部署目标环境的剩余确认** | Phase 4 | 用户决策快照给定阿里云 ECS 2C2G / 40 GB / 1 Mbps、Alibaba Cloud Linux 3、华北 1；还需核实实例已开通与实际规格、域名和中国大陆备案要求 | 以用户快照为目标配置，部署前实测并完成域名/备案决策 |
-| **D6** | **移动端单词详情交互形式**（F-2/G1 of Phase 3） | Phase 3 | (a) 抽屉 (b) 贴底卡片 (c) 独立路由。需与既有 `.lookup-card`（≤720px 变贴底卡片 `bottom:78px`）避让 | 建议先做设计决策再实现 |
+| **D6** | **移动端单词详情交互形式**（F-2/G1 of Phase 3） | Phase 3 | ✅ 采用独立路由，详情页不与 `.lookup-card` 同屏；设计见 `V1.2-PHASE3-MOBILE-WORKFLOW-DESIGN.md` | F-2 工作流已在独立开发分支实现；Phase 3 其余任务未完成 |
 | **D7** | **学习算法选型**（G1 of Phase 5） | Phase 5 | SM-2 风格（可解释、参数少）vs FSRS 风格（更强、需更多历史数据）。当前生产仅 10 条 `review_event` | 建议先用 SM-2 风格落地，FSRS 作为后续演进 |
 | **D8** | **`word` 表退场时机**（T-1） | Phase 6 | 何时、是否；涉及遗留 id 命名空间，**风险高** | 建议推迟到 Phase 6 且独立风险评估先行 |
 | **D9** | **词频数据来源**（P-1） | Phase 5 | 需要用户提供外部词频文件（**禁止 AI 编造排名**）。在拿到之前 `frequency_rank` 允许为 NULL | 等待用户提供 |
