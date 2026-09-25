@@ -89,7 +89,11 @@ def configure_paddle_environment() -> Path:
 #
 # The repair below is deliberately conservative.  It removes a cache only when
 # it can prove the cache is unusable, only for directories PaddleX itself owns,
-# and only while no other process can be downloading or reading them.
+# and only while no other process can be downloading or reading them.  When any
+# one of those proofs is unavailable -- most importantly when PaddleX's own list
+# of official model names cannot be read -- it removes nothing and reports why:
+# one more broken OCR start is cheap and visible, deleting the wrong directory
+# is neither.
 
 _MODEL_CONFIG_FILES = ("inference.yml", "inference.json")
 #: Parameter artifacts PaddleX may load from a model directory.  The list is
@@ -171,13 +175,22 @@ def _paddle_official_model_names() -> frozenset[str] | None:
     directory that happens to sit under ``official_models`` out of reach.  The
     import is best effort because the OCR extra is optional, and it is only
     attempted once a defective-looking directory has actually been found.
+
+    ``None`` means "the list could not be read" and is treated as *no name is
+    known*: the repair then refuses to delete anything rather than falling back
+    to guessing from the directory name shape.  A failure that is not an
+    ``ImportError`` or ``OSError`` is caught as well, on purpose -- a broken
+    optional OCR install must never turn into a deletion decision, and it must
+    not surface as a raw traceback either.  An empty registry is reported the
+    same way, because an empty list is a broken list, not a list of no models.
     """
     try:
         from paddlex.inference.utils.official_models import ALL_MODELS
-    except (ImportError, OSError):
-        # The OCR extra is optional: without PaddleX the name shape is all we have.
+
+        names = frozenset(ALL_MODELS)
+    except Exception:  # noqa: BLE001 - see the docstring: unreadable means "unknown"
         return None
-    return frozenset(ALL_MODELS)
+    return names or None
 
 
 @lru_cache(maxsize=1)
@@ -314,18 +327,33 @@ def _holds_model_materialization(model_dir: Path) -> bool:
 
 
 def _looks_like_model_directory_name(model_name: str) -> bool:
-    """Name shape PaddleX model directories have; rejects hidden and temp names."""
+    """Name shape PaddleX model directories have; rejects hidden and temp names.
+
+    This is only a cheap pre-filter that keeps the PaddleX import off the common
+    path.  It never authorises a deletion on its own: that needs a name from
+    PaddleX's own registry, see :func:`_official_model_registry_skip_reason`.
+    """
     if _MODEL_DIRECTORY_NAME.fullmatch(model_name) is None:
         return False
     return _STALE_DIRECTORY_MARKER not in model_name
 
 
-def _is_known_paddle_model(model_name: str) -> bool:
-    """Whether PaddleX's own registry lists this model directory name."""
+def _official_model_registry_skip_reason(model_name: str) -> str | None:
+    """Why the registry forbids repairing this name, or ``None`` when it allows it.
+
+    Without PaddleX's own list of official model names there is no way to tell a
+    stale cache from an unrelated directory that merely looks like one, and the
+    cost of the two mistakes is not symmetric: refusing to repair costs one more
+    failed OCR start that a human can fix by hand, while deleting the wrong
+    directory destroys data.  So an unreadable registry skips the repair and
+    says so, instead of guessing from the name shape.
+    """
     known = _paddle_official_model_names()
     if known is None:
-        return True  # registry unavailable; the name shape is all we have
-    return _strip_model_format_suffix(model_name) in known
+        return "但无法读取 PaddleX 官方模型清单，未做清理（保守跳过）"
+    if _strip_model_format_suffix(model_name) not in known:
+        return "但名称不在 PaddleX 官方模型清单中"
+    return None
 
 
 def _newest_write_time(model_dir: Path) -> float:
@@ -368,8 +396,9 @@ def _incomplete_cache_skip_reason(
         return f"{defect}，但目录名不属于 PaddleX 模型缓存"
     if not _holds_model_materialization(model_dir):
         return f"{defect}，但目录内容不是模型文件"
-    if not _is_known_paddle_model(model_dir.name):
-        return f"{defect}，但名称不在 PaddleX 官方模型清单中"
+    registry_reason = _official_model_registry_skip_reason(model_dir.name)
+    if registry_reason is not None:
+        return f"{defect}，{registry_reason}"
     try:
         newest = _newest_write_time(model_dir)
     except OSError as error:
@@ -425,9 +454,10 @@ def repair_incomplete_paddle_model_cache(
     Only immediate directories under ``official_models`` are ever considered, so
     the ``locks``, ``temp`` and ``func_ret`` directories PaddleX keeps next to it
     are out of scope by construction.  A candidate is removed only when it is
-    provably incomplete *and* provably idle: a PaddleX official-model name, not a
-    link, holding model files, untouched for ``min_age_seconds``, and with
-    PaddleX's own download lock free.  Everything else is reported in
+    provably incomplete *and* provably idle: a name from PaddleX's own registry,
+    not a link, holding model files, untouched for ``min_age_seconds``, and with
+    PaddleX's own download lock free.  Everything else -- including every
+    candidate when that registry cannot be read -- is reported in
     ``ModelCacheRepair.skipped`` instead of being deleted.
 
     ``now`` exists so the "is a download still running" decision is

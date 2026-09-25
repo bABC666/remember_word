@@ -186,6 +186,82 @@ def test_model_directory_outside_paddlex_registry_is_skipped(
     assert "官方模型清单" in repair.skipped[0][1]
 
 
+def test_unreadable_registry_leaves_every_name_shaped_directory_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without PaddleX's own model list, no name shape authorises a deletion.
+
+    Falling back to the directory name shape would delete any directory that
+    happens to be named like a model, which is precisely the guess that made the
+    first implementation dangerous.  An unreadable registry has to skip the
+    repair and say why.
+    """
+    monkeypatch.setattr(paddle, "_paddle_official_model_names", lambda: None)
+    models = _models_root(tmp_path)
+    empty = models / "PP-OCRv6_medium_det"
+    empty.mkdir()
+    truncated = _write_model(models / "PP-OCRv6_medium_rec", parameter_bytes=1024)
+    unrelated_name = _write_model(models / "my-old-model-copy")
+    (unrelated_name / "inference.yml").unlink()
+    _make_idle(tmp_path)
+
+    repair = paddle.repair_incomplete_paddle_model_cache(tmp_path)
+
+    assert repair.removed == ()
+    assert empty.is_dir()
+    assert (truncated / "inference.pdiparams").stat().st_size == 1024
+    assert unrelated_name.is_dir()
+    assert {path for path, _reason in repair.skipped} == {empty, truncated, unrelated_name}
+    assert all("无法读取 PaddleX 官方模型清单" in reason for _path, reason in repair.skipped)
+
+    # With a readable registry the two official names are repaired and the third
+    # is still refused, so the skip above is the missing list, not a bad fixture.
+    monkeypatch.setattr(paddle, "_paddle_official_model_names", lambda: FIXTURE_MODELS)
+    repaired = paddle.repair_incomplete_paddle_model_cache(tmp_path)
+    assert repaired.removed == (empty, truncated)
+    assert unrelated_name.is_dir()
+
+
+def test_registry_reader_reports_an_unusable_list_as_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty registry is a broken registry, not a registry of no models."""
+    import sys
+    from types import SimpleNamespace
+
+    module = "paddlex.inference.utils.official_models"
+    monkeypatch.setitem(sys.modules, module, SimpleNamespace(ALL_MODELS=[]))
+    paddle._paddle_official_model_names.cache_clear()
+    try:
+        assert paddle._paddle_official_model_names() is None
+
+        monkeypatch.setitem(
+            sys.modules, module, SimpleNamespace(ALL_MODELS=["PP-OCRv6_medium_rec"])
+        )
+        paddle._paddle_official_model_names.cache_clear()
+        assert paddle._paddle_official_model_names() == frozenset({"PP-OCRv6_medium_rec"})
+    finally:
+        paddle._paddle_official_model_names.cache_clear()
+
+
+def test_registry_reader_reports_a_failed_import_as_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A PaddleX import that fails must return ``None``, never raise.
+
+    ``None`` in ``sys.modules`` is the documented way to make an import fail, and
+    it is the state a machine without the OCR extra is in.
+    """
+    import sys
+
+    monkeypatch.setitem(sys.modules, "paddlex.inference.utils.official_models", None)
+    paddle._paddle_official_model_names.cache_clear()
+    try:
+        assert paddle._paddle_official_model_names() is None
+    finally:
+        paddle._paddle_official_model_names.cache_clear()
+
+
 def test_only_official_models_is_scanned(tmp_path: Path, pinned_registry: frozenset[str]) -> None:
     """``locks``, ``temp`` and ``func_ret`` sit next to ``official_models``."""
     models = _models_root(tmp_path)
