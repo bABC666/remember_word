@@ -922,4 +922,3 @@ def test_cli_writes_a_failure_report_outside_the_transaction(
         _cli_argv(root, plan_path, confirm=plan["run_id"], report=report)
     ) == 1
     assert json.loads(report.read_text(encoding="utf-8")) == written
-
