@@ -1,0 +1,563 @@
+{
+  "scratch_root": "C:\\Temp\\shici-g8-acceptance-k_155naz",
+  "production_data_named_but_untouched": "D:\\背单词web\\data",
+  "widths": [
+    320,
+    375,
+    390,
+    430,
+    620,
+    621,
+    900,
+    901,
+    1280
+  ],
+  "keyboard_proxy_height": 420,
+  "checks": [
+    {
+      "check": "settings page never overflows horizontally, at any width",
+      "ok": true,
+      "detail": "[[320, 320], [375, 360], [390, 375], [430, 415], [620, 605], [621, 606], [900, 885], [901, 886], [1280, 1265]]"
+    },
+    {
+      "check": "no element is wider than the viewport on the settings page",
+      "ok": true,
+      "detail": "[[320, 0], [375, 0], [390, 0], [430, 0], [620, 0], [621, 0], [900, 0], [901, 0], [1280, 0]]"
+    },
+    {
+      "check": "every settings section and form grid fits inside the viewport",
+      "ok": true,
+      "detail": "[[320, 5], [375, 5], [390, 5], [430, 5], [620, 5], [621, 5], [900, 5], [901, 5], [1280, 5]]"
+    },
+    {
+      "check": "the session user agent is truncated instead of widening the page",
+      "ok": true,
+      "detail": "[[320, 142, true], [375, 182, true], [390, 197, true], [430, 237, true], [620, 427, true], [621, 318, true], [900, 597, true], [901, 404, true], [1280, 745, true]]"
+    },
+    {
+      "check": "the API-key field is focusable and inside the viewport at every width",
+      "ok": true,
+      "detail": "[[320, true, true], [375, true, true], [390, true, true], [430, true, true], [620, true, true], [621, true, true], [900, true, true], [901, true, true], [1280, true, true]]"
+    },
+    {
+      "check": "keyboard proxy: no horizontal overflow while the viewport is short",
+      "ok": true,
+      "detail": "[[320, 320], [375, 360], [390, 375], [430, 415], [620, 605], [621, 606], [900, 885], [901, 886], [1280, 1265]]"
+    },
+    {
+      "check": "keyboard proxy: the focused field can be brought into view uncovered",
+      "ok": true,
+      "detail": "[[320, true, true], [375, true, true], [390, true, true], [430, true, true], [620, true, true], [621, true, true], [900, true, true], [901, true, true], [1280, true, true]]"
+    },
+    {
+      "check": "the 保存设置 button is never covered by the navigation",
+      "ok": true,
+      "detail": "[[320, 709, 751, 765, \"BUTTON.button primary\"], [375, 724, 766, 780, \"BUTTON.button primary\"], [390, 724, 766, 780, \"BUTTON.button primary\"], [430, 724, 766, 780, \"BUTTON.button primary\"], [620, 724, 766, 780, \"BUTTON.button primary\"], [621, 788, 830, 0, \"BUTTON.button primary\"], [900, 788, 830, 0, \"BUTTON.button primary\"], [901, 788, 830, 0, \"BUTTON.button primary\"], [1280, 788, 830, 0, \"BUTTON.button primary\"]]"
+    },
+    {
+      "check": "phone widths keep five reachable nav entries",
+      "ok": true,
+      "detail": "[[320, 5, 56], [375, 5, 67], [390, 5, 70], [430, 5, 78], [620, 5, 116]]"
+    },
+    {
+      "check": "tablet rail and desktop keep six entries with a reachable account block",
+      "ok": true,
+      "detail": "[[621, 6, true], [900, 6, true], [901, 6, true], [1280, 6, true]]"
+    },
+    {
+      "check": "settings field API Key is reachable and focusable at 390px",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 187.5, \"y\": 296.96875, \"width\": 305, \"height\": 42, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"INPUT.\", \"viewport\": {\"width\": 390, \"height\": 844}, \"active\": true}"
+    },
+    {
+      "check": "settings field Model is reachable and focusable at 390px",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 187.5, \"y\": 421.96875, \"width\": 305, \"height\": 42, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"INPUT.\", \"viewport\": {\"width\": 390, \"height\": 844}, \"active\": true}"
+    },
+    {
+      "check": "settings field 每日新词目标 is reachable and focusable at 390px",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 187.5, \"y\": 421.96875, \"width\": 305, \"height\": 42, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"INPUT.\", \"viewport\": {\"width\": 390, \"height\": 844}, \"active\": true}"
+    },
+    {
+      "check": "settings field 启用 GPU is reachable and focusable at 390px",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 43.5, \"y\": 422.46875, \"width\": 17, \"height\": 17, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"INPUT.\", \"viewport\": {\"width\": 390, \"height\": 844}, \"active\": true}"
+    },
+    {
+      "check": "settings field 当前密码 is reachable and focusable at 390px",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 187.5, \"y\": 421.96875, \"width\": 305, \"height\": 42, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"INPUT.\", \"viewport\": {\"width\": 390, \"height\": 844}, \"active\": true}"
+    },
+    {
+      "check": "a real keystroke changes the 每日新词目标 field",
+      "ok": true,
+      "detail": "value='23'"
+    },
+    {
+      "check": "saving from the phone layout persists to the API",
+      "ok": true,
+      "detail": "saved=True persisted=23"
+    },
+    {
+      "check": "更多 still opens a dialog above the bar on the settings page",
+      "ok": true,
+      "detail": "{\"role\": \"dialog\", \"aboveBar\": true, \"insideViewport\": true, \"expanded\": \"true\"}"
+    },
+    {
+      "check": "使用说明 is still reachable from the sheet",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 187.5, \"y\": 615, \"width\": 325, \"height\": 48, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"BUTTON.more-link\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "sign-out is still reachable from the sheet",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 187.5, \"y\": 669, \"width\": 325, \"height\": 48, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"BUTTON.more-link danger\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "the sheet's sign-out still signs out",
+      "ok": true,
+      "detail": "login form shown"
+    },
+    {
+      "check": "detail still opens from a filtered phone list",
+      "ok": true,
+      "detail": "rows=20 word=alpha01"
+    },
+    {
+      "check": "returning from detail still restores the filter",
+      "ok": true,
+      "detail": "{\"scroll\": 272, \"search\": \"alpha\"}"
+    },
+    {
+      "check": "returning from detail still restores the scroll position",
+      "ok": true,
+      "detail": "before=272 after=272"
+    },
+    {
+      "check": "the worker still controls the page",
+      "ok": true,
+      "detail": "controller=http://127.0.0.1:49621/sw.js"
+    },
+    {
+      "check": "no /api entry in any Cache Storage bucket",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "check": "no cached response body holds account A's data",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "observations": [
+    {
+      "topic": "settings + nav at 320px",
+      "scrollWidth": 320,
+      "innerWidth": 320,
+      "wideCount": 0,
+      "sectionWidths": [
+        288,
+        288,
+        288,
+        288,
+        288
+      ],
+      "agent": {
+        "width": 142,
+        "clientWidth": 142,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 194
+      },
+      "nav": {
+        "entries": 5,
+        "hasMore": true,
+        "itemWidth": 56,
+        "sidebarPosition": "fixed",
+        "accountDisplay": "none"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 709,
+        "bottom": 751,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 765,
+        "navPosition": "fixed"
+      }
+    },
+    {
+      "topic": "settings + nav at 375px",
+      "scrollWidth": 360,
+      "innerWidth": 375,
+      "wideCount": 0,
+      "sectionWidths": [
+        328,
+        328,
+        328,
+        328,
+        328
+      ],
+      "agent": {
+        "width": 182,
+        "clientWidth": 182,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 234
+      },
+      "nav": {
+        "entries": 5,
+        "hasMore": true,
+        "itemWidth": 67,
+        "sidebarPosition": "fixed",
+        "accountDisplay": "none"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 724,
+        "bottom": 766,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 780,
+        "navPosition": "fixed"
+      }
+    },
+    {
+      "topic": "settings + nav at 390px",
+      "scrollWidth": 375,
+      "innerWidth": 390,
+      "wideCount": 0,
+      "sectionWidths": [
+        343,
+        343,
+        343,
+        343,
+        343
+      ],
+      "agent": {
+        "width": 197,
+        "clientWidth": 197,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 249
+      },
+      "nav": {
+        "entries": 5,
+        "hasMore": true,
+        "itemWidth": 70,
+        "sidebarPosition": "fixed",
+        "accountDisplay": "none"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 724,
+        "bottom": 766,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 780,
+        "navPosition": "fixed"
+      }
+    },
+    {
+      "topic": "settings + nav at 430px",
+      "scrollWidth": 415,
+      "innerWidth": 430,
+      "wideCount": 0,
+      "sectionWidths": [
+        383,
+        383,
+        383,
+        383,
+        383
+      ],
+      "agent": {
+        "width": 237,
+        "clientWidth": 237,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 289
+      },
+      "nav": {
+        "entries": 5,
+        "hasMore": true,
+        "itemWidth": 78,
+        "sidebarPosition": "fixed",
+        "accountDisplay": "none"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 724,
+        "bottom": 766,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 780,
+        "navPosition": "fixed"
+      }
+    },
+    {
+      "topic": "settings + nav at 620px",
+      "scrollWidth": 605,
+      "innerWidth": 620,
+      "wideCount": 0,
+      "sectionWidths": [
+        573,
+        573,
+        573,
+        573,
+        573
+      ],
+      "agent": {
+        "width": 427,
+        "clientWidth": 427,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 479
+      },
+      "nav": {
+        "entries": 5,
+        "hasMore": true,
+        "itemWidth": 116,
+        "sidebarPosition": "fixed",
+        "accountDisplay": "none"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 724,
+        "bottom": 766,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 780,
+        "navPosition": "fixed"
+      }
+    },
+    {
+      "topic": "settings + nav at 621px",
+      "scrollWidth": 606,
+      "innerWidth": 621,
+      "wideCount": 0,
+      "sectionWidths": [
+        480,
+        480,
+        480,
+        480,
+        480
+      ],
+      "agent": {
+        "width": 318,
+        "clientWidth": 318,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 464
+      },
+      "nav": {
+        "entries": 6,
+        "hasMore": false,
+        "itemWidth": 57,
+        "sidebarPosition": "sticky",
+        "accountDisplay": "flex"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 788,
+        "bottom": 830,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 0,
+        "navPosition": "sticky"
+      }
+    },
+    {
+      "topic": "settings + nav at 900px",
+      "scrollWidth": 885,
+      "innerWidth": 900,
+      "wideCount": 0,
+      "sectionWidths": [
+        759,
+        759,
+        759,
+        759,
+        759
+      ],
+      "agent": {
+        "width": 597,
+        "clientWidth": 597,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 743
+      },
+      "nav": {
+        "entries": 6,
+        "hasMore": false,
+        "itemWidth": 57,
+        "sidebarPosition": "sticky",
+        "accountDisplay": "flex"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 788,
+        "bottom": 830,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 0,
+        "navPosition": "sticky"
+      }
+    },
+    {
+      "topic": "settings + nav at 901px",
+      "scrollWidth": 886,
+      "innerWidth": 901,
+      "wideCount": 0,
+      "sectionWidths": [
+        566,
+        566,
+        566,
+        566,
+        566
+      ],
+      "agent": {
+        "width": 404,
+        "clientWidth": 404,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 723
+      },
+      "nav": {
+        "entries": 6,
+        "hasMore": false,
+        "itemWidth": 193,
+        "sidebarPosition": "sticky",
+        "accountDisplay": "flex"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 788,
+        "bottom": 830,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 0,
+        "navPosition": "sticky"
+      }
+    },
+    {
+      "topic": "settings + nav at 1280px",
+      "scrollWidth": 1265,
+      "innerWidth": 1280,
+      "wideCount": 0,
+      "sectionWidths": [
+        907,
+        907,
+        907,
+        907,
+        907
+      ],
+      "agent": {
+        "width": 745,
+        "clientWidth": 745,
+        "scrollWidth": 832,
+        "truncated": true,
+        "whiteSpace": "nowrap",
+        "textOverflow": "ellipsis",
+        "minWidth": "0px",
+        "right": 1083
+      },
+      "nav": {
+        "entries": 6,
+        "hasMore": false,
+        "itemWidth": 193,
+        "sidebarPosition": "sticky",
+        "accountDisplay": "flex"
+      },
+      "keyboardProxy": {
+        "afterShrinkInsideVisualViewport": true,
+        "afterScrollIntoViewHitIsTarget": true
+      },
+      "stickySave": {
+        "found": true,
+        "top": 788,
+        "bottom": 830,
+        "viewportHeight": 844,
+        "insideViewport": true,
+        "hitIsTarget": true,
+        "hit": "BUTTON.button primary",
+        "navTop": 0,
+        "navPosition": "sticky"
+      }
+    }
+  ],
+  "viewport_reapplied": 0,
+  "passed": 27,
+  "failed": 0
+}
