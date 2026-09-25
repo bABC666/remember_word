@@ -2,7 +2,7 @@
 
 > 更新日期：2026-09-25（本地开发整合；下文保留各历史批次记录）。
 > 当前分支：`main`；由 `feat/v1.2-phase1-safe` fast-forward 合并。实时 HEAD 和远端 tag 以 Git 核验为准。
-> 当前阶段：**`v1.2.0` 本机版已发布；本地 `main` 已整合 F-2 和 Phase 2.9 联合只读预览**。真实公共电子词库的确认导入、2.9-A/B 与 Phase 3 整体验收尚未完成。GitHub PR #1 的 OCR 缓存清理边界与 PWA/F-3/F-4 已在 `codex/pr1-ocr-pwa-integration`（基于 `origin/main` 的独立 worktree）修复并整合，**未 push、未 merge**；F-6 底栏与安装/真机验收仍未完成；G6 生产库未来清理另行决定。
+> 当前阶段：**`v1.2.0` 本机版已发布；本地 `main` 已整合 F-2、Phase 2.9 只读预览/锁定计划、来源质量报告 v5.1、OCR 缓存修复和 PWA/F-3/F-4**。真实公共词库确认导入、2.9-A/B、F-6 与 Phase 3 真机验收未完成；G6 生产库未来清理另行决定。
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > `docs/PROJECT_STATUS_V1.2.md` 是 2026-09-22 的只读审计快照，已加当前状态索引；旧数字保留为历史证据，不作为当前状态来源。当前事实以代码、`PROJECT_STATUS_CURRENT.md` 及 `docs/V1.2-RELEASE-RECORD.md` 为准。
 
@@ -10,7 +10,7 @@
 
 > **2026-09-25 本地整合**：已合入 GitHub `main` 的释义显示修复、F-2 手机详情及账号隔离、Phase 2.9 联合只读预览、dsh 来源报告。相同代码在隔离 worktree 的 `scripts/check.ps1` exit 0：后端 545 passed / 1 skipped、前端 54 passed，合成 `data/` 两文件零变化。主工作区未因此重启或写生产库。PR #1 的 OCR 缓存清理边界仍需修复，故未合入。
 
-> **2026-09-25 独立整合候选**：已汇集 `codex/phase-2-9-locked-plan` 的只读锁定人工裁定计划与 `codex/pr1-ocr-pwa-integration` 的 OCR 缓存修复、PWA/F-3/F-4；另已汇集来源质量报告 v5.1。各源分支的测试与隔离浏览器证据见各自记录；整合后的完整门禁仍须单独运行。确认写入、真实词库导入、F-6 和真机验收均未完成，Phase 2.9/3 仍未交付。
+> **2026-09-25 合流验收与本地整合**：三个源分支经独立整合 worktree 汇入本地 `main`；原样 `scripts/check.ps1` exit 0，后端两轮均 601 passed / 1 skipped、前端 67 passed，合成 `data/` 4 文件零变化且合成 0007 baseline 核验通过。源分支的隔离浏览器验收 24/24。生产库未写入，实例未因本次整合重启；确认写入、真实词库导入、F-6 和真机验收未完成，Phase 2.9/3 仍未交付。
 
 
 ---
@@ -39,7 +39,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9：评审 `V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md` 后在隔离副本实现管理员确认；先核定来源、版本、人工冲突规则，不把抽样质量或混合考试计数冒充全库/真题验收。Phase 3：完成 F-6 底栏（含手机退出登录）、安装与 Android/iOS 真机验收。整合分支通过完整门禁并审查后才合入 `main`；Phase 4 仍以后两阶段验收为前置。 |
+| 下一步 | Phase 2.9：评审 `V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md` 后在隔离副本实现管理员确认；核定来源、版本和人工冲突规则，不把抽样质量或混合考试计数冒充全库/真题验收。Phase 3：完成 F-6 底栏（含手机退出登录）、安装与 Android/iOS 真机验收。Phase 4 仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
