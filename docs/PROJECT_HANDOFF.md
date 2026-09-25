@@ -12,6 +12,8 @@
 
 > **2026-09-25 合流验收与本地整合**：三个源分支经独立整合 worktree 汇入本地 `main`；原样 `scripts/check.ps1` exit 0，后端两轮均 601 passed / 1 skipped、前端 67 passed，合成 `data/` 4 文件零变化且合成 0007 baseline 核验通过。源分支的隔离浏览器验收 24/24。生产库未写入，实例未因本次整合重启；确认写入、真实词库导入、F-6 和真机验收未完成，Phase 2.9/3 仍未交付。
 
+> **2026-09-25 Phase 2.9 管理员确认写入切片（分支 `codex/phase-2-9-confirm-write`，起点 `93da75a`，未推送未合并）**：新增 migration **`0008_public_lexicon_import`**（四张新表：`source_artifact` / `public_import_run` / `public_import_run_source` / `entry_source_evidence`，新增 7 个外键，head 物理外键 26 → 33）与管理员确认命令 `python -m app.cli public-lexicon confirm --plan PLAN.json --source-root DIR --confirm <运行ID> --admin USER [--report FAIL.json]`。确认会**重新核对**来源字节 SHA-256、映射指纹并逐条重取证据原值，然后在**单个事务**内写公共内容层；失败整体回滚。**重试幂等**（同 `plan_sha256` 返回原结果、不写入）、**库内同词报冲突且绝不覆盖既有释义**、**不创建 `UserWordState`/`ReviewEvent`**、**不更新 `lexicon.entry_count`**、**证据只追加不更新不删除**（重新裁定追加新行）。管理员口令用 `getpass` 交互输入，绝不进 argv。本 worktree 原样 `scripts/check.ps1` **exit 0**：后端 **623 passed / 1 skipped**、前端 **67 passed / 9 files**、隔离证明 `data/` **3 文件零变化**。**生产库未迁移**（仍为 `0007`），`0008` 只在 pytest 临时库与一次性探针库上跑过；**2.9-A/B 仍未验收，无真实资料导入**。切片记录 `docs/V1.2-PHASE2.9-CONFIRM-WRITE-SLICE-RECORD.md`；设计审查裁定（含两处有意偏离）见 `docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md` §8。
+
 
 ---
 
@@ -39,7 +41,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9：评审 `V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md` 后在隔离副本实现管理员确认；核定来源、版本和人工冲突规则，不把抽样质量或混合考试计数冒充全库/真题验收。Phase 3：完成 F-6 底栏（含手机退出登录）、安装与 Android/iOS 真机验收。Phase 4 仍以后两阶段验收为前置。 |
+| 下一步 | Phase 2.9：确认写入的**最小切片已在 `codex/phase-2-9-confirm-write` 实现**（设计 §8 已记录审查裁定与两处有意偏离），下一步是负责人裁定真实来源、版本与人工冲突规则，再走 `0008` 的 Level 2 真实数据副本预演与发布窗口迁移；**生产库仍是 `0007`**。Phase 3：完成 F-6 底栏（含手机退出登录）、安装与 Android/iOS 真机验收。Phase 4 仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
