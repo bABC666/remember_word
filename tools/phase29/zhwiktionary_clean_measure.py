@@ -168,7 +168,9 @@ def main() -> int:
                    f"≥20 字 {sum(1 for x in mx if x >= 20)} 词、≥30 字 {sum(1 for x in mx if x >= 30)} 词")
         out.append(f"- 释义条数：1 条 {sum(1 for r in ok if r['n'] == 1)}、2–3 条 {sum(1 for r in ok if 2 <= r['n'] <= 3)}、"
                    f"≥4 条 {sum(1 for r in ok if r['n'] >= 4)}")
-    out.append(f"- 未得到释义的原因：{dict((w, sum(1 for r in results if r['why'] == w)) for w in {r['why'] for r in results})}")
+    reasons = {w: sum(1 for r in results if r["why"] == w)
+               for w in sorted({r["why"] for r in results})}
+    out.append(f"- 未得到释义的原因：{reasons}")
     out.append("")
     out.append("## 样例词的 oldid（正文不落盘）")
     for r in ok[:15]:
