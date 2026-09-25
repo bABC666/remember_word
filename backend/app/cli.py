@@ -217,6 +217,51 @@ def command_public_lexicon_preview_many(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_public_lexicon_plan(args: argparse.Namespace) -> int:
+    """Write the locked, read-only adjudication plan without opening a database.
+
+    The plan is a review artifact, not an authorisation: this command cannot confirm an
+    import, and it says out loud when a plan is not confirmable instead of leaving that
+    to be inferred from a summary nobody re-reads.
+    """
+    from app.services.public_lexicon_plan import PlanError, build_plan, write_plan
+
+    try:
+        plan = build_plan(
+            manifest_path=args.manifest,
+            source_root=args.source_root,
+            decisions_path=args.decisions,
+            target_lexicon=args.target_lexicon,
+        )
+        write_plan(plan, args.plan_path)
+    except (OSError, UnicodeError, ValueError, TypeError, PlanError) as error:
+        print(f"公共词库锁定计划生成失败：{error}", file=sys.stderr)
+        return 2
+
+    summary = plan["summary"]
+    print("公共词库锁定计划（只读）：本命令不写词条、不创建学习状态、不打开应用数据库")
+    print(f"计划文件: {args.plan_path}")
+    print(f"运行 ID: {plan['run_id']}")
+    print(f"计划摘要 SHA-256: {plan['plan_sha256']}")
+    print(f"来源数: {summary['sources']}；候选词条: {summary['candidate_entries']}"
+          f"（可确认 {summary['ready_entries']} / 待裁定 {summary['blocked_entries']}"
+          f" / 已排除 {summary['excluded_entries']}）")
+    print(f"联合报告 SHA-256: {plan['joint_report_sha256']}")
+    print(f"补充来源未匹配词: {summary['unmatched_supplement_words']}"
+          f"；不可解析行: {summary['unreadable_rows']}")
+    if plan["confirmation_ready"]:
+        print("confirmation_ready: True —— 计划本身已裁定完毕，但确认入库仍需另一次"
+              "管理员本人身份与当前口令复核")
+        return 0
+    print("confirmation_ready: False —— 本计划不可确认，先解决以下阻断项：")
+    for blocker in plan["confirmation_blockers"]:
+        print(f"  - {blocker}")
+    if args.require_ready:
+        return 1
+    print("提示：加 --require-ready 可使未就绪的计划以非零退出码结束。")
+    return 0
+
+
 def _preview_database_path() -> Path:
     """Resolve the database without get_settings(), which creates directories."""
     project_root = Path(__file__).resolve().parents[2]
@@ -406,6 +451,28 @@ def build_parser() -> argparse.ArgumentParser:
     joint_preview.add_argument("manifest", type=Path, help="来源根目录内的 JSON 清单")
     joint_preview.add_argument("--source-root", type=Path, required=True)
     joint_preview.set_defaults(func=command_public_lexicon_preview_many, file_only_preview=True)
+
+    locked_plan = public_sub.add_parser(
+        "plan", help="按人工裁定写出只读的锁定计划（不确认、不写库）"
+    )
+    locked_plan.add_argument("manifest", type=Path, help="来源根目录内的 JSON 清单")
+    locked_plan.add_argument("--source-root", type=Path, required=True)
+    locked_plan.add_argument(
+        "--decisions", type=Path, required=True, help="来源根目录内的人工裁定 JSON"
+    )
+    locked_plan.add_argument(
+        "--plan", dest="plan_path", type=Path, required=True,
+        help="写出新计划文件（确认流程的唯一输入），拒绝覆盖",
+    )
+    locked_plan.add_argument(
+        "--target-lexicon", required=True,
+        help="本计划指向的公共词库名称；只读切片无法核对它是否存在，确认时另行校验",
+    )
+    locked_plan.add_argument(
+        "--require-ready", action="store_true",
+        help="计划未就绪（confirmation_ready=False）时以非零退出码结束",
+    )
+    locked_plan.set_defaults(func=command_public_lexicon_plan, file_only_preview=True)
 
     retention = sub.add_parser("history-retention", help="history_event 保留策略（已确认 365 天）")
     retention_sub = retention.add_subparsers(dest="retention_command", required=True)

@@ -5,7 +5,7 @@
 
 | 项 | 值 |
 |---|---|
-| 更新时间 | 2026-09-25（本地 `main` 整合 F-2 与 Phase 2.9 只读预览；正式发布 tag 仍为 `v1.2.0`） |
+| 更新时间 | 2026-09-25（本地 `main` 整合 F-2 与 Phase 2.9 只读预览；同日 `codex/phase-2-9-locked-plan` 分支加只读**锁定人工裁定计划**；正式发布 tag 仍为 `v1.2.0`） |
 | 当前版本 | **`1.2.0` 本机多用户版**；发布对象为 `main` 上的附注 tag `v1.2.0`，边界与验证见 `docs/V1.2-RELEASE-RECORD.md`。Phase 2.9、3、4 尚未交付 |
 | 当前分支 | 本地 `main` 已整合 F-2、单文件与多文件只读预览及来源调研；GitHub PR #1 的 OCR 缓存修复与 PWA/F-3/F-4 仍开放、未合并；实时分支以 `git status -sb` 为准 |
 | 最近功能代码 / 文档冻结起点 | `10dcfa5`（S-2 写请求同源校验）/ `0d20a51`（其后的文档冻结提交）/ **`c3a6106`（S-1 管理员二次认证，`feat(v1.2): require the admin's own password (S-1)`）**；实时 HEAD 以 `git rev-parse HEAD` 为准 |
@@ -17,6 +17,10 @@
 | 冻结基线 | `v1.2.0` 发布基线与当前开发 HEAD 分开；本次整合门禁的数据库为合成副本，不代表生产词库验收。数据侧另有真实 0007 verified backup 与重录基线（见 §4） |
 
 > **当前开发增量（2026-09-25，本地 `main`）**：Phase 2.9 已有来源无关的单文件与多文件**只读**预览 CLI，可报告文件指纹、规范词形、逐字段来源、缺字段与释义冲突；尚无管理员确认写入或真实考研词库入库，2.9-A/B 未验收。F-2 手机词库详情独立路由与跨账号列表状态隔离已合入。GitHub PR #1 的 PWA/F-3/F-4 和 OCR 缓存恢复未合入，详见 `docs/V1.2-PHASE2.9-JOINT-PREVIEW-SLICE-RECORD.md` 与 `docs/V1.2-PHASE3-MOBILE-WORKFLOW-DESIGN.md`。
+
+> **分支增量（2026-09-25，`codex/phase-2-9-locked-plan`，起点 `d42d678`，未推送未合并）**：Phase 2.9 在只读预览之上新增**锁定的人工裁定计划**（`public-lexicon plan`，`backend/app/services/public_lexicon_plan.py`）：成员与顺序只来自 `primary` 来源、逐字段保留每个来源原值（不拼接不覆盖）、默认值只能来自人工 `select` 或无歧义的唯一取值、未决冲突与不可解析行一律阻断、四层**幂等键**写进计划。**不打开应用数据库，不写任何词条或学习状态，无 schema/migration。** 本 worktree 原样 `scripts/check.ps1` **exit 0**：后端 **572 passed / 1 skipped**、前端 **54 passed / 8 files**、隔离证明 `data/` **4 文件零变化**、合成 0007 库与合成 baseline 核验通过。**2.9-A/B 仍未验收**；确认写入设计**待审查、未实施**，见 `docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`。上述 572/54 是**该隔离 worktree 内合成环境**的实测值，不代表生产或真实词库验收。
+
+> **同分支定点收尾（2026-09-25，未推送）**：`git diff --check` 的在库问题（切片记录末尾多余空行）已修；确认写入设计的两个取舍给出**定稿建议**并附实测与变异验证——①迁移编号不写进文档，实施时取目录 `max+1`（公共导入先做，`revoke_reason` 与 Phase 5 T7 顺延，后者是此前漏记的第二个 `0008` 提法）；②公共导入**不更新** `lexicon.entry_count`（实测四个读取调用点全部走真实 `COUNT(*)`、前端零引用，故该选择对用户可见行为零影响并保住基线对 `lexicon` 行的检出能力）；③与来源报告核对确认归一化仍是 `strip_casefold_v1`、**未**采用报告 §7.1 的"只保留字母数字"矩阵规则，`source_raw` 仍是 primary 原行且不拼接。新增 `backend/tests/test_lexicon_entry_count.py`（4 项）与 2 项身份/原文契约测试；两条契约均通过**变异验证**（临时改实现则测试失败，已还原）。全后端 **578 passed / 1 skipped**（上一轮 572 + 本轮 6）、前端 54 passed / 8 files、ruff 通过、`git diff --check` exit 0、`scripts/check.ps1` **exit 0**。**未实施确认写入、未做 migration、未改 schema、未写生产库。**
 
 ---
 
@@ -89,7 +93,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 | T9–T17 卫生项 | T11、T17、T12 死代码的低风险部分、T14 staging 残留处置已完成；**T13 的 `1.2.0` 候选已按本机多用户版边界发布**。T12 随 `word` 表退场的剩余部分仍属 Phase 6 |
 | T-7 浏览器人工验收 | ✅ **达成（2026-09-24，Batch 12 按负责人确认的口径收口）**：**F-1/F-7 以 staging 上真实 Chrome 的 13/13 浏览器验收为证据**（Batch 11 实测，`data/recovery/dod4-browser-acceptance-20260923T162528Z.json` + `test-artifacts/dod4-browser-20260923T162528Z/`：设备列表与「当前设备」标记、错误口令被拒且会话不变、正确口令撤销其他设备、429 等待提示与倒计时、改密后全部会话失效并回登录页）；**S-1 以 27 项管理员二次认证测试（`backend/tests/test_admin_reauth.py`）、安全回归与 T8 三账号副本 126/126 为证据**（前端无管理员入口，不适用浏览器点击）。口径与证据 `docs/V1.2-PHASE2.8-F-DOD4-BROWSER-ACCEPTANCE.md`。验收当时本机 `127.0.0.1:8000` 无监听；正式实例后来恢复，见本文件运行实例行 |
 
-**Phase 2.8 之后新增 Phase 2.9**：以来源可核验的外部电子词库建立系统公共 `Lexicon`，作为云端关闭 OCR 后的主要初始词条来源。来源无关的只读文件预览已在本地 `main`，真实资料确认、公共词条写入和 2.9-A/B 验收**尚未完成**；本阶段与 Phase 5 的外部**词频**资料接入不同，是 Phase 4 公网部署的硬前置。原始产品决策见用户“项目决策快照”§4/§22，现行约束见 `PROJECT_ARCHITECTURE.md` §3.6，任务与 DoD 见 `PROJECT_ROADMAP.md` §6.1.1。
+**Phase 2.8 之后新增 Phase 2.9**：以来源可核验的外部电子词库建立系统公共 `Lexicon`，作为云端关闭 OCR 后的主要初始词条来源。来源无关的只读文件预览已在本地 `main`，只读的**锁定人工裁定计划**已在 `codex/phase-2-9-locked-plan` 分支；真实资料确认、管理员确认写入和 2.9-A/B 验收**尚未完成**；本阶段与 Phase 5 的外部**词频**资料接入不同，是 Phase 4 公网部署的硬前置。原始产品决策见用户“项目决策快照”§4/§22，现行约束见 `PROJECT_ARCHITECTURE.md` §3.6，任务与 DoD 见 `PROJECT_ROADMAP.md` §6.1.1，切片证据见 `docs/V1.2-PHASE2.9-LOCKED-PLAN-SLICE-RECORD.md`。
 
 ---
 
@@ -106,6 +110,8 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 | 备份校验 | `backend\.venv\Scripts\python.exe tools\verify_backup.py data\vocab.db --baseline data\recovery\baseline.json` | **VERDICT: VERIFIED BACKUP**（17 张业务表逐行比对全部 `ok`） |
 
 > **唯一的门禁命令是 `scripts/check.ps1`**。改动后请用它收尾，不要只跑单项。
+>
+> **口径提醒（2026-09-25 实测）**：本表的"后端测试 **522 passed**"与"前端测试 **32 passed / 7 files**"是 2026-09-23 的冻结快照，已落后于上表"门禁状态"行的 **545 / 54** 与 Phase 2.9 切片记录里的 **572 / 54**（均为各自隔离 worktree 内的实测，不是主工作区数字）。`PROJECT_ARCHITECTURE.md` §7.5 的 522/32 同理。引用时请写出测量环境，不要把它们当作同一时刻的数字。
 
 ---
 
@@ -229,7 +235,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 2. **Phase 2.8 发布收尾**
    ✅ T11、T17、G8、G6 策略与 staging 演练、T8、T12 低风险部分、T14、DoD 1–8 已完成；1.2.0 的合并与 tag 见正式发布记录。G6 未来生产清理仅在有到期候选及具体计划获批后另行执行。
 3. **Phase 2.9 · 外部电子词库与公共词库交付**（Phase 4 上线硬前置）
-   单文件只读预览已合入本地 `main`，联合只读预览已进入隔离整合分支。下一步确定可用词库来源、版本与使用范围，再设计管理员确认和幂等写入；在副本验证双用户隔离。真实导入未完成，不得拿 AI 生成词义或词频填空。
+   单文件与联合只读预览已合入本地 `main`；只读的**锁定人工裁定计划**已落地在 `codex/phase-2-9-locked-plan`（未推送）。2026-09-25 定点收尾已就三项给出定稿建议与实测/变异验证（迁移编号不入文档、实施时取目录下一个可用编号；公共导入不更新 `lexicon.entry_count`；身份规则仍为 `strip_casefold_v1`、`source_raw` 不拼接），**仍是建议、确认写入未开始**（设计待审查：`docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`）。下一步仍需负责人裁定可用词库来源、版本与使用范围，再在副本验证双用户隔离。真实导入未完成，不得拿 AI 生成词义或词频填空。
 4. **Phase 3 · PWA 与移动端可用性**（可与 2.9 并行，部分完成）
    F-2 手机详情路由、列表返回状态与账号隔离已在本地 `main`；完整释义、音标、复习历史和文章暴露在手机详情可见，桌面双栏保留。相同代码在隔离整合 worktree 的完整门禁后端 545 / 1 skipped、前端 54 通过。GitHub PR #1 另实现 PWA、F-3 图片列表和 F-4 安全区，但 OCR 缓存清理边界待修，尚未合并；F-6 底栏与 Android/iOS 真机验收仍待做。
 5. **Phase 4 · 生产部署上线**（必须先完成 2.8 + 2.9；建议 Phase 3 也已完成）

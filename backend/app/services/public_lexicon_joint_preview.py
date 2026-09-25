@@ -25,12 +25,33 @@ class SourceSpec:
     source_id: str
     path: Path
     mapping: PreviewMapping
+    #: The role this source is declared to play. The read-only comparison does not
+    #: use it: a role only becomes binding in the locked plan, where the ``primary``
+    #: source alone decides word membership. It stays optional here so manifests
+    #: written before roles existed keep previewing; the plan loader requires it.
+    role: str | None = None
 
     def __post_init__(self) -> None:
         if not self.source_id or self.source_id != self.source_id.strip():
             raise ValueError("invalid_source_id: use a nonempty stable source identifier")
         if len(self.source_id) > 80 or any(ord(char) < 32 for char in self.source_id):
             raise ValueError("invalid_source_id: identifier is too long or contains controls")
+        if self.role is not None and (not self.role or self.role != self.role.strip()):
+            raise ValueError("invalid_role: use a nonempty role name or omit it")
+
+
+@dataclass(frozen=True)
+class ManifestSpecs:
+    """A parsed manifest plus the fingerprint of the bytes it was parsed from.
+
+    The fingerprint matters because the plan is only reproducible when the exact
+    manifest that produced it is known; ``sources`` carries the declared roles,
+    which the read-only comparison ignores but the plan depends on.
+    """
+
+    sources: list[SourceSpec]
+    required_fields: tuple[str, ...]
+    file: dict[str, object]
 
 
 def _json_bytes(value: object, *, canonical: bool = False) -> bytes:
@@ -119,8 +140,14 @@ def preview_sources(
     return report
 
 
-def preview_manifest(path: Path, *, source_root: Path) -> dict[str, object]:
-    """Read a bounded local manifest under source_root, then preview its files."""
+def load_manifest(path: Path, *, source_root: Path) -> ManifestSpecs:
+    """Read a bounded local manifest under source_root and return its source specs.
+
+    Split out of :func:`preview_manifest` because the locked plan needs the declared
+    roles and the manifest fingerprint, while the read-only comparison needs only the
+    resulting report. Both go through this one parser, so the two entry points can
+    never disagree about what a manifest means.
+    """
     root = source_root.resolve(strict=True)
     if not root.is_dir():
         raise ValueError("invalid_source_root: expected a directory")
@@ -151,6 +178,9 @@ def preview_manifest(path: Path, *, source_root: Path) -> dict[str, object]:
             raise ValueError("invalid_manifest: columns must map strings to strings")
         if not isinstance(item.get("id"), str) or not isinstance(item.get("file"), str):
             raise TypeError("invalid_manifest: id and file must be strings")
+        role = item.get("role")
+        if role is not None and not isinstance(role, str):
+            raise TypeError("invalid_manifest: role must be a string")
         row_required = item.get("required_fields", ["word"])
         if not isinstance(row_required, list) or not all(
             isinstance(field, str) for field in row_required
@@ -163,5 +193,22 @@ def preview_manifest(path: Path, *, source_root: Path) -> dict[str, object]:
                 encoding=item.get("encoding", "utf-8-sig"),
                 delimiter=item.get("delimiter", ","),
             ),
+            role=role,
         ))
-    return preview_sources(specs, source_root=root, required_fields=tuple(required))
+    return ManifestSpecs(
+        sources=specs,
+        required_fields=tuple(required),
+        file={
+            "name": resolved.name,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "byte_size": len(raw),
+        },
+    )
+
+
+def preview_manifest(path: Path, *, source_root: Path) -> dict[str, object]:
+    """Read a bounded local manifest under source_root, then preview its files."""
+    specs = load_manifest(path, source_root=source_root)
+    return preview_sources(
+        specs.sources, source_root=source_root, required_fields=specs.required_fields
+    )
