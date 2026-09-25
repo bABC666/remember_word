@@ -12,6 +12,8 @@
 
 > **2026-09-25 Phase 2.9 只读切片（分支 `codex/phase-2-9-locked-plan`，起点 `d42d678`，未推送未合并）**：新增**锁定的人工裁定计划**——联合只读预览与管理员确认之间的一层契约。`python -m app.cli public-lexicon plan MANIFEST --source-root DIR --decisions FILE --plan NEW.json --target-lexicon NAME [--require-ready]` 读来源文件、清单与人工裁定文件，写出一个**只读** JSON 计划：冻结清单/文件字节/映射/规则版本指纹，成员与顺序**只来自声明为 `primary` 的来源**，逐字段保留每个来源原值（**不拼接、不覆盖**），默认值只能来自人工 `select` 或无歧义的唯一取值，未决冲突/缺必填字段/`defer`/不可解析行一律阻断 `confirmation_ready`，并把 run/source/entry/evidence 四层**幂等键**写进计划。**命令不打开应用数据库**，不写 `LexiconEntry`/`UserWordState`/`ReviewEvent`，无 schema 或 migration（`alembic` 仍为 `0001`–`0007`）。本 worktree 内原样 `scripts/check.ps1` **exit 0**：后端 **572 passed / 1 skipped**、前端 **54 passed / 8 files**、隔离证明 `data/` **4 文件零变化**、合成 0007 库与合成 baseline `VERIFIED BACKUP`；补齐环境的做法见切片记录。**2.9-A/B 仍未验收，尚无管理员确认写入、无真实词库导入。** 切片记录 `docs/V1.2-PHASE2.9-LOCKED-PLAN-SLICE-RECORD.md`；确认写入设计（**待审查、未实施**）`docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`。
 
+> **同分支定点收尾（2026-09-25，未推送）**：`git diff --check` 的末尾空行已修；确认写入设计的两个取舍给出**定稿建议**并附实测与变异验证——迁移编号不写进文档、实施时取目录 `max+1`（公共导入先做，`revoke_reason` 与 Phase 5 T7 顺延）；公共导入**不更新** `lexicon.entry_count`（实测四个读取调用点全部走真实 `COUNT(*)`、前端零引用，该选择对用户可见行为零影响并保住基线对 `lexicon` 行的检出能力）。与来源报告核对确认归一化仍是 `strip_casefold_v1`、**未**采用报告 §7.1 的"只保留字母数字"矩阵规则（那会静默合并 `well-known`/`wellknown`），`source_raw` 仍是 primary 原行且不拼接。新增 6 项测试，两条契约均通过**变异验证**。全后端 **578 passed / 1 skipped**、前端 54 passed / 8 files、ruff 通过、`scripts/check.ps1` **exit 0**。**未实施确认写入、未做 migration、未写生产库。**
+
 ---
 
 > **预览审查记录**：容量、来源根目录和 CR/LF 物理行边界已补测试。最初独立 worktree 的失败由环境缺件及受限沙箱的停服端口观测造成；正常权限下停服脚本测试 6/6 通过，脚本和测试未改。CLI 来源根目录只适用于管理员控制、预览期间不变的本地目录，不作为抵御本机不可信并发修改者的边界。完整证据见预览切片记录；2.9-A/B 未验收，未开始确认写入。
@@ -38,7 +40,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9：只读的**锁定人工裁定计划**已落地（`docs/V1.2-PHASE2.9-LOCKED-PLAN-SLICE-RECORD.md`），确认写入的 schema/幂等/迁移回滚**设计待审查**（`docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`）；仍需负责人裁定真实来源、版本与人工冲突规则，并先决定 `0008` 编号与 `entry_count`/基线处置。Phase 3 需修复 PR #1 的 OCR 缓存清理边界、整合 PWA/F-3/F-4，并完成 F-6 与真机验收。Phase 4 上线仍以后两阶段验收为前置。 |
+| 下一步 | Phase 2.9：只读的**锁定人工裁定计划**已落地（`docs/V1.2-PHASE2.9-LOCKED-PLAN-SLICE-RECORD.md`），确认写入的 schema/幂等/迁移回滚**设计待审查**（`docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`）。2026-09-25 定点收尾已就三项给出**定稿建议 + 实测/变异验证**：迁移编号不写进文档、实施时取目录下一个可用编号（公共导入先做，`revoke_reason` 与 Phase 5 T7 顺延）；公共导入**不更新** `lexicon.entry_count`（读路径实测已全部走 `COUNT(*)`，前端零引用）；身份规则仍是 `strip_casefold_v1`、`source_raw` 仍是 primary 原行不拼接。**建议不等于实施**——确认写入未开始。仍需负责人裁定真实来源、版本与人工冲突规则。Phase 3 需修复 PR #1 的 OCR 缓存清理边界、整合 PWA/F-3/F-4，并完成 F-6 与真机验收。Phase 4 上线仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。

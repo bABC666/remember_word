@@ -593,3 +593,80 @@ def test_plan_cli_require_ready_fails_closed_on_an_unadjudicated_plan(
     printed = capsys.readouterr().out
     assert "confirmation_ready: False" in printed
     assert (tmp_path / "plan.json").exists()
+
+
+# --- the entry-identity rule, pinned against a tempting alternative -----------
+#
+# The Phase 2.9 source research compares candidate word lists with its own
+# normalisation: "只保留字母数字并小写" (keep only alphanumerics, lowercase) --
+# §7.1 of `docs/V1.2-PHASE2.9-EXTERNAL-LEXICON-SOURCE-RESEARCH.md`. That rule exists
+# to measure overlap between two research data sets; it is not this product's entry
+# identity, and adopting it would silently merge genuine headwords (`well-known` and
+# `wellknown`, `can't` and `cant`) inside the shared public lexicon.
+#
+# The contract is `strip().casefold()`: leading/trailing whitespace and case fold,
+# and nothing else. These tests make the difference observable, so a future change
+# cannot adopt the research rule without failing here.
+
+
+def test_plan_keeps_the_strip_casefold_identity_rule(tmp_path: Path) -> None:
+    _write(tmp_path, "primary.csv", (
+        "head,cn\n"
+        "Apple,苹果\n"
+        " apple ,苹果\n"
+        "well-known,知名的\n"
+        "wellknown,众所周知的\n"
+        "can't,不能\n"
+        "cant,伪善的言辞\n"
+    ))
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"}},
+    ])
+
+    plan = _plan(tmp_path, manifest)
+
+    assert plan["rule_versions"]["normalization"] == "strip_casefold_v1"
+    # Case and surrounding whitespace fold: the two `apple` rows are one entry, and
+    # both rows stay as evidence.
+    assert [entry["normalized_word"] for entry in plan["entries"]] == [
+        "apple", "well-known", "wellknown", "can't", "cant",
+    ]
+    assert len(_entry(plan, "apple")["evidence"]["meaning"]) == 2
+    # Punctuation inside a word is never stripped. The research matrix would collapse
+    # each of these pairs into one key.
+    assert len(plan["entries"]) == 5
+
+
+def test_plan_source_raw_stays_the_primary_line_even_when_a_supplement_is_default(
+    tmp_path: Path,
+) -> None:
+    """`source_raw` is the primary row's own text, never an assembled one.
+
+    Selecting a supplement's meaning as the displayed default must not pull that
+    supplement's text into `source_raw`, and must not merge the two originals: the
+    snapshot cites where each value came from, and both raw texts survive in evidence.
+    """
+    manifest = _two_sources(tmp_path)
+
+    entry = _entry(_plan(tmp_path, manifest, [{
+        "normalized_word": "apple", "field": "meaning", "action": "select",
+        "evidence": [{"source_id": "supplement", "line": 2}],
+        "note": "以补充来源释义为默认",
+    }]), "apple")
+
+    assert entry["status"] == "ready"
+    assert entry["default_snapshot"]["source_meanings"] == ["苹果公司"]
+    assert entry["default_snapshot"]["source_raw"] == "Apple,苹果；果实"
+    assert entry["default_evidence"]["source_raw"] == {
+        "source_id": "primary", "line": 2,
+    }
+    assert [item["raw_value"] for item in entry["evidence"]["meaning"]] == [
+        "苹果；果实", "苹果公司",
+    ]
+    # No value anywhere in the entry mixes the two source texts.
+    assert all(
+        item["raw_value"] in {"苹果；果实", "苹果公司", "Apple", " apple "}
+        for field in ("word", "meaning")
+        for item in entry["evidence"][field]
+    )
