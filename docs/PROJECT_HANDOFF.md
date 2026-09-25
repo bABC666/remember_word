@@ -1,8 +1,8 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-25（本地开发整合；下文保留各历史批次记录）。
+> 更新日期：2026-09-26（本地开发整合；下文保留各历史批次记录）。
 > 当前分支：`main`；由 `feat/v1.2-phase1-safe` fast-forward 合并。实时 HEAD 和远端 tag 以 Git 核验为准。
-> 当前阶段：**`v1.2.0` 本机版已发布；本地 `main` 已整合 F-2/F-6、Phase 2.9 只读预览/锁定计划、来源质量报告 v5.1 与 300 词只读预演报告、OCR 缓存修复和 PWA/F-3/F-4**。真实公共词库确认导入、2.9-A/B、G8 设置页修复与 Phase 3 真机验收未完成；G6 生产库未来清理另行决定。
+> 当前阶段：**`v1.2.0` 本机版已发布；本地 `main` 已整合 F-2/F-6/Phase 3 G8、Phase 2.9 只读预览/锁定计划、来源质量报告 v5.1、300 词只读预演与 164 词机器试点报告、OCR 缓存修复和 PWA/F-3/F-4**。真实公共词库确认导入、2.9-A/B 与 Phase 3 真机验收未完成；G6 生产库未来清理另行决定。
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > `docs/PROJECT_STATUS_V1.2.md` 是 2026-09-22 的只读审计快照，已加当前状态索引；旧数字保留为历史证据，不作为当前状态来源。当前事实以代码、`PROJECT_STATUS_CURRENT.md` 及 `docs/V1.2-RELEASE-RECORD.md` 为准。
 
@@ -12,9 +12,11 @@
 
 > **2026-09-25 最新合流验收与本地整合**：F-6 和只读真实数据预演报告经独立 worktree 汇入本地 `main`；原样 `scripts/check.ps1` exit 0，后端两轮均 601 passed / 1 skipped、前端 80 passed，合成 `data/` 4 文件零变化且合成 0007 baseline 核验通过。F-6 源分支隔离浏览器验收 32/32。生产库未写入，实例未因本次整合重启；确认写入、真实词库导入和真机验收未完成，Phase 2.9/3 仍未交付。
 
+> **2026-09-26 最新合流验收**：Phase 3 G8 设置页修复及 164 词机器试点报告已进入本地 `main`。独立 worktree 原样 `scripts/check.ps1` exit 0：后端两轮均 601 passed / 1 skipped，前端 84 passed，合成 `data/` 4 文件零变化。试点人工裁定栏仍为空；旧抽取规则漏掉的中文候选尚未确认为可用释义。`codex/phase-2-9-confirm-write` 已补授权声明必填并完成真实生产库副本的 0007→0008 迁移往返预演，但启动器隐式 `upgrade head` 和真实来源确认导入仍是阻断项；该分支未合入 `main`，生产库未迁移。
+
 > **2026-09-25 F-6 手机底栏源分支验收快照（随后已合流）**：分支 `codex/f6-mobile-bottom-nav` 当时从 `origin/main` = `93da75a` 建立，≤620px 底栏由 6 项改为 **5 项**（今日概览／今日学习／阅读练习／我的词库／「更多」），导入、设置、帮助与退出登录移入底栏之上的「更多」弹层；账号区块在手机档隐藏，**退出登录不再被挤出视口**；底栏条目补 `aria-label`（标签在 ≤900px 为 `display: none`，原本无可访问名称）。621–900px 图标栏与 ≥901px 桌面侧栏不变。源分支原样 `scripts/check.ps1` **exit 0**：后端 **601 passed / 1 skipped**、前端 **80 passed**、`data/` **200 文件零变化**、VERIFIED BACKUP（`vocab.db` sha256 `fe99e640…`）。隔离浏览器验收 **32/32**：断点 360/390/414/620/621/720/900/901/1280 扫描、5 项全部位于视口内且 ≥67×50、真实命中测试点击可导航、弹层四项可达、退出登录真的登出，并回归了详情返回状态（筛选与滚动 272→272）、账号隔离与 `/api/**` 不进缓存。**Android/iOS 真机未验收**（触摸、iOS 安全区像素、安装）；同轮发现手机宽度下设置页横向溢出（390px 视口下 `scrollWidth=961`），属既有缺口、本批未修，记为路线图 G8。细节见 `docs/2026-09-25-F6-BOTTOM-BAR-ACCEPTANCE.md`。
 
-> **2026-09-25 G8 修复**（分支 `codex/g8-settings-overflow`，自 `origin/main` = `2798a31` 的独立 worktree；**未 push、未 merge**）：修复设置页横向溢出与手机档保存按钮被底栏遮挡。**根因实测**：「登录设备」区的 UA 字符串作为 flex item 缺 `min-width: 0`，其 799px 最小宽度沿各层单列网格把文档撑到 961px，`overflow: hidden; text-overflow: ellipsis` 因此从未生效；同时各设置网格用的是裸 `1fr`（= `minmax(auto,1fr)`，下限为 min-content）。修复为 `.session-head strong { min-width: 0 }` 与相关轨道改 `minmax(0, 1fr)`。**第二个缺陷（本轮新发现并修复）**：`.settings-save`（`sticky; bottom: 0`）在 ≤620px 与 64px 固定底栏贴在同一条边上，按钮实测 788–830、底栏自 780 起 → `elementFromPoint` 命中底栏，**手机上无法保存设置**；改为 `bottom: calc(64px + var(--safe-area-bottom))`（修复后 724–766，可点）。修复前基线的溢出范围**不止手机**：320–620px 为 961、621–900px 为 1063、901px 为 1236。原样 `scripts/check.ps1` **exit 0**：后端 **601 passed / 1 skipped**（与 main 相同，本批只改前端）、前端 **84 passed**（80 + 新增 4）、`data/` **200 文件零变化**、VERIFIED BACKUP（`vocab.db` sha256 `fe99e640…` 逐字节同前）。隔离浏览器验收 **27/27**：320/375/390/430/620/621/900/901/1280 九档全部无横向溢出且超宽元素为 0、UA 行按设计截断、API Key 字段各档可聚焦可命中、软键盘视口压缩代理下无溢出且聚焦字段可滚动到且未被覆盖、保存按钮各档未被遮挡、390px 下保存往返回写 `daily_new_words=23` 成功；并回归 F-6「更多」/退出登录、F-2 详情返回状态（筛选与滚动 272→272）、`/api/**` 不进缓存。**真机软键盘、iOS 安全区像素、其它引擎与安装未验收**；细节见 `docs/2026-09-25-G8-SETTINGS-OVERFLOW-ACCEPTANCE.md`。
+> **2026-09-25 G8 修复**（源分支验收快照；随后已合流）：修复设置页横向溢出与手机档保存按钮被底栏遮挡。**根因实测**：「登录设备」区的 UA 字符串作为 flex item 缺 `min-width: 0`，其 799px 最小宽度沿各层单列网格把文档撑到 961px，`overflow: hidden; text-overflow: ellipsis` 因此从未生效；同时各设置网格用的是裸 `1fr`（= `minmax(auto,1fr)`，下限为 min-content）。修复为 `.session-head strong { min-width: 0 }` 与相关轨道改 `minmax(0, 1fr)`。**第二个缺陷（本轮新发现并修复）**：`.settings-save`（`sticky; bottom: 0`）在 ≤620px 与 64px 固定底栏贴在同一条边上，按钮实测 788–830、底栏自 780 起 → `elementFromPoint` 命中底栏，**手机上无法保存设置**；改为 `bottom: calc(64px + var(--safe-area-bottom))`（修复后 724–766，可点）。修复前基线的溢出范围**不止手机**：320–620px 为 961、621–900px 为 1063、901px 为 1236。原样 `scripts/check.ps1` **exit 0**：后端 **601 passed / 1 skipped**（与 main 相同，本批只改前端）、前端 **84 passed**（80 + 新增 4）、`data/` **200 文件零变化**、VERIFIED BACKUP（`vocab.db` sha256 `fe99e640…` 逐字节同前）。隔离浏览器验收 **27/27**：320/375/390/430/620/621/900/901/1280 九档全部无横向溢出且超宽元素为 0、UA 行按设计截断、API Key 字段各档可聚焦可命中、软键盘视口压缩代理下无溢出且聚焦字段可滚动到且未被覆盖、保存按钮各档未被遮挡、390px 下保存往返回写 `daily_new_words=23` 成功；并回归 F-6「更多」/退出登录、F-2 详情返回状态（筛选与滚动 272→272）、`/api/**` 不进缓存。**真机软键盘、iOS 安全区像素、其它引擎与安装未验收**；细节见 `docs/2026-09-25-G8-SETTINGS-OVERFLOW-ACCEPTANCE.md`。
 
 
 ---
@@ -43,7 +45,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9：确认写入仍在 `codex/phase-2-9-confirm-write`，先补来源授权元数据、用真实数据副本预演 `0008` 并锁定小批量词条的人工裁定规则；不能把合成门禁、抽样质量或混合考试计数冒充正式词库验收。Phase 3：F-6 已整合，下一步修 G8 手机设置页横向溢出，再做安装与 Android/iOS 真机验收。Phase 4 仍以后两阶段验收为前置。 |
+| 下一步 | Phase 2.9：先加固 `start-vocab.ps1`，使数据库 revision 落后于代码时拒绝隐式迁移；再为现有真实来源清单补 `provenance`、设计并验证新版本维基词典抽取规则，逐词完成小批量人工裁定，在隔离副本上验收真实确认导入及双用户隔离。Phase 3：F-6 与设置页 G8 已整合，下一步是 Android/iOS 真机安装、软键盘和安全区验收。Phase 4 仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
