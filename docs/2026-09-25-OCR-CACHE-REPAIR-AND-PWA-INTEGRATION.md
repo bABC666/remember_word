@@ -20,7 +20,7 @@ PR #1 的实现（`backend/app/services/ocr/paddle.py`）在 `_get_engine()` 里
 
 1. 它是 `official_models/` 的**直接子目录**（`locks/`、`temp/`、`func_ret/` 结构上不参与）；
 2. 不是符号链接／目录联接（`shutil.rmtree` 穿过链接会删掉目标内容）；
-3. 目录名是 PaddleX 官方模型名（优先用 PaddleX 自己的 `ALL_MODELS` 清单；该清单不可导入时退回到名字形状 `[A-Za-z0-9][A-Za-z0-9._-]*`，且允许 `_safetensors`／`_onnx` 后缀）；
+3. 目录名在 PaddleX 官方模型清单内（`ALL_MODELS`，允许 `_safetensors`／`_onnx` 后缀）。**该清单读不到时不做任何删除**——PaddleX 未安装、导入抛错、或清单为空／不可迭代，都视为"未知"，跳过清理并在 `skipped` 里记录原因。名字形状 `[A-Za-z0-9][A-Za-z0-9._-]*` 只用作廉价的前置过滤（避免为明显无关的目录付出导入 PaddleX 的代价），**本身绝不构成删除授权**：按名字形状猜测正是最初实现会误删无关目录的原因；
 4. 内容确实是模型材料（空目录算——中断的复制正是留下空目录；含有内容但没有任何模型文件/宿主标记的不算）；
 5. **确实不可用**：`inference.json` 必须是能 `json.loads` 且非空的对象；`inference.yml` 必须是能 `yaml.compose_all` 解析出的映射（用 `compose_all` 而不是 `safe_load`，避免 PaddleX 自定义 tag 被误判为损坏）；`*.pdiparams`／`*.safetensors`／`*.onnx` 必须存在且不小于 `1 MiB`（真实 PP-OCRv6 参数为 62 MB 与 76 MB，阈值只用于拦住明显的截断）；
 6. 在 HTTP 意义上"空闲"：目录树（含嵌套，深度与条数有界）最新写入时间已超过 `300 s` 宽限窗口；
@@ -31,8 +31,9 @@ PR #1 的实现（`backend/app/services/ocr/paddle.py`）在 `_get_engine()` 里
 
 ### 证据
 
-- `backend/tests/test_ocr_model_cache_repair.py`：**19 项**，全部在 `tmp_path` 的隔离缓存树内构造，覆盖完整缓存、空目录、缺失配置、截断 JSON／YAML／参数文件、无关目录（`uploads/`、`.cache/`）、同级 `locks`／`temp`／`func_ret`、指向别处的目录联接、最近写入、嵌套 `.incomplete` 残留、崩溃残留、被下载锁占用的并发情形（另一线程持锁）、锁释放后重新可修、锁内被补全的竞态、重复清理的收敛性、锁路径与 PaddleX 算法一致、以及"修复动作不越出被交给它的缓存目录"。
+- `backend/tests/test_ocr_model_cache_repair.py`：**22 项**，全部在 `tmp_path` 的隔离缓存树内构造，覆盖完整缓存、空目录、缺失配置、截断 JSON／YAML／参数文件、无关目录（`uploads/`、`.cache/`）、同级 `locks`／`temp`／`func_ret`、指向别处的目录联接、最近写入、嵌套 `.incomplete` 残留、崩溃残留、被下载锁占用的并发情形（另一线程持锁）、锁释放后重新可修、锁内被补全的竞态、重复清理的收敛性、锁路径与 PaddleX 算法一致、以及"修复动作不越出被交给它的缓存目录"。其中 3 项专门覆盖**清单读不到**时的保守边界：清单为 `None` 时任何名字形状的目录都不得删除且必须记录"无法读取清单"的原因、空清单必须被当成损坏清单而不是"没有模型"、清单导入失败必须返回 `None` 而不是抛异常（用 `sys.modules[...] = None` 制造导入失败）。
 - 只读探针（不对真实缓存调用清理）：真实 `data/ocr-models/official_models` 下两个模型目录均判定为**完整**（无误删风险）；`official_model_lock_path()` 计算出的锁文件名与 PaddleX 的 `_official_model_download_lock_path()` 对 4 个模型名**逐一相同**；运行前后真实缓存目录列表不变。
+- 本机 PaddleX 可正常导入，因此生产路径上第 3 条闸门走的是"清单可读"分支；"清单不可读"分支只由上述 3 项回归测试与代码审查覆盖，**未在真实缺件环境验证**。
 
 ## 2. 整合 PR #1 的前端部分
 
@@ -66,18 +67,24 @@ PR 的分支基线是 `cc3bf66`，而 main 之后已经落地 F-2 手机词库�
 
 `backend/tests/test_static_hosting.py` 新增一项：`/manifest.webmanifest`、`/sw.js`、`/icons/shici-192.png`、`/icons/shici-180.png` 由构建产物经同一条 SPA 兜底路径公开提供，并断言 worker 文本中存在 `/api` 与 `/api/` 两种拼写、非 GET 与跨源守卫。HTTP 层的 `/api` 边界（未知 API 路径绝不返回应用壳）main 已有专门测试（`backend/tests/test_spa_fallback.py`，18 项中含 `/apiary`、`/api-docs` 反例），本批未重复实现。
 
-## 4. 尚缺的验收（必须如实记录）
+## 4. 后续补做的隔离浏览器验收与仍然缺的验收
 
-- **浏览器人工验收**：桌面 Chromium／Firefox 下 ≤900px／≤620px／≤720px 三个断点的真实观感、导入页图片列表的操作可达性、查词浮层与底栏是否重叠——本批只做到自动化断言与 CSS 规则层面。
-- **手机真机验收**：Android Chrome 与 iOS Safari 上「添加到主屏幕」、`display: standalone` 启动、iOS 安全区避让（Home Indicator 不遮挡底栏）、离线壳行为（断网后仍能打开外壳且不显示任何上一个账号的数据）。
-- **SW 生命周期未在真实浏览器验证**：`install`/`activate`/`skipWaiting`/`clients.claim` 与版本切换只做了源码级断言，没有在浏览器里跑过一次升级。
-- **断点快照与交互测试**（roadmap T12）未做。
+**2026-09-25 补做**：在隔离环境（全新临时数据库与非生产模型缓存目录、独立端口、独立 Chrome 配置、headless Chrome 153 + CDP）完成了一次真实浏览器验收，**24/24 项通过**，覆盖 Service Worker `install`/`activate`/版本升级与旧缓存清理、`/api/**` 从不进入 Cache Storage（含缓存响应体扫描）、A 退出后 B 登录与离线状态都不出现 A 的内容、手机详情、手机导入图片列表、底栏与 safe-area 接线。明细与未验收清单见 `docs/2026-09-25-PHASE3-BROWSER-ACCEPTANCE.md`，原始数据见 `docs/2026-09-25-browser-acceptance-evidence.json`。
+
+因此下面这些**已不再是缺口**：SW 生命周期与版本切换、`/api/**` 不进缓存、离线壳不重放上一账号数据、F-2 手机详情与桌面双栏、F-3 手机图片列表、F-4 的 calc 接线。
+
+**仍然缺的验收（如实记录）**：
+
+- **手机真机验收**：Android Chrome 与 iOS Safari 上的真实渲染与触摸、iOS 安全区避让的真实像素（模拟环境 `env(safe-area-inset-bottom)` 恒为 `0px`）、「添加到主屏幕」安装与 `display: standalone` 启动、主屏幕冷启动离线、软键盘与横竖屏。
+- **其它引擎**：Firefox／Safari 未验证（只跑了 Chrome）。
+- **真机不可达的前提**：当前服务只监听 `127.0.0.1:8000`，手机无法访问；要真机验收安装，必须先解决监听地址或反向代理（属部署范围，不在本批）。
+- **断点快照与交互测试**（roadmap T12）未做：本批只做了定向布局断言的浏览器检查，没有建立三档断点的快照回归。
 - **Phase 3 的整体 DoD／M2 验收**未做。
-- **PWA 安装前提**：当前服务只监听 `127.0.0.1:8000`，手机无法直接访问；要真机验收安装，必须先解决监听地址或反向代理（属部署范围，不在本批）。
+- **新发现（属 Phase 3 可用性缺口，留给 F-6 切片）**：390×844 下 `.sidebar-account`（含「退出登录」）位于视口下方 852–888，**手机上无法退出登录**；实测底栏 6 项各 65px。详见验收文档 §3。
 
 ## 5. 明确另列的后续切片（本批不做）
 
-- **F-6 底部导航重排**：≤620px 下 6 项各约 60px 偏拥挤，需要重新设计（建议 5 项 + 中央加号）。这会改动 `AppShell.tsx` 与信息架构，属独立切片，本批**有意不改**。
+- **F-6 底部导航重排**：≤620px 下 6 项各 65px（浏览器实测）偏拥挤，且账号/退出入口被挤出视口（见验收文档 §3.1）。需要重新设计（建议 5 项 + 中央加号），改动 `AppShell.tsx` 与信息架构，属独立切片，本批**有意不改**。
 - **T11 `.br` 预压缩产物**：为 Phase 4 的 Caddy `precompressed` 准备，独立于本批。
 - **PR #1 的其余文档改动**：PR 的 `PROJECT_HANDOFF`／`ROADMAP`／`STATUS` 文本是在 F-2 合并前写的，直接套用会回退 main 的现状；本批按 main 现状逐处改写，而不是整段替换。
 
@@ -85,6 +92,7 @@ PR 的分支基线是 `cc3bf66`，而 main 之后已经落地 F-2 手机词库�
 
 - 未 `push`、未 `merge`、未创建或修改任何标签；未触碰 `data/`（`vocab.db`、上传图片、模型缓存）内容。
 - 未对真实模型缓存运行清理；所有清理验证都在 `tmp_path` 内完成。对真实缓存的唯一动作是**只读**判断。
+- 浏览器验收使用全新临时数据库与临时缓存目录；生产数据目录只被**指名**用于触发应用自身的隔离守卫，未被读写。
 - 未运行采集/迁移/备份类工具。
 
 ## 7. 门禁结果（隔离 worktree，`scripts/check.ps1`）
@@ -94,13 +102,15 @@ PR 的分支基线是 `cc3bf66`，而 main 之后已经落地 F-2 手机词库�
 | 步骤 | 结果 |
 |---|---|
 | ruff（backend `app`／`tests`，以及 `tools`） | 全部通过 |
-| 后端测试 | **565 passed, 1 skipped**（跳过的是 `test_public_lexicon_preview_guards.py` 的 symlink 用例：本机无创建符号链接权限，main 上同样跳过） |
+| 后端测试 | **568 passed, 1 skipped**（跳过的是 `test_public_lexicon_preview_guards.py` 的 symlink 用例：本机无创建符号链接权限，main 上同样跳过） |
 | 前端测试 | **67 passed（9 个文件）**（main 基线 54，本批 +13：`frontend/src/pwa.test.ts`） |
 | 前端 typecheck／lint／build | 全部通过（`vite build` 1752 modules，`dist/` 含 `sw.js`、`manifest.webmanifest`、`icons/`） |
 | 测试隔离证明 | `data/` **200 文件，added/removed/changed 均为 none** —— pytest 未触碰真实数据目录 |
 | VERIFIED BACKUP | revision `0007`、`integrity ok`、`fk_check 0 violations`，逐表核对为合法增长，判定 **VERIFIED BACKUP** |
 
-后端计数变化：545（main 记录）→ 565，新增 20 项 = 本批的 `test_ocr_model_cache_repair.py` 19 项 + `test_static_hosting.py` 的 PWA 情形 1 项。
+后端计数变化：545（main 记录）→ 568，新增 23 项 = `test_ocr_model_cache_repair.py` **22 项** + `test_static_hosting.py` 的 PWA 情形 1 项。
+
+**生产库在整个会话期间逐字节未变**：两次 `check.ps1`（含其间的隔离浏览器验收）报出的 `data/vocab.db` 均为 `sha256 fe99e640274b717d1f2e887ba337be1bc2943223bbdec70a59b75c90f4e67993` / `937984` 字节，逐表计数也完全相同（如 `import_candidate 142`、`user_word_state 60`、`user_session 1`）。浏览器验收使用的是全新临时库。
 
 **注意运行顺序**：`check.ps1` 的第 2 步（后端测试）在第 3 步（前端构建）之前，而 `test_static_hosting.py`／`test_spa_fallback.py` 需要 `frontend/dist` 存在。在**全新 worktree** 里必须先跑一次 `npm run build` 再跑 `check.ps1`，否则这两组测试会因缺少构建产物失败。这不是本批引入的问题，但会影响任何新 worktree 的首次门禁。
 

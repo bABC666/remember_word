@@ -1,0 +1,173 @@
+{
+  "scratch_root": "C:\\Temp\\shici-browser-acceptance-_iixxes3",
+  "production_data_named_but_untouched": "D:\\背单词web\\data",
+  "checks": [
+    {
+      "check": "sw installs and reports an active worker",
+      "ok": true,
+      "detail": "state=activated"
+    },
+    {
+      "check": "the worker controls the page after a reload",
+      "ok": true,
+      "detail": "controller=http://127.0.0.1:65460/sw.js"
+    },
+    {
+      "check": "the shell cache holds the shell URLs",
+      "ok": true,
+      "detail": "{\"shici-shell-v1.2.0\": [\"/\", \"/icons/shici-192.png\", \"/manifest.webmanifest\"]}"
+    },
+    {
+      "check": "phone detail page renders the standalone panel",
+      "ok": true,
+      "detail": "{\"found\": true, \"display\": \"block\", \"heading\": \"serendipity\", \"text\": \"serendipity\\n\\n暂无音标\\n\\n学习中\\n最小语义锚点\\n—\\n原书完整释义\\n意外发现珍奇事物的能力\\n查看原书原文\\n0\\n成功回忆\\n0\\n回忆失败\\n0\\n阅读暴露\\n复习历史\\n\\n还没有复习记录。\\n\\n文章暴露\\n\\n还没有在阅读文章中出现。\"}"
+    },
+    {
+      "check": "phone detail page shows the word and its meaning",
+      "ok": true,
+      "detail": "heading='serendipity'"
+    },
+    {
+      "check": "a scratch batch can be uploaded for the layout check",
+      "ok": true,
+      "detail": "status=200"
+    },
+    {
+      "check": "phone keeps the uploaded image list visible",
+      "ok": true,
+      "detail": "{\"listDisplay\": \"block\", \"columns\": \"358px\", \"images\": 1, \"hasRemove\": true, \"hasAdd\": true}"
+    },
+    {
+      "check": "phone keeps remove and add controls reachable",
+      "ok": true,
+      "detail": "{\"listDisplay\": \"block\", \"columns\": \"358px\", \"images\": 1, \"hasRemove\": true, \"hasAdd\": true}"
+    },
+    {
+      "check": "fixed bottom bar reserves the safe-area variable",
+      "ok": true,
+      "detail": "{\"viewport\": 390, \"links\": 6, \"linkWidth\": 65, \"position\": \"fixed\", \"bottom\": \"0px\", \"height\": \"64px\", \"paddingBottom\": \"7px\", \"shellPaddingBottom\": \"68px\", \"safeArea\": \"0px\", \"accountVisible\": \"flex\"}"
+    },
+    {
+      "check": "content reserve equals 68px plus the (emulated) 0px safe area",
+      "ok": true,
+      "detail": "shellPaddingBottom=68px"
+    },
+    {
+      "check": "F-6 premise: six bottom-bar items are about 60px wide at 390px",
+      "ok": true,
+      "detail": "{\"viewport\": 390, \"links\": 6, \"linkWidth\": 65, \"position\": \"fixed\", \"bottom\": \"0px\", \"height\": \"64px\", \"paddingBottom\": \"7px\", \"shellPaddingBottom\": \"68px\", \"safeArea\": \"0px\", \"accountVisible\": \"flex\"}"
+    },
+    {
+      "check": "no /api entry in any Cache Storage bucket",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "check": "no cached response body contains account A's data",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "check": "a new worker version replaces the old cache",
+      "ok": true,
+      "detail": "caches=['shici-shell-v9.9.9']"
+    },
+    {
+      "check": "account A sees its own word",
+      "ok": true,
+      "detail": "length=500"
+    },
+    {
+      "check": "offline reload does not replay account A's library",
+      "ok": true,
+      "detail": "leaked=[] text='拾\\n拾词\\n\\n登录后继续你的学习记录。\\n\\n用户名\\n密码\\n登录\\n\\n当前版本不开放注册，账号由管理员创建。'"
+    },
+    {
+      "check": "desktop keeps the inline detail panel in the two-column layout",
+      "ok": true,
+      "detail": "{\"found\": true, \"columns\": \"407.25px 497.75px\", \"panelDisplay\": \"block\", \"listButtons\": 1}"
+    },
+    {
+      "check": "phone hides the inline panel and links to the standalone detail route",
+      "ok": true,
+      "detail": "{\"found\": true, \"columns\": \"388px\", \"panelDisplay\": \"none\", \"linkRows\": 1}"
+    },
+    {
+      "check": "desktop rows are buttons while phone rows are links",
+      "ok": true,
+      "detail": "buttons=1 links=1"
+    },
+    {
+      "check": "account B sees nothing of account A",
+      "ok": true,
+      "detail": "leaked=[]"
+    },
+    {
+      "check": "account B's library is empty rather than A's",
+      "ok": true,
+      "detail": "text='拾\\n拾词\\n在阅读中，看见更大的世界。\\n今日概览\\n单词导入\\n今日学习\\n阅读练习\\n我的词库\\n设置\\n使用说明\\n欢迎来到拾词\\n欢迎使用拾词\\n\\n这不是一套让你机械刷次数的系统。它把原书信息、主动回忆和真实阅读连接起来，让每个词逐渐成为你能认出、理解并使用的词。\\n\\n原书是事实，AI 是助手\\n\\nOCR 原文和照片永久保留。AI 只整'"
+    },
+    {
+      "check": "the offline shell still renders",
+      "ok": true,
+      "detail": "text='拾\\n拾词\\n\\n登录后继续你的学习记录。\\n\\n用户名\\n密码\\n登录\\n\\n当前版本不开放注册，账号由管理员创建。'"
+    },
+    {
+      "check": "the offline shell shows no account A data",
+      "ok": true,
+      "detail": "leaked=[]"
+    },
+    {
+      "check": "/api stays a network call offline (no cached API answer)",
+      "ok": true,
+      "detail": "fetch('/api/words') -> rejected"
+    }
+  ],
+  "observations": [
+    {
+      "topic": "F-6 bottom bar occupancy at 390px",
+      "measured": {
+        "viewport": 390,
+        "links": 6,
+        "linkWidth": 65,
+        "position": "fixed",
+        "bottom": "0px",
+        "height": "64px",
+        "paddingBottom": "7px",
+        "shellPaddingBottom": "68px",
+        "safeArea": "0px",
+        "accountVisible": "flex"
+      },
+      "note": "the fixed 64px bar still contains the account block; see the stacking measurement below"
+    },
+    {
+      "topic": "F-6 fixed bottom bar stacking at 390px",
+      "measured": {
+        "viewportHeight": 844,
+        "sidebar": {
+          "top": 780,
+          "bottom": 844,
+          "height": 64
+        },
+        "nav": {
+          "top": 788,
+          "bottom": 838,
+          "height": 50
+        },
+        "account": {
+          "top": 852,
+          "bottom": 888,
+          "height": 36
+        },
+        "help": {
+          "top": 12,
+          "bottom": 54,
+          "height": 42
+        }
+      },
+      "note": "the account block and the help entry are laid out inside the 64px fixed bottom bar, so they extend past it"
+    }
+  ],
+  "passed": 24,
+  "failed": 0
+}
