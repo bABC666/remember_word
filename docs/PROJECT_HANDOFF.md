@@ -12,6 +12,8 @@
 
 > **2026-09-25 合流验收与本地整合**：三个源分支经独立整合 worktree 汇入本地 `main`；原样 `scripts/check.ps1` exit 0，后端两轮均 601 passed / 1 skipped、前端 67 passed，合成 `data/` 4 文件零变化且合成 0007 baseline 核验通过。源分支的隔离浏览器验收 24/24。生产库未写入，实例未因本次整合重启；确认写入、真实词库导入、F-6 和真机验收未完成，Phase 2.9/3 仍未交付。
 
+> **2026-09-25 F-6 手机底栏**（分支 `codex/f6-mobile-bottom-nav`，自 `origin/main` = `93da75a` 的独立 worktree；**未 push、未 merge**）：≤620px 底栏由 6 项改为 **5 项**（今日概览／今日学习／阅读练习／我的词库／「更多」），导入、设置、帮助与退出登录移入底栏之上的「更多」弹层；账号区块在手机档隐藏，**退出登录不再被挤出视口**；底栏条目补 `aria-label`（标签在 ≤900px 为 `display: none`，原本无可访问名称）。621–900px 图标栏与 ≥901px 桌面侧栏不变。原样 `scripts/check.ps1` **exit 0**：后端 **601 passed / 1 skipped**（与 main 相同，本批只改前端）、前端 **80 passed**（67 + 新增 13）、`data/` **200 文件零变化**、VERIFIED BACKUP（`vocab.db` sha256 `fe99e640…` 与上一批逐字节相同）。隔离浏览器验收 **32/32**：断点 360/390/414/620/621/720/900/901/1280 扫描、5 项全部位于视口内且 ≥67×50、真实命中测试点击可导航、弹层四项可达、退出登录真的登出，并回归了详情返回状态（筛选与滚动 272→272）、账号隔离与 `/api/**` 不进缓存。**Android/iOS 真机未验收**（触摸、iOS 安全区像素、安装）；同轮发现手机宽度下设置页横向溢出（390px 视口下 `scrollWidth=961`），属既有缺口、本批未修，记为路线图 G8。细节见 `docs/2026-09-25-F6-BOTTOM-BAR-ACCEPTANCE.md`。
+
 
 ---
 
@@ -39,7 +41,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9：评审 `V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md` 后在隔离副本实现管理员确认；核定来源、版本和人工冲突规则，不把抽样质量或混合考试计数冒充全库/真题验收。Phase 3：完成 F-6 底栏（含手机退出登录）、安装与 Android/iOS 真机验收。Phase 4 仍以后两阶段验收为前置。 |
+| 下一步 | Phase 2.9：评审 `V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md` 后在隔离副本实现管理员确认；核定来源、版本和人工冲突规则，不把抽样质量或混合考试计数冒充全库/真题验收。Phase 3：F-6 底栏已完成于 `codex/f6-mobile-bottom-nav`（待合并），下一步是安装与 Android/iOS 真机验收，以及 G8（手机设置页横向溢出）。Phase 4 仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -335,7 +337,7 @@ backend\.venv\Scripts\python.exe tools\staging_three_user_check.py      # T8：�
 7. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
 8. `word` 表已无写入方。~~`helpers.word_dict`、`schemas.py::WordSummary`~~ → ✅ **已于 2026-09-23（Batch 9 / T12）删除**（两者在删除前全仓库只有定义、没有任何调用）。**剩余**：`services/words.py::apply_learning_update`（只被 `test_import_flow.py` 引用，属旧 `word` 路径）与 `schemas.py::ORMModel`（已无使用者）；`POST /api/words/quick-add`（Phase 0 规划）未实现。
 9. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
-10. **PWA / 移动端**：F-2 手机详情独立路由与账号切换隔离已合入本地 main；完整释义、音标、复习历史、文章暴露可见，桌面双栏保留。PWA 安装基础（manifest、专用 192/512/180 图标、Apple 元信息、`display: standalone`）、F-3 移动端导入图片列表、F-4 iOS 安全区已在 `codex/pr1-ocr-pwa-integration` 整合完毕（**未 push、未 merge**）：Service Worker 只缓存应用壳与静态构建产物，**`/api` 与 `/api/**`、非 GET、跨源请求一律网络直通**，因此切换账号后不会重放私有数据。**2026-09-25 已完成隔离浏览器验收 24/24**（见 `docs/2026-09-25-PHASE3-BROWSER-ACCEPTANCE.md`）：worker 安装/激活、版本升级清旧缓存、任何 Cache Storage 桶内都没有 `/api` 条目且缓存响应体不含上一账号数据、A 退出后 B 登录看不到 A、离线重载只给壳不给私有数据、手机详情与手机图片列表可见、底栏与 safe-area 接线正确。**仍待做**：Android/iOS 真机（安装、真实安全区像素、触摸与滚动、其它引擎）、断点快照与交互回归、Phase 3 整体 DoD；**F-6 底栏**另作独立切片——浏览器实测 390px 下 6 项各 65px，且账号/「退出登录」区块被挤出视口（手机上无法退出登录）。本轮没有做离线写队列，也没有做后台同步（非目标）。
+10. **PWA / 移动端**：F-2 手机详情独立路由与账号切换隔离已合入本地 main；完整释义、音标、复习历史、文章暴露可见，桌面双栏保留。PWA 安装基础（manifest、专用 192/512/180 图标、Apple 元信息、`display: standalone`）、F-3 移动端导入图片列表、F-4 iOS 安全区已在 `codex/pr1-ocr-pwa-integration` 整合完毕（**未 push、未 merge**）：Service Worker 只缓存应用壳与静态构建产物，**`/api` 与 `/api/**`、非 GET、跨源请求一律网络直通**，因此切换账号后不会重放私有数据。**2026-09-25 已完成隔离浏览器验收 24/24**（见 `docs/2026-09-25-PHASE3-BROWSER-ACCEPTANCE.md`）：worker 安装/激活、版本升级清旧缓存、任何 Cache Storage 桶内都没有 `/api` 条目且缓存响应体不含上一账号数据、A 退出后 B 登录看不到 A、离线重载只给壳不给私有数据、手机详情与手机图片列表可见、底栏与 safe-area 接线正确。**仍待做**：Android/iOS 真机（安装、真实安全区像素、触摸与滚动、其它引擎）、断点快照与交互回归、Phase 3 整体 DoD。**F-6 已完成（2026-09-25，`codex/f6-mobile-bottom-nav`，未 push 未 merge）**：≤620px 底栏改为 5 项（今日概览／今日学习／阅读练习／我的词库／「更多」），导入、设置、帮助与退出登录移入底栏之上的「更多」弹层，账号区块在手机档隐藏，**退出登录不再被挤出视口**；断点扫描与真实点击验收 32/32（`docs/2026-09-25-F6-BOTTOM-BAR-ACCEPTANCE.md`）。同一轮浏览器验收发现**手机宽度下设置页横向溢出**（390px 视口下 `scrollWidth=961`，承接元素 `SECTION.settings-section` 945px），属既有缺口、本批未修，已记为路线图 G8。本轮没有做离线写队列，也没有做后台同步（非目标）。
 11. **公网部署未开始**：当前只监听回环地址。
 11a. **云端公共词库来源未交付**：关闭 PaddleOCR 的配置已规划，但外部电子词库 → 公共 `Lexicon` 的导入和副本验收仍是 Phase 2.9 待办；与 Phase 5 的词频资料导入不同。
 12. **CSRF 的天然边界**：同源校验不防 XSS（同源脚本可同时伪造请求与请求头）；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说，避免"上了 CSRF 就安全"的错觉。
