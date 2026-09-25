@@ -37,6 +37,7 @@ from app.history_retention_preview import preview_history_retention
 from app.models import User, UserSession, UserSettings
 from app.security import hash_password, password_is_usable
 from app.services.auth import normalize_username, prune_sessions
+from app.services.public_lexicon_joint_preview import preview_manifest
 from app.services.public_lexicon_preview import PreviewMapping, preview_file
 from app.testing_guards import assert_not_real_data
 
@@ -200,6 +201,17 @@ def command_public_lexicon_preview(args: argparse.Namespace) -> int:
         report = preview_file(args.file, mapping, source_root=args.source_root)
     except (LookupError, OSError, ValueError) as error:
         print(f"公共词库预览失败：{error}", file=sys.stderr)
+        return 2
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_public_lexicon_preview_many(args: argparse.Namespace) -> int:
+    """Print a deterministic joint report without opening an application database."""
+    try:
+        report = preview_manifest(args.manifest, source_root=args.source_root)
+    except (OSError, UnicodeError, ValueError, TypeError) as error:
+        print(f"公共词库联合预览失败：{error}", file=sys.stderr)
         return 2
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
@@ -389,6 +401,11 @@ def build_parser() -> argparse.ArgumentParser:
     file_preview.add_argument("--encoding", default="utf-8-sig")
     file_preview.add_argument("--delimiter", default=",")
     file_preview.set_defaults(func=command_public_lexicon_preview, file_only_preview=True)
+
+    joint_preview = public_sub.add_parser("preview-many", help="按清单联合只读预览多个来源")
+    joint_preview.add_argument("manifest", type=Path, help="来源根目录内的 JSON 清单")
+    joint_preview.add_argument("--source-root", type=Path, required=True)
+    joint_preview.set_defaults(func=command_public_lexicon_preview_many, file_only_preview=True)
 
     retention = sub.add_parser("history-retention", help="history_event 保留策略（已确认 365 天）")
     retention_sub = retention.add_subparsers(dest="retention_command", required=True)
