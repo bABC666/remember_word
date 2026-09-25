@@ -1,12 +1,14 @@
 # 拾词项目交接说明
 
-> 更新日期：2026-09-24（1.2.0 本机多用户版正式发布；下文保留各历史批次记录）。
+> 更新日期：2026-09-25（本地开发整合；下文保留各历史批次记录）。
 > 当前分支：`main`；由 `feat/v1.2-phase1-safe` fast-forward 合并。实时 HEAD 和远端 tag 以 Git 核验为准。
-> 当前阶段：**1.2.0 本机多用户版正式发布；Phase 2.9 只读预览切片已在本地 `main`**。发布对象仍为 `v1.2.0` tag；真实公共电子词库的确认导入、2.9-A/B 验收尚未完成。G6 生产库当前无到期候选，未来清理另行批准。
+> 当前阶段：**`v1.2.0` 本机版已发布；本地 `main` 已整合 F-2 和 Phase 2.9 联合只读预览**。真实公共电子词库的确认导入、2.9-A/B 与 Phase 3 验收尚未完成。GitHub PR #1 的 OCR 缓存修复与 PWA/F-3/F-4 尚未合并；G6 生产库未来清理另行决定。
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > `docs/PROJECT_STATUS_V1.2.md` 是 2026-09-22 的只读审计快照，已加当前状态索引；旧数字保留为历史证据，不作为当前状态来源。当前事实以代码、`PROJECT_STATUS_CURRENT.md` 及 `docs/V1.2-RELEASE-RECORD.md` 为准。
 
 > **2026-09-24 本地整合**：`codex/phase-2-9-preview` 已快进合入本地 `main`（`564ebf0`），只提供来源无关、只读的文件预览 CLI；未推送、未确认真实来源、未导入或迁移生产库。合并后的原样 `scripts/check.ps1` exit 0：后端 538 passed / 1 skipped、前端 32 passed、测试期 `data/` 200 文件零变化、现有 0007 数据库与 baseline 核验通过。Phase 2.9-A/B 仍未验收；早期环境缺件与合成库复核记录见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`。
+
+> **2026-09-25 本地整合**：已合入 GitHub `main` 的释义显示修复、F-2 手机详情及账号隔离、Phase 2.9 联合只读预览、dsh 来源报告。相同代码在隔离 worktree 的 `scripts/check.ps1` exit 0：后端 545 passed / 1 skipped、前端 54 passed，合成 `data/` 两文件零变化。主工作区未因此重启或写生产库。PR #1 的 OCR 缓存清理边界仍需修复，故未合入。
 
 ---
 
@@ -34,7 +36,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 3 F-2 手机详情工作流在 `codex/phase3-mobile-design` 独立 worktree 已实现（未合并/未推送）：`/library/:wordStateId`、返回原筛选/滚动/焦点、文章暴露首次/最近时间；桌面双栏保留。账号边界复核已覆盖 A 带筛选词库遇到 401、B 登录及浏览器返回 A 历史项；旧筛选、滚动、焦点均被清理，同账号有效会话刷新保留筛选。[实测] 用 worktree 内独立的已验证备份副本运行 `scripts/check.ps1` exit 0：后端 522 passed（2 warnings）、前端 51 passed、typecheck/lint/build 通过；隔离证明 `data/` 4 文件零变化、`VERIFIED BACKUP`。首次运行因缺环境退出，补齐隔离资料后重跑通过；未指向或改动生产数据库。模拟 Chrome 390×620 长详情往返通过（文档 250→0→250、列表 135、焦点 42）；账号切换在 900px 侧栏通过。390px 退出按钮仍因既有底栏布局不可直接点击，归 F-6 待办。后续 F-3、底栏/safe-area、PWA 与 Android/iOS 真机验收仍待做。Phase 2.9 公共词库仍是 Phase 4 前置。 |
+| 下一步 | Phase 2.9 先裁定可用来源、版本和人工冲突规则，再设计锁定确认计划与隔离副本写入；Phase 3 需修复 PR #1 的 OCR 缓存清理边界、整合 PWA/F-3/F-4，并完成 F-6 与真机验收。Phase 4 上线仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -330,7 +332,7 @@ backend\.venv\Scripts\python.exe tools\staging_three_user_check.py      # T8：�
 7. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
 8. `word` 表已无写入方。~~`helpers.word_dict`、`schemas.py::WordSummary`~~ → ✅ **已于 2026-09-23（Batch 9 / T12）删除**（两者在删除前全仓库只有定义、没有任何调用）。**剩余**：`services/words.py::apply_learning_update`（只被 `test_import_flow.py` 引用，属旧 `word` 路径）与 `schemas.py::ORMModel`（已无使用者）；`POST /api/words/quick-add`（Phase 0 规划）未实现。
 9. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
-10. **PWA / 移动端**：F-2 手机词库详情独立路由已在未合并的开发 worktree 实现，支持完整原始释义、音标、复习历史、文章暴露（含首次/最近时间）及返回列表状态恢复；再次经浏览器历史进入详情后返回仍保留原筛选、文档/列表滚动和焦点。词库历史项记录所属账号；显式退出、401/会话过期及改密清会话均由同一认证边界处理，B 登录和浏览器返回 A 的词库项时清除 A 的 URL 筛选、滚动和焦点；同账号有效会话刷新保留筛选。长详情入场回顶部，返回可恢复原文档位置 0 或非 0；桌面仍为双栏。无 manifest/SW/图标；导入图片列表、底栏与 safe-area 仍待修。
+10. **PWA / 移动端**：F-2 手机详情独立路由与账号切换隔离已合入本地 main；完整释义、音标、复习历史、文章暴露可见，桌面双栏保留。PWA、F-3 图片列表和 F-4 安全区在 GitHub PR #1，因 OCR 缓存清理边界问题暂未合并；F-6 底栏与 Android/iOS 真机验收仍待做。
 11. **公网部署未开始**：当前只监听回环地址。
 11a. **云端公共词库来源未交付**：关闭 PaddleOCR 的配置已规划，但外部电子词库 → 公共 `Lexicon` 的导入和副本验收仍是 Phase 2.9 待办；与 Phase 5 的词频资料导入不同。
 12. **CSRF 的天然边界**：同源校验不防 XSS（同源脚本可同时伪造请求与请求头）；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说，避免"上了 CSRF 就安全"的错觉。
