@@ -217,6 +217,46 @@ def command_public_lexicon_preview_many(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_migration_status(args: argparse.Namespace) -> int:
+    """Report whether the database matches this code, without touching either.
+
+    Read-only by construction: the database is opened with ``mode=ro`` and nothing is
+    created, not even a data directory. The launcher runs this before it starts the
+    server, so that "the schema is behind the code and there are real rows in it" is
+    a decision it can make and explain rather than a migration it performs blind.
+
+    Prints JSON; exits 0 whenever a state could be established (including "refuse"),
+    and 2 only when the inputs themselves were unusable.
+    """
+    from app.db import migration_state, schema_action
+
+    path = args.database
+    if path is None:
+        try:
+            path = _resolved_database_path()
+        except Exception as error:  # noqa: BLE001 -- report, do not guess
+            print(f"无法确定数据库路径：{error}", file=sys.stderr)
+            return 2
+
+    state = migration_state(path)
+    action, reason = schema_action(state)
+    payload = {**state.as_dict(), "action": action, "reason": reason}
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _resolved_database_path() -> Path:
+    """The database this checkout would actually use, without creating anything.
+
+    Deliberately not ``get_settings()``: that creates the data directory, and a
+    status check must be able to run against a path that does not exist yet.
+    """
+    project_root = Path(__file__).resolve().parents[2]
+    data_dir = Path(os.getenv("VOCAB_DATA_DIR", str(project_root / "data"))).resolve()
+    explicit = os.getenv("VOCAB_DATABASE_PATH", "").strip()
+    return Path(explicit).resolve() if explicit else data_dir / "vocab.db"
+
+
 def command_public_lexicon_plan(args: argparse.Namespace) -> int:
     """Write the locked, read-only adjudication plan without opening a database.
 
@@ -427,6 +467,16 @@ def build_parser() -> argparse.ArgumentParser:
     prune = sub.add_parser("prune-sessions", help="清理已撤销／已过期／闲置超时的会话")
     prune.set_defaults(func=command_prune_sessions)
 
+    migration_status = sub.add_parser(
+        "migration-status",
+        help="只读报告数据库 revision 与代码 head 的关系（启动器据此决定是否迁移）",
+    )
+    migration_status.add_argument(
+        "--database", type=Path, default=None,
+        help="要检查的数据库；默认按 VOCAB_DATABASE_PATH / VOCAB_DATA_DIR 解析",
+    )
+    migration_status.set_defaults(func=command_migration_status, inspect_schema_state=True)
+
     public_lexicon = sub.add_parser("public-lexicon", help="公共词库文件工具")
     public_sub = public_lexicon.add_subparsers(dest="public_command", required=True)
     file_preview = public_sub.add_parser("preview", help="只读校验分隔文本文件")
@@ -519,6 +569,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if getattr(args, "file_only_preview", False):
+        return int(args.func(args))
+    if getattr(args, "inspect_schema_state", False):
+        # Deliberately skips verify_schema_revision, and calls no get_settings():
+        # this command's whole job is to report a mismatch to the launcher, so the
+        # gate would refuse before it could answer. It also must not create a data
+        # directory, because the launcher runs it before anything exists.
         return int(args.func(args))
     if getattr(args, "read_only_preview", False):
         args.database_path = _preview_database_path()

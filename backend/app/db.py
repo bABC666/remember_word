@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
@@ -197,3 +198,216 @@ def verify_schema_revision(database_path: Path, *, expected: str | None = None) 
             "请先运行迁移（backend/.venv/Scripts/python.exe -m alembic upgrade head），"
             "或切换到与该数据库版本匹配的代码后再启动。"
         )
+
+
+# --- reporting the same state, for a caller that has to decide ----------------
+#
+# ``verify_schema_revision`` is a gate: it raises, and the application dies. A
+# launcher needs the same facts *before* it decides whether to run a migration, and
+# it needs to tell "a fresh install with nothing to lose" apart from "a database
+# with real rows that is behind the code". Raising cannot express that difference,
+# so the state is reported and the decision is a separate, testable function.
+
+
+#: The database already matches the code: start, and run no migration at all.
+SCHEMA_CURRENT = "current"
+#: Nothing is recorded yet (fresh install, or an empty file): ``upgrade head``
+#: creates the schema and has nothing to destroy.
+SCHEMA_INITIALISE = "initialise"
+#: Do not touch the schema. The caller must show the operator how to migrate
+#: explicitly, or refuse to start.
+SCHEMA_REFUSE = "refuse"
+
+
+@dataclass(frozen=True)
+class MigrationState:
+    """What one database looks like relative to the schema this code expects."""
+
+    database_path: Path
+    exists: bool
+    code_head: str | None
+    database_revision: str | None
+    #: The revision is an ancestor of the code head, i.e. this database is *behind*
+    #: rather than ahead of or unrelated to it.
+    is_behind: bool
+    table_count: int
+    row_count: int
+    #: Set when the state could not be established at all.
+    problem: str | None = None
+
+    @property
+    def is_current(self) -> bool:
+        return self.code_head is not None and self.database_revision == self.code_head
+
+    @property
+    def has_data(self) -> bool:
+        return self.row_count > 0
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "database": str(self.database_path),
+            "exists": self.exists,
+            "code_head": self.code_head,
+            "database_revision": self.database_revision,
+            "is_current": self.is_current,
+            "is_behind": self.is_behind,
+            "has_data": self.has_data,
+            "table_count": self.table_count,
+            "row_count": self.row_count,
+            "problem": self.problem,
+        }
+
+
+def _head_chain(head: str) -> set[str]:
+    """Every revision from the base up to ``head``, inclusive.
+
+    Used to tell "behind" from "ahead of or unrelated to": only a revision in this
+    chain can be brought forward by ``upgrade head``, and a database at any other
+    revision must not be silently migrated.
+    """
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    backend_root = Path(__file__).resolve().parents[1]
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    script = ScriptDirectory.from_config(config)
+    return {revision.revision for revision in script.walk_revisions("base", head)}
+
+
+def _row_and_table_counts(connection: object, tables: list[str]) -> tuple[int, int]:
+    total = 0
+    for table in tables:
+        total += int(connection.execute(f'select count(*) from "{table}"').fetchone()[0])
+    return len(tables), total
+
+
+def migration_state(database_path: Path) -> MigrationState:
+    """Report the schema state read-only. Never writes, never raises for state.
+
+    A missing file, an unreadable one, a version table with the wrong number of
+    rows and two code heads are all *answers* here rather than exceptions: the
+    caller has to be able to say "I do not know, so I will not migrate" instead of
+    crashing before it can explain itself.
+    """
+    import sqlite3
+
+    path = Path(database_path)
+    # The code head does not depend on the database: report it even when the file
+    # is missing, because "we cannot tell what this code expects" is a different
+    # problem from "the database is not there yet" and the caller has to act
+    # differently on each.
+    try:
+        head: str | None = code_head_revision()
+    except SchemaRevisionError as error:
+        return MigrationState(
+            database_path=path, exists=path.exists(), code_head=None,
+            database_revision=None, is_behind=False, table_count=0, row_count=0,
+            problem=str(error),
+        )
+
+    if not path.exists():
+        return MigrationState(
+            database_path=path, exists=False, code_head=head, database_revision=None,
+            is_behind=False, table_count=0, row_count=0,
+        )
+
+    try:
+        connection = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+    except sqlite3.Error as error:
+        return MigrationState(
+            database_path=path, exists=True, code_head=head, database_revision=None,
+            is_behind=False, table_count=0, row_count=0,
+            problem=f"无法以只读方式打开数据库：{error}",
+        )
+
+    try:
+        tables = [
+            row[0]
+            for row in connection.execute(
+                "select name from sqlite_master where type='table' "
+                "and name not like 'sqlite_%' and name <> 'alembic_version' "
+                "order by name"
+            )
+        ]
+        table_count, row_count = _row_and_table_counts(connection, tables)
+        try:
+            rows = connection.execute("select version_num from alembic_version").fetchall()
+        except sqlite3.Error:
+            # No version table. An empty file is a fresh install; a file that has
+            # tables but no version marker is something this code cannot reason
+            # about, and guessing would be the wrong way to find out.
+            return MigrationState(
+                database_path=path, exists=True, code_head=head, database_revision=None,
+                is_behind=False, table_count=table_count, row_count=row_count,
+            )
+        revisions = [row[0] for row in rows]
+        if len(revisions) != 1 or not isinstance(revisions[0], str) or not revisions[0]:
+            return MigrationState(
+                database_path=path, exists=True, code_head=head, database_revision=None,
+                is_behind=False, table_count=table_count, row_count=row_count,
+                problem=(
+                    f"alembic_version 表有 {len(revisions)} 行（期望恰好 1 行且非空）："
+                    f"{revisions}"
+                ),
+            )
+    finally:
+        connection.close()
+
+    try:
+        is_behind = revisions[0] != head and revisions[0] in _head_chain(head)
+    except Exception as error:  # noqa: BLE001 -- an unreadable graph is not a decision
+        return MigrationState(
+            database_path=path, exists=True, code_head=head, database_revision=revisions[0],
+            is_behind=False, table_count=table_count, row_count=row_count,
+            problem=f"无法读取 migration 图以判断先后关系：{error}",
+        )
+    return MigrationState(
+        database_path=path, exists=True, code_head=head, database_revision=revisions[0],
+        is_behind=is_behind, table_count=table_count, row_count=row_count,
+    )
+
+
+def schema_action(state: MigrationState) -> tuple[str, str]:
+    """What a launcher should do about the schema, and why, in one place.
+
+    The rule this encodes, and the reason it is not "just run ``upgrade head``":
+
+    * a database that already matches starts, and nothing touches the schema;
+    * a database with nothing recorded is brought up to head -- there is no content
+      to lose and the server cannot start without a schema;
+    * a database that **is behind the code and has rows** is never migrated
+      automatically. That state means someone's real data is about to be changed by
+      a step that has had no rehearsal, no backup and no operator watching, and the
+      answer is to tell them how to do it deliberately;
+    * anything unreadable, corrupt, ahead of the code, or otherwise not understood
+      is refused for the same reason -- not knowing is not permission.
+    """
+    if state.problem:
+        return SCHEMA_REFUSE, state.problem
+    if not state.exists:
+        return SCHEMA_INITIALISE, "数据库尚不存在：全新安装，将创建 schema。"
+    if state.is_current:
+        return SCHEMA_CURRENT, f"数据库已是代码所需的 revision（{state.code_head}）。"
+    if state.database_revision is None and state.table_count == 0:
+        return SCHEMA_INITIALISE, "数据库文件为空：将创建 schema。"
+    if state.database_revision is None:
+        return SCHEMA_REFUSE, (
+            f"数据库有 {state.table_count} 张表但没有 alembic_version 记录，"
+            "无法判断它处于哪个 revision；拒绝自动迁移。"
+        )
+    if not state.is_behind:
+        return SCHEMA_REFUSE, (
+            f"数据库 revision {state.database_revision!r} 不是当前代码 head "
+            f"{state.code_head!r} 的祖先（可能数据库更新、或 revision 不属于这条链）；"
+            "拒绝自动迁移。"
+        )
+    if state.has_data:
+        return SCHEMA_REFUSE, (
+            f"数据库落后代码：{state.database_revision} -> {state.code_head}，"
+            f"且库中已有 {state.row_count} 行数据（{state.table_count} 张表）。"
+        )
+    return SCHEMA_INITIALISE, (
+        f"数据库落后代码（{state.database_revision} -> {state.code_head}）但没有任何数据行，"
+        "将直接升级。"
+    )
