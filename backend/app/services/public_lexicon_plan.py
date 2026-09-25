@@ -174,12 +174,16 @@ def _resolve_under_root(path: Path, *, source_root: Path, label: str) -> Path:
     return resolved
 
 
-def _mapping_sha256(mapping: dict[str, Any]) -> str:
+def mapping_sha256(mapping: dict[str, Any]) -> str:
     """Fingerprint one source's field mapping.
 
     The mapping decides which source column becomes which canonical field, so a plan
     is only reproducible while this hash is unchanged; the same file read through a
     different mapping is a different input and needs its own plan.
+
+    Public because the confirmation step must recompute it from the source it
+    re-reads and compare: the two hashes are only meaningful if both sides use the
+    same serialisation.
     """
     return hashlib.sha256(canonical_bytes(mapping)).hexdigest()
 
@@ -195,7 +199,7 @@ def _source_idempotency_key(
     })).hexdigest()
 
 
-def _evidence_idempotency_key(
+def evidence_idempotency_key(
     *, file_sha256: str, mapping_sha256: str, line: int, field: str, raw_value: str
 ) -> str:
     """Fingerprint one piece of evidence.
@@ -204,6 +208,10 @@ def _evidence_idempotency_key(
     value -- and deliberately does *not* contain ``source_id``. ``source_id`` is a
     label from a local manifest and proves nothing about a source's version or licence;
     keying on it would let the same bytes be imported twice under two labels.
+
+    Public because the confirmation step records this exact value as
+    ``entry_source_evidence.evidence_sha256``: the plan's key and the stored key have
+    to be the same string for a re-import to be recognised as one.
     """
     return hashlib.sha256(canonical_bytes({
         "file_sha256": file_sha256,
@@ -640,7 +648,7 @@ def _source_blocks(
     for spec in sorted(specs.sources, key=lambda item: item.source_id):
         preview = previews[spec.source_id]
         mapping = preview["mapping"]
-        mapping_sha = _mapping_sha256(mapping)
+        mapping_sha = mapping_sha256(mapping)
         file_sha = str(preview["file"]["sha256"])
         fingerprint = (file_sha, mapping_sha)
         if fingerprint in seen:
@@ -653,6 +661,10 @@ def _source_blocks(
         blocks.append({
             "source_id": spec.source_id,
             "role": roles[spec.source_id],
+            # The manifest-relative path, not just the basename: the confirmation
+            # step has to re-open the same file, and a manifest may name one in a
+            # subdirectory. Recorded here because the plan is the confirm contract.
+            "declared_path": str(spec.path),
             "file": dict(preview["file"]),
             "mapping": mapping,
             "mapping_sha256": mapping_sha,
@@ -704,7 +716,7 @@ def _entry(
                 "source_id": item["source_id"],
                 "line": item["line"],
                 "raw_value": item["raw_value"],
-                "idempotency_key": _evidence_idempotency_key(
+                "idempotency_key": evidence_idempotency_key(
                     file_sha256=source_meta[item["source_id"]]["file_sha256"],
                     mapping_sha256=source_meta[item["source_id"]]["mapping_sha256"],
                     line=item["line"], field=field, raw_value=item["raw_value"],

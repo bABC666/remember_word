@@ -17,9 +17,9 @@ import pytest
 
 from app.services.public_lexicon_plan import (
     PlanError,
-    _evidence_idempotency_key,
     build_plan,
     canonical_bytes,
+    evidence_idempotency_key,
     load_plan,
     plan_digest,
     write_plan,
@@ -257,12 +257,12 @@ def test_plan_evidence_keys_ignore_the_local_source_label(tmp_path: Path) -> Non
     assert keys_before == keys_after
     frozen = {source["source_id"]: source for source in before["sources"]}
     assert keys_before == [
-        _evidence_idempotency_key(
+        evidence_idempotency_key(
             file_sha256=frozen["primary"]["file"]["sha256"],
             mapping_sha256=frozen["primary"]["mapping_sha256"],
             line=2, field="meaning", raw_value="苹果；果实",
         ),
-        _evidence_idempotency_key(
+        evidence_idempotency_key(
             file_sha256=frozen["supplement"]["file"]["sha256"],
             mapping_sha256=frozen["supplement"]["mapping_sha256"],
             line=2, field="meaning", raw_value="苹果公司",

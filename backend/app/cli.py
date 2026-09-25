@@ -32,11 +32,20 @@ from pathlib import Path
 from sqlalchemy import func, select
 
 from app.config import get_settings
-from app.db import get_session_factory, verify_schema_revision
+from app.db import (
+    database_path_from_url,
+    get_engine,
+    get_session_factory,
+    verify_schema_revision,
+)
 from app.history_retention_preview import preview_history_retention
 from app.models import User, UserSession, UserSettings
 from app.security import hash_password, password_is_usable
-from app.services.auth import normalize_username, prune_sessions
+from app.services.auth import (
+    normalize_username,
+    prune_sessions,
+    verify_user_password,
+)
 from app.services.public_lexicon_joint_preview import preview_manifest
 from app.services.public_lexicon_preview import PreviewMapping, preview_file
 from app.testing_guards import assert_not_real_data
@@ -262,6 +271,148 @@ def command_public_lexicon_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_public_lexicon_confirm(args: argparse.Namespace) -> int:
+    """Confirm a locked plan as an administrator, writing public content only.
+
+    The password is read with ``getpass`` and from nowhere else, for the reason this
+    module's docstring gives: an argument or an environment variable is already
+    disclosed before the program starts. There is no cross-invocation attempt budget
+    here on purpose -- each run is a new process, so a counter would reset every time
+    and prove nothing; the operator already has filesystem access to the database, and
+    what this gate is for is making the confirmation deliberate and attributable.
+    """
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import PlanError, load_plan
+
+    try:
+        plan = load_plan(args.plan_path)
+    except (OSError, ValueError, PlanError) as error:
+        print(f"计划文件无法读取或校验失败：{error}", file=sys.stderr)
+        return 2
+
+    summary = plan["summary"]
+    print("公共词库管理员确认写入（只写公共内容层；不建学习状态；单事务）")
+    print(f"计划文件: {args.plan_path}")
+    print(f"计划摘要 SHA-256: {plan['plan_sha256']}")
+    print(f"运行 ID: {plan['run_id']}")
+    print(f"目标公共词库: {plan['target']['lexicon']}")
+    print(f"候选词条: {summary['candidate_entries']}；本次可写入: {summary['ready_entries']}"
+          f"（阻断 {summary['blocked_entries']} / 已排除 {summary['excluded_entries']}）")
+
+    if not args.confirm:
+        # Never started by a timer or a script: the operator types the run ID.
+        print()
+        print("拒绝执行：缺少 --confirm <运行 ID>。核对上面的计划后原样输入：")
+        print(f"  --confirm {plan['run_id']}")
+        return 1
+    if args.confirm != plan["run_id"]:
+        print()
+        print("拒绝执行：--confirm 与计划中的运行 ID 不一致。未写入任何内容。")
+        return 1
+    if plan.get("confirmation_ready") is not True:
+        print()
+        print("拒绝执行：计划尚未就绪，先解决以下阻断项后重新预览与裁定：")
+        for blocker in plan.get("confirmation_blockers") or []:
+            print(f"  - {blocker}")
+        return 1
+
+    print()
+    password = getpass.getpass(f"请输入管理员 {args.admin} 的当前口令：")
+    try:
+        database = _confirmed_database_path()
+    except Exception as error:  # noqa: BLE001 -- a bad target must fail closed
+        print(f"无法确认目标数据库：{error}", file=sys.stderr)
+        return 2
+    with _open_session() as session:
+        user = _find_user(session, args.admin)
+        # An unknown account spends the verification an existing one would, so the
+        # time taken says nothing about whether the account exists.
+        if user is None or not verify_user_password(user, password):
+            print("管理员身份或口令不正确，未写入任何内容。", file=sys.stderr)
+            return 1
+        try:
+            result = confirm_plan(
+                session,
+                plan=plan,
+                administrator=user,
+                source_root=args.source_root,
+            )
+        except ConfirmRefused as error:
+            print()
+            print(f"拒绝确认，未写入任何内容：{error}", file=sys.stderr)
+            _write_failure_report(args.report_path, plan, args.admin, str(error))
+            return 1
+        except Exception as error:  # noqa: BLE001 -- report, then fail closed
+            print()
+            print(f"确认失败，事务已整体回滚，未写入任何内容：{error}", file=sys.stderr)
+            _write_failure_report(args.report_path, plan, args.admin, repr(error))
+            return 1
+
+    print()
+    if result["status"] == "already_applied":
+        print(f"该计划此前已确认（运行 {result['run_id']}），本次未写入任何新内容。")
+    else:
+        print("已确认并提交。")
+    print(f"运行 ID: {result['run_id']}；导入运行记录 id: {result['import_run_id']}")
+    print(f"新建公共词条: {result['entries_created']}；"
+          f"库内已存在（未覆盖）: {result['entries_matched']}")
+    print(f"写入证据记录: {result['evidence_written']}"
+          f"（跳过重复 {result.get('evidence', {}).get('skipped_existing', 0)}，"
+          f"重新裁定 {result.get('evidence', {}).get('readjudicated', 0)}）")
+    print(f"数据库: {database}")
+    if result["conflicts"]:
+        print(f"库内同词冲突 {len(result['conflicts'])} 项（既有释义未被改动）：")
+        for conflict in result["conflicts"][:20]:
+            print(f"  - {conflict['normalized_word']}"
+                  f"（既有 lexicon_entry id={conflict['lexicon_entry_id']}）")
+    return 0
+
+
+def _confirmed_database_path() -> Path:
+    """Resolve the target database and refuse unless its revision matches the code.
+
+    The confirmation writes tables that only migration ``0008`` creates, so running
+    it against a database that has not been migrated must fail here with a clear
+    message rather than halfway through a transaction. This is the same check the
+    application performs at startup (``verify_schema_revision``, fail-closed); unlike
+    the read-only preview commands, this one is *meant* to run against whatever
+    database the configuration points at, so it does not refuse the real one.
+    """
+    url = str(get_engine().url)
+    path = database_path_from_url(url)
+    if not path:
+        raise RuntimeError(f"数据库 URL 不是文件型 SQLite：{url}")
+    resolved = Path(path).resolve()
+    verify_schema_revision(resolved)
+    return resolved
+
+
+def _write_failure_report(
+    report_path: Path | None, plan: dict, administrator: str, error: str
+) -> None:
+    """Write the failure report outside the rolled-back transaction.
+
+    The transaction is gone by the time this runs, so the report is the only record
+    of what was attempted; it is created exclusively so an earlier report is never
+    overwritten.
+    """
+    if report_path is None:
+        return
+    try:
+        with report_path.open("x", encoding="utf-8") as target:
+            json.dump({
+                "plan_sha256": plan.get("plan_sha256"),
+                "run_id": plan.get("run_id"),
+                "administrator": administrator,
+                "error": error,
+                "committed": False,
+            }, target, ensure_ascii=False, indent=2)
+            target.write("\n")
+        print(f"失败报告已写入: {report_path}", file=sys.stderr)
+    except OSError as write_error:
+        print(f"失败报告无法写入：{write_error}", file=sys.stderr)
+
+
 def _preview_database_path() -> Path:
     """Resolve the database without get_settings(), which creates directories."""
     project_root = Path(__file__).resolve().parents[2]
@@ -473,6 +624,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="计划未就绪（confirmation_ready=False）时以非零退出码结束",
     )
     locked_plan.set_defaults(func=command_public_lexicon_plan, file_only_preview=True)
+
+    confirm = public_sub.add_parser(
+        "confirm", help="管理员确认锁定计划并写入公共内容层（要求本人当前口令）"
+    )
+    confirm.add_argument("--plan", dest="plan_path", type=Path, required=True)
+    confirm.add_argument(
+        "--source-root", type=Path, required=True,
+        help="管理员控制、确认期间不变的本地来源目录；文件会被重新读取核对",
+    )
+    confirm.add_argument(
+        "--confirm", default="",
+        help="原样输入计划里的运行 ID；缺少或不一致即拒绝执行，不写入任何内容",
+    )
+    confirm.add_argument(
+        "--admin", required=True, help="执行本次确认的管理员用户名（口令交互输入）",
+    )
+    confirm.add_argument(
+        "--report", dest="report_path", type=Path, default=None,
+        help="失败时写出新的 JSON 失败报告（拒绝覆盖既有报告）",
+    )
+    confirm.set_defaults(func=command_public_lexicon_confirm)
 
     retention = sub.add_parser("history-retention", help="history_event 保留策略（已确认 365 天）")
     retention_sub = retention.add_subparsers(dest="retention_command", required=True)
