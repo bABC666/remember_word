@@ -5,20 +5,20 @@
 
 | 项 | 值 |
 |---|---|
-| 更新时间 | 2026-09-25（本地 `main` 已整合 Phase 2.9 只读锁定计划、OCR 缓存修复与 PWA/F-3/F-4；正式发布 tag 仍为 `v1.2.0`） |
+| 更新时间 | 2026-09-25（本地 `main` 已整合 F-6 与 Phase 2.9 只读真实数据预演报告；正式发布 tag 仍为 `v1.2.0`） |
 | 当前版本 | **`1.2.0` 本机多用户版**；发布对象为 `main` 上的附注 tag `v1.2.0`，边界与验证见 `docs/V1.2-RELEASE-RECORD.md`。Phase 2.9、3、4 尚未交付 |
-| 当前分支 | 本地 `main` 已整合 F-2、Phase 2.9 只读预览与锁定计划、来源质量报告 v5.1、OCR 缓存修复及 PWA/F-3/F-4；远端以实时 Git 核验为准 |
+| 当前分支 | 本地 `main` 已整合 F-2/F-6、Phase 2.9 只读预览与锁定计划、来源质量报告 v5.1 与只读真实数据预演报告、OCR 缓存修复及 PWA/F-3/F-4；远端以实时 Git 核验为准 |
 | 最近功能代码 / 文档冻结起点 | `10dcfa5`（S-2 写请求同源校验）/ `0d20a51`（其后的文档冻结提交）/ **`c3a6106`（S-1 管理员二次认证，`feat(v1.2): require the admin's own password (S-1)`）**；实时 HEAD 以 `git rev-parse HEAD` 为准 |
 | 上游 | GitHub 默认分支已切至 `main`；正式发布 tag `v1.2.0` 指向 `9367f55`。发布前候选分支实时核对为 `57418e7`，`74dfd75` 是更早的推送快照；发布后的运行状态文档提交可使 `main` 领先 tag |
 | 安全基线分支 | `recovery/v1.1-guarded`（2026-09-22 数据事故后的安全基线） |
 | 工作区 | 实时状态以 `git status -sb` 为准。历史审计中的旧版本/提交数只是快照；本地 pytest 临时目录和 `data/` 证据不属于发布源码 |
-| 门禁状态 | 2026-09-25 合流代码在独立 worktree 运行原样 `scripts/check.ps1` **exit 0**：后端两轮均 **601 passed / 1 skipped**、前端 **67 passed**，Ruff、typecheck、lint、build 通过；合成 `data/` 4 文件零变化、合成 0007 库与其 baseline 核验通过。主工作区未对该 HEAD 重跑，未写生产库。 |
+| 门禁状态 | 2026-09-25 F-6 与只读预演合流代码在独立 worktree 运行原样 `scripts/check.ps1` **exit 0**：后端两轮均 **601 passed / 1 skipped**、前端 **80 passed**，Ruff、typecheck、lint、build 通过；合成 `data/` 4 文件零变化、合成 0007 库与其 baseline 核验通过。主工作区未对该 HEAD 重跑，未写生产库。 |
 | 运行实例 | ✅ 2026-09-24 发布后已按启动前检查恢复：`127.0.0.1:8000/api/health` 返回 `ok`，OpenAPI 版本 `1.2.0`；PID 文件记录的虚拟环境 Python 进程启动了实际监听的子进程。显式设置 `VOCAB_DATA_DIR` 和 `VOCAB_DATABASE_PATH` 指向本仓库 `data/` 与 `data/vocab.db`；启动后数据库仍为 0007，完整性、外键及基线核验通过。DoD 4 的原始浏览器验收在独立 staging 实例完成，不把它改写为本机正式实例的浏览器验收 |
 | 冻结基线 | `v1.2.0` 发布基线与当前开发 HEAD 分开；本次整合门禁的数据库为合成副本，不代表生产词库验收。数据侧另有真实 0007 verified backup 与重录基线（见 §4） |
 
-> **当前开发增量（2026-09-25，本地 `main`）**：Phase 2.9 已有单文件/联合只读预览和只读锁定人工裁定计划，尚无管理员确认写入或真实考研词库入库，2.9-A/B 未验收。F-2 手机详情与账号隔离、PR #1 后续的 OCR 缓存修复及 PWA/F-3/F-4 已整合；F-6 底栏和 Android/iOS 真机验收仍未完成。
+> **当前开发增量（2026-09-25，本地 `main`）**：Phase 2.9 已有单文件/联合只读预览、只读锁定人工裁定计划及 300 词真实数据只读预演报告；预演中 130 条 ready、170 条 blocked，ready 不等于释义可用。管理员确认写入和 `0008` 迁移仍只在独立分支，未进入 `main` 或生产库，2.9-A/B 未验收。F-2 手机详情、OCR 缓存修复、PWA/F-3/F-4 与 F-6 底栏已整合；G8 设置页溢出和 Android/iOS 真机验收仍未完成。
 
-> **源分支验收快照（2026-09-25，现已合入本地 `main`）**：`codex/phase-2-9-locked-plan` 新增只读锁定人工裁定计划，不打开应用数据库、不写词条或学习状态、无 schema/migration。源分支的 `scripts/check.ps1` exit 0：后端 572 passed / 1 skipped、前端 54 passed；其后的定点收尾为 578 passed / 1 skipped。合流后的最新门禁见上表。确认写入设计仍待审查，见 `docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`。
+> **源分支验收快照（2026-09-25，现已合入本地 `main`）**：`codex/phase-2-9-locked-plan` 新增只读锁定人工裁定计划，不打开应用数据库、不写词条或学习状态、无 schema/migration。源分支的 `scripts/check.ps1` exit 0：后端 572 passed / 1 skipped、前端 54 passed；其后的定点收尾为 578 passed / 1 skipped。合流后的最新门禁见上表。确认写入已在 `codex/phase-2-9-confirm-write` 实现并通过合成数据门禁，但尚缺 Level 2 真实数据副本预演与来源授权元数据，不得合入会自动迁移的本地 `main`。
 
 > **同分支定点收尾（2026-09-25，未推送）**：`git diff --check` 的在库问题（切片记录末尾多余空行）已修；确认写入设计的两个取舍给出**定稿建议**并附实测与变异验证——①迁移编号不写进文档，实施时取目录 `max+1`（公共导入先做，`revoke_reason` 与 Phase 5 T7 顺延，后者是此前漏记的第二个 `0008` 提法）；②公共导入**不更新** `lexicon.entry_count`（实测四个读取调用点全部走真实 `COUNT(*)`、前端零引用，故该选择对用户可见行为零影响并保住基线对 `lexicon` 行的检出能力）；③与来源报告核对确认归一化仍是 `strip_casefold_v1`、**未**采用报告 §7.1 的"只保留字母数字"矩阵规则，`source_raw` 仍是 primary 原行且不拼接。新增 `backend/tests/test_lexicon_entry_count.py`（4 项）与 2 项身份/原文契约测试；两条契约均通过**变异验证**（临时改实现则测试失败，已还原）。全后端 **578 passed / 1 skipped**（上一轮 572 + 本轮 6）、前端 54 passed / 8 files、ruff 通过、`git diff --check` exit 0、`scripts/check.ps1` **exit 0**。**未实施确认写入、未做 migration、未改 schema、未写生产库。**
 
@@ -237,7 +237,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 3. **Phase 2.9 · 外部电子词库与公共词库交付**（Phase 4 上线硬前置）
    单文件、联合只读预览与**锁定人工裁定计划**均已入本地 `main`；确认写入仍未实施，设计待审查（`docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`）。迁移编号按实施时下一个可用值确定；公共导入不更新 `lexicon.entry_count`；身份规则维持 `strip_casefold_v1`，`source_raw` 不拼接。下一步需核定来源、版本、使用范围与人工冲突规则，再在隔离副本验证确认事务和双用户隔离。真实导入未完成，不得拿 AI 生成词义或混合考试计数填空。
 4. **Phase 3 · PWA 与移动端可用性**（可与 2.9 并行，部分完成）
-   F-2 手机详情、PR #1 后续的 OCR 缓存修复与 PWA/F-3/F-4 已入本地 `main`。SW 对 `/api` 与 `/api/**` 不缓存；源分支隔离浏览器验收 24/24。**F-6 手机底栏已完成于 `codex/f6-mobile-bottom-nav`（未合并）**：≤620px 5 项 + 「更多」弹层，退出登录不再被挤出视口，隔离浏览器验收 32/32。**断点快照、Android/iOS 真机安装与安全区像素验收仍待做**；手机设置页横向溢出为同轮新发现（路线图 G8）。
+   F-2 手机详情、OCR 缓存修复、PWA/F-3/F-4 与 F-6 手机底栏已入本地 `main`。SW 对 `/api` 与 `/api/**` 不缓存；源分支隔离浏览器验收分别为 24/24、32/32。F-6 在 ≤620px 使用 5 项 + 「更多」弹层，退出登录可达。**断点快照、Android/iOS 真机安装与安全区像素验收仍待做**；手机设置页横向溢出为同轮新发现（路线图 G8）。
 5. **Phase 4 · 生产部署上线**（必须先完成 2.8 + 2.9；建议 Phase 3 也已完成）
    Caddy + HTTPS + systemd；`VOCAB_COOKIE_SECURE=true`；**固化 `--proxy-headers --forwarded-allow-ips`**（风险 #2）；将已验收的公共词库交付服务器；备份定时器 + 保留 + 异地 + 恢复演练。
 6. （更远）Phase 5 学习算法升级与独立的外部词频资料接入、Phase 6 平台化（`word` 表退场 + CI）。
