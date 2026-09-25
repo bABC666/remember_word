@@ -295,6 +295,31 @@ describe('mobile library detail', () => {
       .toBe('/api/words?search=&status=&view=')
   })
 
+  it.each(['/library/', '/Library'])('clears A filters after a 401 at %s', async (path) => {
+    window.history.replaceState({}, '', `${path}?search=amber&status=weak`)
+    let userId = 1
+    let expireA = false
+    const requests = mockApi({
+      currentUser: () => userId,
+      listResponse: () => Promise.resolve(expireA && userId === 1
+        ? Response.json({ detail: '请先登录' }, { status: 401 })
+        : Response.json({ total: 1, words: [{ ...savedWord, word: userId === 1 ? 'amber' : 'beta' }] })),
+    })
+    render(<App />)
+    expect(await screen.findByRole('textbox', { name: '搜索单词' })).toHaveValue('amber')
+    expireA = true
+    await userEvent.click(screen.getByRole('button', { name: '最近加入' }))
+    await screen.findByRole('form', { name: '登录拾词' })
+    userId = 2
+    await userEvent.type(screen.getByLabelText('用户名'), 'beta')
+    await userEvent.type(screen.getByLabelText('密码'), 'secret')
+    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    expect(await screen.findByRole('textbox', { name: '搜索单词' })).toHaveValue('')
+    expect(window.location.pathname + window.location.search).toBe('/library')
+    expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
+      .toBe('/api/words?search=&status=&view=')
+  })
+
   it('keeps a filtered library URL through a normal refresh of the same account', async () => {
     mockApi()
     const first = render(<App />)

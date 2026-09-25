@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, matchPath, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './auth'
 import { useAuth } from './useAuth'
 import { AppShell } from './components/AppShell'
@@ -53,7 +53,7 @@ function Gate() {
   if (!checking && !user) showedLogin.current = true
   const libraryState = location.state as { libraryOwnerId?: number } | null
   const ownerId = libraryState?.libraryOwnerId
-  const inLibrary = location.pathname === '/library'
+  const inLibrary = matchPath({ path: '/library', end: true }, location.pathname) !== null
   const foreignLibrary = Boolean(user && inLibrary && (
     showedLogin.current || (ownerId !== undefined && ownerId !== user.id)
   ))
