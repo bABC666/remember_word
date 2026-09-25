@@ -166,7 +166,7 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | 设置 | DeepSeek 配置、每日新词数、文章长度、OCR 开关、**自助改密（F-7，2026-09-23）** | | |
 | 账号安全 | 登录/登出、会话列表与撤销、退出其它/全部设备、改密、**会话数量上限与淘汰（G5，2026-09-23）**、管理员用户管理、防滥用、失败审计、**写请求同源校验（S-2，2026-09-23）**、**管理员敏感操作二次认证（S-1，2026-09-23，提交 `c3a6106`）** | `PUT /api/settings` 的实例级字段仍无二次认证（§4.1 S-1 关闭后的剩余项）；被挤掉的设备在 UI 上得不到解释（无 `revoke_reason`） | |
 | **前端设备管理** | **F-1 已完成（2026-09-23：设置页「登录设备」区，单设备与批量撤销都要求口令）** | | |
-| **PWA / 移动端** | | 已有响应式断点（≤900px / ≤620px / ≤720px、`prefers-reduced-motion`） | ❌ **未开始**（无 manifest / SW / 图标，§6.2） |
+| **PWA / 移动端** | **2026-09-25 整合 PR #1**：manifest、专用 192/512/180 安装图标、Apple 元信息与 `viewport-fit=cover`、只缓存静态资源且**永不缓存 `/api/**`** 的 Service Worker、统一 `--safe-area-bottom`、≤900px 导入图片列表单列可见 | 已有响应式断点（≤900px / ≤620px / ≤720px、`prefers-reduced-motion`） | 🟡 **部分完成**：F-3 / F-4 / F-5 已落代码；F-6 底栏、安装与真机验收未完成（§6.2） |
 | **部署** | 本机迁移 runbook 已定稿并实战过一次 | 单机启动脚本、桌面快捷方式 | ❌ **未开始**（无 `deploy/`、无 CI、仅监听回环，§6.3） |
 | **学习算法升级** | | | ❌ **未开始**（§6.4） |
 
@@ -274,11 +274,11 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | ID | 事项 | 证据 | 严重度 | 影响 | 阶段 |
 |---|---|---|---|---|---|
 | **F-1** | **前端"登录设备"页面未做（2.7-f）**：后端能力**全部就绪**（列表 / 单撤销 / 批量撤销），前端未接线 | handoff §9.6；`frontend/src/` 无相关页面 | 🟠 | 已投入的后端能力无法被用户使用；"退出其它设备"这一安全能力对用户不可见 | **2.8（首选）** |
-| **F-2** | ✅ 本地 main 已实现手机词库详情独立路由、完整释义/历史/文章暴露、返回状态恢复及跨账号 URL/滚动/焦点隔离；桌面双栏保留 | `frontend/src/pages/LibraryPage.test.tsx`；整合门禁前端 54 passed | ✅（真机待验） | 手机功能自动化验收通过；Android/iOS 真机与 Phase 3/M2 整体验收未完成 | 3 |
-| **F-3** | ⏳ GitHub PR #1 已实现 ≤900px 导入图片列表可见和单列操作，尚未合入本地 main | PR #1 的 `styles.css` 与进度报告 | 🟡 | 待 PR 修复及手机实机验收 | 3 |
-| **F-4** | ⏳ GitHub PR #1 已实现 `viewport-fit=cover` 和 safe-area 布局，尚未合入本地 main | PR #1 的 `index.html`、`styles.css` | 🟡 | 待 PR 修复及 iPhone 实机验收 | 3 |
-| **F-5** | 无 PWA viewport / apple 元信息 | Phase 0 §8.3 M4 | 🟡 | 无法"添加到主屏幕"独立运行 | 3 |
-| **F-6** | 底部导航 6 项在 390px 下每项约 60px，偏拥挤 | Phase 0 §8.3 M6 | 🟡 | 若要新增入口需重新设计（建议 5 项 + 中央加号） | 3 |
+| **F-2** | ✅ 本地 main 已实现手机词库详情独立路由、完整释义/历史/文章暴露、返回状态恢复及跨账号 URL/滚动/焦点隔离；桌面双栏保留 | `frontend/src/pages/LibraryPage.test.tsx`；**隔离浏览器验收 24/24** | ✅（真机待验） | **2026-09-25 整合 PR #1 后边界未回退**：`.word-detail` 只在 `.library-layout >` 内隐藏，`.library-detail-page` 继续显示；浏览器已验：390px 独立详情页 `display:block` 且显示完整释义，1280px 双栏内联面板保留、手机行改为链接。Android/iOS 真机与 Phase 3 整体验收未完成 | 3 |
+| **F-3** | ✅ **已整合（2026-09-25，`codex/pr1-ocr-pwa-integration`）**：≤900px 导入流程单列，且 `.image-list` 恢复可见，可查看、添加、移除已上传图片；边界由 `frontend/src/pwa.test.ts` 固定 | `frontend/src/styles.css`、`frontend/src/pwa.test.ts`；**隔离浏览器验收 24/24** | ✅（真机待验） | 浏览器已验：390px 下 `.image-list` 为 `block`、单列 358px、删除与继续添加控件可达；待真机确认触摸目标与滚动 | 3 |
+| **F-4** | ✅ **已整合（2026-09-25）**：`viewport-fit=cover` 与统一 `--safe-area-bottom`，用于固定底部导航、内容区预留与移动端查词浮层 | `frontend/index.html`、`frontend/src/styles.css`；**隔离浏览器验收 24/24** | ✅（真机待验） | 浏览器已验：390px 下底栏 `position:fixed`/`bottom:0`/`height:64px`、内容预留 68px；**模拟环境 `env(safe-area-inset-bottom)` 恒为 0px，真机像素级避让仍未验证** | 3 |
+| **F-5** | ✅ **已整合（2026-09-25）**：manifest（`display: standalone`、`start_url`/`scope`、`theme-color`）＋ Apple 元信息＋ 192/512/180 专用图标；SW 仅在 production 构建注册 | `frontend/public/manifest.webmanifest`、`frontend/index.html`、`frontend/src/pwa.ts`；**隔离浏览器验收 24/24** | ✅（安装待验） | 浏览器已验：worker `install`→`activated`、页面被接管、壳缓存写入、版本升级后旧缓存被清除、`/api/**` 从不进入 Cache Storage；待「添加到主屏幕」真机安装验收 | 3 |
+| **F-6** | 底部导航 6 项在 390px 下每项 **65px**（2026-09-25 浏览器实测），偏拥挤；**且 390×844 下账号/「退出登录」区块位于视口下方 852–888，手机上无法退出登录** | Phase 0 §8.3 M6；`AppShell.tsx`、`styles.css` | 🟡 | 若要新增入口需重新设计（建议 5 项 + 中央加号，并把账号入口移出底栏）。**本轮有意不做**，已列为 Phase 3 的独立后续切片 | 3 |
 | **F-7** | **无自服务改密 UI**：`POST /api/auth/password` 存在但前端无入口；且改密会撤销全部会话（含当前），调用方需重新登录（代码注释与行为需一并修正） | handoff §9.9 | 🟡 | 用户改密只能找管理员 | 2.8 |
 
 ### 4.4 产品能力
@@ -326,8 +326,8 @@ Phase 0 已明确排除，**路线图沿用以避免范围蔓延**：
 | Phase | 名称 | 优先级 | 规模 | 前置依赖 | 核心收益 | 状态 |
 |---|---|---|---|---|---|---|
 | **2.8** | 认证收尾与工程基线修复 | **P0** | L | 无 | 恢复门禁、消除提权风险、兑现已投入的后端能力、建立可用备份 | **1.2.0 本机多用户版已发布**：S-1、S-2、G5、G6 策略及 staging 演练、G8、T8、T11、T12 低风险清理、T14、T17 与 DoD 4 已有验收；T13 已统一 `1.2.0` 并提出本机多用户版边界。**DoD 3 已满足**：候选分支 `57418e7` 已在 GitHub 实时核对；`74dfd75` 是此前的推送快照。生产库当前无 G6 到期候选；将来的清理另行批准，不作为本次发布必做删除。本机多用户版的合并、正式 tag 与发布见 `V1.2-RELEASE-RECORD.md`。 |
-| **2.9** | 外部电子词库与公共词库交付 | **P1** | L–XL（以真实资料定） | 2.8 安全与门禁收尾；外部词库来源可用 | 云端关闭 OCR 后仍有受控、可溯源的主要词条来源 | 单文件与联合只读预览已入本地 main；只读的**锁定人工裁定计划**已在 `codex/phase-2-9-locked-plan` 分支（`docs/V1.2-PHASE2.9-LOCKED-PLAN-SLICE-RECORD.md`），确认写入 schema/幂等/回滚**设计待审查**（`docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md`）。正式确认入库、真实资料裁定与双用户副本验收**未完成**，仍是 Phase 4 硬前置；DoD 1–5 均未勾选 |
-| **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.9 并行） | 手机上真正可用；核心承诺在移动端成立 | 部分完成：F-2 已入本地 main；PWA/F-3/F-4 在待修复的 GitHub PR #1；F-6 与真机验收未完成 |
+| **2.9** | 外部电子词库与公共词库交付 | **P1** | L–XL（以真实资料定） | 2.8 安全与门禁收尾；外部词库来源可用 | 云端关闭 OCR 后仍有受控、可溯源的主要词条来源 | 单文件、联合只读预览及锁定人工裁定计划已在独立整合分支；确认写入设计待审查。正式入库、真实资料裁定与双用户副本验收未完成，仍是 Phase 4 硬前置；DoD 1–5 均未勾选 |
+| **3** | PWA 与移动端可用性 | **P1** | L–XL | 无（可与 2.9 并行） | 手机上真正可用；核心承诺在移动端成立 | F-2 已在 `main`；OCR 缓存修复、PWA/F-3/F-4 已在独立整合分支，源分支的隔离浏览器验收 24/24。F-6 底栏与 Android/iOS 真机安装及安全区验收未完成 |
 | **4** | 生产部署上线 | **P1** | L–XL | **2.8 + 2.9**；建议在 3 之后 | 公共词库可用，产品离开本机；自动备份与灾难恢复 | 未开始 |
 | **5** | 学习算法升级 | **P2** | XL | 4（可并行启动设计与离线验证） | 核心价值提升：自适应间隔、复习量可控、可量化效果 | 未开始 |
 | **6** | 平台化与长期演进 | **P3** | XL | 4 + 5 | 降低长期维护成本；支撑规模增长 | 未开始 |
@@ -555,11 +555,11 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 | ID | 目标 |
 |---|---|
 | G1 | ✅ F-2 手机词库详情工作流已入本地 main：独立路由、完整内容、返回列表状态与跨账号隔离；真机验收仍待做 |
-| G2 | ⏳ F-3 导入图片列表移动化已在 GitHub PR #1，待修复并整合 |
-| G3 | ⏳ F-4 iOS safe-area 与 `viewport-fit=cover` 已在 GitHub PR #1，待修复并整合 |
-| G4 | **F-5** PWA viewport + apple 元信息 |
-| G5 | PWA 安装能力：manifest、SW、192/512/180 图标、`display: standalone`、`theme-color` |
-| G6 | **F-6** 底部导航拥挤问题（若新增入口则重设计为 5 项 + 中央加号） |
+| G2 | ✅ F-3 导入图片列表移动化已整合（2026-09-25）：≤900px 单列且列表可见，可查看/添加/移除；真机待验 |
+| G3 | ✅ F-4 iOS safe-area 与 `viewport-fit=cover` 已整合（2026-09-25）；iPhone 实机待验 |
+| G4 | ✅ **F-5** PWA viewport + Apple 元信息已整合（`index.html`：`viewport-fit=cover`、`apple-mobile-web-app-*`、`apple-touch-icon`） |
+| G5 | ✅ PWA 安装能力：manifest、SW、192/512/180 图标、`display: standalone`、`theme-color` 已整合；**安装实机验收未完成** |
+| G6 | **F-6** 底部导航拥挤问题（若新增入口则重设计为 5 项 + 中央加号，并把账号/退出入口移出底栏）→ **后续独立切片，本轮不做**。2026-09-25 浏览器实测：390px 下 6 项各 65px；`.sidebar-account`（含「退出登录」）落在视口下方 852–888，**手机上无法退出登录** |
 | G7 | 静态资源预压缩（`.br`） |
 
 #### 技术任务
@@ -568,16 +568,16 @@ Phase 0 §G.4 已声明 **PWA/移动端 → Phase 3**、**Caddy/systemd/部署 �
 |---|---|---|---|
 | T1 | ✅ F-2 已选择独立路由；设计见 `V1.2-PHASE3-MOBILE-WORKFLOW-DESIGN.md` | `docs/` | S ✅ |
 | T2 | ✅ F-2 手机词库列表→详情→返回及跨账号隔离已入本地 main；整合门禁后端 545 / 1 skipped、前端 54，通过合成库隔离核验；真机待验 | `frontend/src/App.tsx`、`LibraryPage.tsx`、`WordDetailPage.tsx`、测试 | M–L ✅ |
-| T3 | 实现 F-3 | `frontend/src/pages/ImportPage.tsx`、`styles.css` | S–M |
-| T4 | 新建 `frontend/public/manifest.webmanifest`（`name` / `short_name` / `start_url` / `display: standalone` / `theme_color` / `icons`） | `frontend/public/`（**当前不存在，需新建**） | S |
-| T5 | 生成 PWA 图标 192/512/180（apple-touch）。**注意** `assets/shici-app.png`(741KB) 与 `.ico` 是**桌面快捷方式**用的，不要直接复用 | `frontend/public/` | S |
-| T6 | 写 Service Worker。**缓存策略是硬约束**（Phase 0 §8.4）：`CacheFirst` 仅用于 `/assets/*`（带 hash、内容寻址）、PWA 图标与 manifest；`/index.html` 用 `NetworkFirst` 或 `StaleWhileRevalidate`；**`/api/**` 与任何带 Cookie 的响应一律 `NetworkOnly`** | `frontend/` | M–L |
-| T7 | SW 版本管理与更新：版本号写死在 SW 内，`activate` 时清除旧版本 Cache；**不做后台同步、不做离线写队列**（非目标） | SW | S–M |
-| T8 | `index.html` 补 apple 元信息、`viewport-fit=cover`、保留 `theme-color` | `frontend/index.html` | S |
-| T9 | safe-area 适配：`env(safe-area-inset-*)` 用于固定底部导航 | `styles.css` | S |
-| T10 | 底部导航重排（F-6） | `styles.css`、`AppShell.tsx` | S–M |
+| T3 | ✅ 实现 F-3：≤900px 保留 `.image-list`，随导入流程单列显示 | `frontend/src/pages/ImportPage.tsx`、`styles.css` | S–M ✅ |
+| T4 | ✅ 新建 `frontend/public/manifest.webmanifest`（`name` / `short_name` / `start_url` / `display: standalone` / `theme_color` / `icons`） | `frontend/public/manifest.webmanifest` | S ✅ |
+| T5 | ✅ 生成专用 PWA 图标 192/512/180（apple-touch），由 1254×1254 桌面源图机械缩放后独立存放，逐像素比对确认；**未复用** 741 KB 启动图 | `frontend/public/icons/` | S ✅ |
+| T6 | ✅ 写 Service Worker：仅缓存 `/assets/*`、`/icons/*`、manifest 与应用壳；导航离线回退壳；**`/api` 与 `/api/**`、非 GET、跨源请求一律网络直通**（`isPrivateApiRequest`，且在首个 `respondWith` 之前判定） | `frontend/public/sw.js` | M–L ✅ |
+| T7 | ✅ SW 版本管理：`CACHE_NAME` 写死在 SW 内，`activate` 清除旧版本 Cache；**不做后台同步、不做离线写队列** | `frontend/public/sw.js` | S–M ✅ |
+| T8 | ✅ `index.html` 已补 Apple 元信息与 `viewport-fit=cover`，保留 `theme-color` | `frontend/index.html` | S ✅ |
+| T9 | ✅ safe-area 适配：统一 `--safe-area-bottom` 用于固定底部导航、内容区预留和查词浮层 | `styles.css` | S ✅ |
+| T10 | 底部导航重排（F-6）→ 后续独立切片。需一并处理实测发现的账号/退出入口被挤出视口问题 | `styles.css`、`AppShell.tsx` | S–M |
 | T11 | `.br` 预压缩产物生成（构建脚本），为 Phase 4 的 Caddy `precompressed` 做准备 | 构建流程 | S |
-| T12 | 移动端回归测试：断点快照/交互测试（≥900px 与 ≤900px 两套）；账号切换后 SW 不返回上一账号数据的断言 | `frontend/src/**/*.test.tsx` | M |
+| T12 | 移动端回归测试（部分 ✅）：已用 `frontend/src/pwa.test.ts` 固定 SW 边界、安装元信息、safe-area、F-2 详情可见性与 F-3 图片列表；**断点快照与真机验收仍未做** | `frontend/src/**/*.test.tsx` | M |
 
 #### 数据库影响
 
@@ -1081,7 +1081,7 @@ M1（2.8: 备份 + 门禁 + 认证收尾）
 | 数据库 revision / 表数 / 外键数 | [记录] `PROJECT_STATUS_V1.2.md` §3.2；[实测] 迁移链与模型定义 |
 | Git 状态（HEAD / ahead 33） | [实测] `git log`、`git status -sb` |
 | 备份与 baseline 缺口 | [实测] `data/backups/`、`data/recovery/` 目录列表与 mtime |
-| 部署/PWA/CI 缺口 | [实测] `Test-Path deploy` / `.github` / `frontend/public` 均为 False |
+| 部署/PWA/CI 缺口 | [实测] `Test-Path deploy` / `.github` 仍为 False；`frontend/public` **已不再是缺口**（2026-09-25 起存在 `manifest.webmanifest`、`sw.js`、`icons/`） |
 | 调度算法现状 | [实测] `backend/app/services/scheduler.py` 全文 41 行 |
 | 词频字段全空 | [实测] grep 全仓库，仅 model / migration / staging 断言出现 |
 | Phase 0/1/2 与 Release 回顾 | [记录] `PROJECT_HANDOFF.md`、`PROJECT_STATUS_V1.2.md`、`docs/V1.2-PHASE0-AUDIT-AND-DESIGN.md`、`docs/V1.2-PHASE2.*.md` |
