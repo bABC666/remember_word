@@ -28,7 +28,7 @@ import urllib.request
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from zhwiktionary_clean_measure import clean  # noqa: E402  （同一套清洗规则）
+from zhwiktionary_clean_measure import clean  # 同一套清洗规则
 
 API = "https://zh.wiktionary.org/w/api.php"
 UA = {"User-Agent": "shici-phase29-research/1.0 (local, non-commercial)"}
@@ -64,9 +64,11 @@ def main() -> int:
     ap.add_argument("--sleep", type=float, default=3.0)
     args = ap.parse_args()
 
-    rows = next(v for v in json.load(open(args.words, encoding="utf-8")).values() if isinstance(v, list))
+    with open(args.words, encoding="utf-8") as source:
+        rows = next(v for v in json.load(source).values() if isinstance(v, list))
     by_norm = {norm(r["单词"]): r for r in rows}
-    cov = json.load(open(args.coverage, encoding="utf-8"))
+    with open(args.coverage, encoding="utf-8") as source:
+        cov = json.load(source)
 
     def band(f: int) -> str:
         return "high" if f >= 1000 else ("mid" if f >= 100 else "low")
@@ -133,8 +135,10 @@ def main() -> int:
                      "netem_gloss": r.get("释义", ""), "zw_oldid": oldid, "zw_sha256": sha,
                      "zw_defs": defs, "zw_ipa": ipa, "wikdict_defs": wdefs})
 
-    open(args.out_index, "w", encoding="utf-8").write("\n".join(index) + "\n")
-    json.dump(dump, open(args.out_dump, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    with open(args.out_index, "w", encoding="utf-8") as output:
+        output.write("\n".join(index) + "\n")
+    with open(args.out_dump, "w", encoding="utf-8") as output:
+        json.dump(dump, output, ensure_ascii=False, indent=2)
     zwn = sum(1 for d in dump if d["zw_defs"])
     wkn = sum(1 for d in dump if d["wikdict_defs"])
     print(f"sample={len(dump)} (high/mid/low={sum(1 for d in dump if d['band']=='high')}/"

@@ -17,13 +17,13 @@ from __future__ import annotations
 
 import json
 import os
-import statistics
-import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 REP = os.path.join(ROOT, "reports")
-dump = json.load(open(os.path.join(REP, "quality-sample-dump.json"), encoding="utf-8"))
-verd = json.load(open(os.path.join(REP, "quality-verdicts.json"), encoding="utf-8"))["verdicts"]
+with open(os.path.join(REP, "quality-sample-dump.json"), encoding="utf-8") as source:
+    dump = json.load(source)
+with open(os.path.join(REP, "quality-verdicts.json"), encoding="utf-8") as source:
+    verd = json.load(source)["verdicts"]
 V = {v["word"]: v for v in verd}
 
 CLASSES = ("OK", "EDIT", "MISSING", "WRONG", "NONE")
@@ -104,7 +104,8 @@ for w in picks:
     out.append(f"- WikDict：{' ｜ '.join(d['wikdict_defs'][:6]) or '—'}　→ **{v['wd']}**：{v['wd_r']}")
 
 md = "\n".join(out) + "\n"
-open(os.path.join(REP, "quality-verification.md"), "w", encoding="utf-8").write(md)
+with open(os.path.join(REP, "quality-verification.md"), "w", encoding="utf-8") as output:
+    output.write(md)
 summary = {
     "n": n,
     "raw_nonempty": len(raw_nonempty),
@@ -115,6 +116,6 @@ summary = {
     "needs_human_revision": len(tier["B"]) + len(tier["C"]),
     "unusable_words": tier["C"],
 }
-json.dump(summary, open(os.path.join(REP, "quality-summary.json"), "w", encoding="utf-8"),
-          ensure_ascii=False, indent=2)
+with open(os.path.join(REP, "quality-summary.json"), "w", encoding="utf-8") as output:
+    json.dump(summary, output, ensure_ascii=False, indent=2)
 print(json.dumps(summary, ensure_ascii=False))
