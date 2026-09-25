@@ -2,13 +2,15 @@
 
 > 更新日期：2026-09-25（本地开发整合；下文保留各历史批次记录）。
 > 当前分支：`main`；由 `feat/v1.2-phase1-safe` fast-forward 合并。实时 HEAD 和远端 tag 以 Git 核验为准。
-> 当前阶段：**`v1.2.0` 本机版已发布；本地 `main` 已整合 F-2 和 Phase 2.9 联合只读预览**。真实公共电子词库的确认导入、2.9-A/B 与 Phase 3 验收尚未完成。GitHub PR #1 的 OCR 缓存修复与 PWA/F-3/F-4 尚未合并；G6 生产库未来清理另行决定。
+> 当前阶段：**`v1.2.0` 本机版已发布；本地 `main` 已整合 F-2 和 Phase 2.9 联合只读预览**。真实公共电子词库的确认导入、2.9-A/B 与 Phase 3 整体验收尚未完成。GitHub PR #1 的 OCR 缓存清理边界与 PWA/F-3/F-4 已在 `codex/pr1-ocr-pwa-integration`（基于 `origin/main` 的独立 worktree）修复并整合，**未 push、未 merge**；F-6 底栏与安装/真机验收仍未完成；G6 生产库未来清理另行决定。
 > 本文用途：让新的开发者或 AI 不依赖历史对话，也能安全接手维护。
 > `docs/PROJECT_STATUS_V1.2.md` 是 2026-09-22 的只读审计快照，已加当前状态索引；旧数字保留为历史证据，不作为当前状态来源。当前事实以代码、`PROJECT_STATUS_CURRENT.md` 及 `docs/V1.2-RELEASE-RECORD.md` 为准。
 
 > **2026-09-24 本地整合**：`codex/phase-2-9-preview` 已快进合入本地 `main`（`564ebf0`），只提供来源无关、只读的文件预览 CLI；未推送、未确认真实来源、未导入或迁移生产库。合并后的原样 `scripts/check.ps1` exit 0：后端 538 passed / 1 skipped、前端 32 passed、测试期 `data/` 200 文件零变化、现有 0007 数据库与 baseline 核验通过。Phase 2.9-A/B 仍未验收；早期环境缺件与合成库复核记录见 `docs/V1.2-PHASE2.9-FILE-PREVIEW-SLICE-RECORD.md`。
 
 > **2026-09-25 本地整合**：已合入 GitHub `main` 的释义显示修复、F-2 手机详情及账号隔离、Phase 2.9 联合只读预览、dsh 来源报告。相同代码在隔离 worktree 的 `scripts/check.ps1` exit 0：后端 545 passed / 1 skipped、前端 54 passed，合成 `data/` 两文件零变化。主工作区未因此重启或写生产库。PR #1 的 OCR 缓存清理边界仍需修复，故未合入。
+
+> **2026-09-25 接管 GitHub PR #1**（分支 `codex/pr1-ocr-pwa-integration`，自 `origin/main` = `d42d678` 的独立 worktree；**未 push、未 merge**）：先修复 PR 的两处 OCR 模型缓存缺陷——①清理改为「目录名在 PaddleX 官方模型清单内 + 内容确为模型文件 + 非符号链接/联接 + 超过在写宽限窗口 + 拿到 PaddleX 自己的跨进程下载锁」五重闸门，删除前先原子改名，因此不会误删无关目录、也不会删掉另一个进程正在下载的目录；②「文件存在且非零」不再算完整缓存，`inference.yml`／`inference.json` 必须是可解析的完整文档、参数文件必须达到最小字节数，因此**非零但被截断**的模型不再被当作命中。随后整合 PR 的 PWA 外壳（manifest、专用 192/512/180 图标、Apple 元信息）、移动端导入图片列表与 safe-area 样式，保留 F-2 独立详情页可见性，并把 `/api` 与 `/api/**` 永不进入 SW 缓存的边界写成断言。隔离 worktree 内 `scripts/check.ps1` **exit 0**：后端 **565 passed / 1 skipped**、前端 **67 passed**、`data/` **200 文件零变化**、VERIFIED BACKUP（revision 0007）。**浏览器与手机真机验收仍未完成**，F-6 底栏另列后续切片；细节与缺口清单见 `docs/2026-09-25-OCR-CACHE-REPAIR-AND-PWA-INTEGRATION.md`。
 
 ---
 
@@ -36,7 +38,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9 先裁定可用来源、版本和人工冲突规则，再设计锁定确认计划与隔离副本写入；Phase 3 需修复 PR #1 的 OCR 缓存清理边界、整合 PWA/F-3/F-4，并完成 F-6 与真机验收。Phase 4 上线仍以后两阶段验收为前置。 |
+| 下一步 | Phase 2.9 先裁定可用来源、版本和人工冲突规则，再设计锁定确认计划与隔离副本写入；Phase 3 在 `codex/pr1-ocr-pwa-integration` 上已补齐 OCR 缓存清理边界与 PWA/F-3/F-4，待做的是 **F-6 底栏重排**与**浏览器／手机真机验收**（含「添加到主屏幕」安装与离线壳）。Phase 4 上线仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
@@ -332,7 +334,7 @@ backend\.venv\Scripts\python.exe tools\staging_three_user_check.py      # T8：�
 7. **无注册/找回流程**（有意为之）：账号由管理员或 CLI 创建。
 8. `word` 表已无写入方。~~`helpers.word_dict`、`schemas.py::WordSummary`~~ → ✅ **已于 2026-09-23（Batch 9 / T12）删除**（两者在删除前全仓库只有定义、没有任何调用）。**剩余**：`services/words.py::apply_learning_update`（只被 `test_import_flow.py` 引用，属旧 `word` 路径）与 `schemas.py::ORMModel`（已无使用者）；`POST /api/words/quick-add`（Phase 0 规划）未实现。
 9. **词频数据缺失**（F3）：`lexicon_entry.frequency_rank` 全为 NULL，选词回落到 `sequence`/`id`。
-10. **PWA / 移动端**：F-2 手机详情独立路由与账号切换隔离已合入本地 main；完整释义、音标、复习历史、文章暴露可见，桌面双栏保留。PWA、F-3 图片列表和 F-4 安全区在 GitHub PR #1，因 OCR 缓存清理边界问题暂未合并；F-6 底栏与 Android/iOS 真机验收仍待做。
+10. **PWA / 移动端**：F-2 手机详情独立路由与账号切换隔离已合入本地 main；完整释义、音标、复习历史、文章暴露可见，桌面双栏保留。PWA 安装基础（manifest、专用 192/512/180 图标、Apple 元信息、`display: standalone`）、F-3 移动端导入图片列表、F-4 iOS 安全区已在 `codex/pr1-ocr-pwa-integration` 整合完毕（**未 push、未 merge**）：Service Worker 只缓存应用壳与静态构建产物，**`/api` 与 `/api/**`、非 GET、跨源请求一律网络直通**，因此切换账号后不会重放私有数据。**F-6 底栏、断点快照与 Android/iOS 真机（含安装与离线壳）验收仍待做**；本轮没有做离线写队列，也没有做后台同步（非目标）。
 11. **公网部署未开始**：当前只监听回环地址。
 11a. **云端公共词库来源未交付**：关闭 PaddleOCR 的配置已规划，但外部电子词库 → 公共 `Lexicon` 的导入和副本验收仍是 Phase 2.9 待办；与 Phase 5 的词频资料导入不同。
 12. **CSRF 的天然边界**：同源校验不防 XSS（同源脚本可同时伪造请求与请求头）；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说，避免"上了 CSRF 就安全"的错觉。

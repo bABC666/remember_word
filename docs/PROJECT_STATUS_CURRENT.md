@@ -5,9 +5,9 @@
 
 | 项 | 值 |
 |---|---|
-| 更新时间 | 2026-09-25（本地 `main` 整合 F-2 与 Phase 2.9 只读预览；正式发布 tag 仍为 `v1.2.0`） |
+| 更新时间 | 2026-09-25（本地 `main` 整合 F-2 与 Phase 2.9 只读预览；PR #1 的 OCR 缓存修复与 PWA/F-3/F-4 已在 `codex/pr1-ocr-pwa-integration` 整合；正式发布 tag 仍为 `v1.2.0`） |
 | 当前版本 | **`1.2.0` 本机多用户版**；发布对象为 `main` 上的附注 tag `v1.2.0`，边界与验证见 `docs/V1.2-RELEASE-RECORD.md`。Phase 2.9、3、4 尚未交付 |
-| 当前分支 | 本地 `main` 已整合 F-2、单文件与多文件只读预览及来源调研；GitHub PR #1 的 OCR 缓存修复与 PWA/F-3/F-4 仍开放、未合并；实时分支以 `git status -sb` 为准 |
+| 当前分支 | 本地 `main` 已整合 F-2、单文件与多文件只读预览及来源调研；接管 PR #1 的 `codex/pr1-ocr-pwa-integration`（基于 `origin/main` 的隔离 worktree）已修复 OCR 缓存清理边界并整合 PWA/F-3/F-4，**未 push、未 merge**；实时分支以 `git status -sb` 为准 |
 | 最近功能代码 / 文档冻结起点 | `10dcfa5`（S-2 写请求同源校验）/ `0d20a51`（其后的文档冻结提交）/ **`c3a6106`（S-1 管理员二次认证，`feat(v1.2): require the admin's own password (S-1)`）**；实时 HEAD 以 `git rev-parse HEAD` 为准 |
 | 上游 | GitHub 默认分支已切至 `main`；正式发布 tag `v1.2.0` 指向 `9367f55`。发布前候选分支实时核对为 `57418e7`，`74dfd75` 是更早的推送快照；发布后的运行状态文档提交可使 `main` 领先 tag |
 | 安全基线分支 | `recovery/v1.1-guarded`（2026-09-22 数据事故后的安全基线） |
@@ -46,7 +46,7 @@
 | **Backend** | FastAPI（Python）+ SQLAlchemy 2 + Pydantic v2 + Alembic；8 个 router、**46 个业务端点 + `GET /api/health`**（其中非安全方法 **30 个**）；口令哈希 pwdlib(Argon2id) |
 | **Database** | **SQLite（WAL）**，`data/vocab.db` 是唯一事实来源；revision **0007**（迁移链 0001→0007 线性）；18 表 / 26 物理外键；单写者 → **uvicorn 必须单 worker** |
 | **Authentication** | **服务器端会话 + HttpOnly Cookie**：Cookie 名 `shici_session`（`HttpOnly` + `SameSite=lax` + `Path=/` + host-only 无 `Domain`，`Secure` 由 `VOCAB_COOKIE_SECURE` 控制）；数据库只存 token 的 SHA-256；**账号由管理员/CLI 创建，不开放注册、不接 OAuth** |
-| **Deployment 方向** | 当前：本机 Windows 应用，`scripts/start-vocab.ps1` 单 worker 监听 `127.0.0.1:8000`，同时托管 API 与 `frontend/dist`。目标：**Caddy + HTTPS + systemd + PWA**（Phase 3/4，尚未开始） |
+| **Deployment 方向** | 当前：本机 Windows 应用，`scripts/start-vocab.ps1` 单 worker 监听 `127.0.0.1:8000`，同时托管 API 与 `frontend/dist`。Phase 3 已有可安装的安全 PWA 外壳（只缓存静态资源，`/api/**` 永不缓存）；目标仍为 **Caddy + HTTPS + systemd**（Phase 4，尚未开始） |
 
 ---
 
@@ -188,7 +188,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 | 1 | ~~**S-1 管理员敏感操作无二次认证**~~ → ✅ **已关闭（2026-09-23，Batch 3）** | 🟠→⚪ | 原风险：管理员会话被盗即可建**持久后门管理员**、改他人密码/角色、停用账号。现两个端点每次调用都要求管理员自己的当前口令，且**校验通过前不改账号与会话**（见 §2.3、§5.2）。剩余：恢复路径仍可被短暂封锁（#30，S-3）与 `PUT /api/settings` 无二次认证（#29） |
 | 2 | **Phase 4 部署必须配 `uvicorn --proxy-headers --forwarded-allow-ips <代理地址>`** | 🟠 | 不配则两处同时出错：①所有用户共用一个 IP 限流桶（S-4）②TLS 终止后裸域名 `Host` 被推导为 80 端口 → https 来源的写请求被 CSRF 校验 **403**。必须写进部署脚本 |
 | 3 | **公网部署未开始**（D-1） | 🔴 | 仅监听回环地址，无 `deploy/`、无 HTTPS、无 CI；产品无法离开本机 |
-| 4 | **Phase 3 部分完成**（F-2 已入本地 main；PR #1 待修复） | 🟠 | 手机词库详情及跨账号状态隔离已实现；PWA、F-3 图片列表与 F-4 安全区在未合并的 GitHub PR #1；F-6 底栏及 Android/iOS 真机验收仍待做，Phase 3/M2 未完成 |
+| 4 | **Phase 3 部分完成**（F-2 已入本地 main；PWA/F-3/F-4 已在 `codex/pr1-ocr-pwa-integration` 整合） | 🟠 | 手机词库详情及跨账号状态隔离已实现；PWA 安装基础、F-3 图片列表与 F-4 安全区已在接管 PR #1 的分支上就绪（含 OCR 缓存清理边界修复），但**未 push / 未 merge**；F-6 底栏及 Android/iOS 真机验收仍待做，Phase 3 未完成 |
 | 5 | **XSS 不在 CSRF 防御范围** | 🟠 | 同源脚本可同时伪造请求与请求头；当前前端无 `dangerouslySetInnerHTML`/`innerHTML`，但这条边界必须明说 |
 | 6 | **`VOCAB_CSRF_ALLOW_MISSING_ORIGIN=true` 会让所有客户端一起失去第三层** | 🟡 | 脚本客户端逃生口，默认关闭；开启前须读设计文档 §6 |
 | 7 | **限流与闸门状态在内存**（S-4） | 🟠 | 重启清零；**多 worker 会让等效阈值 ×worker 数**；单 worker 是架构硬约束 |
@@ -231,7 +231,7 @@ Phase 2（认证体系，2.1–2.7）与 Phase 2.8 的 DoD 1–8 已完成并留
 3. **Phase 2.9 · 外部电子词库与公共词库交付**（Phase 4 上线硬前置）
    单文件只读预览已合入本地 `main`，联合只读预览已进入隔离整合分支。下一步确定可用词库来源、版本与使用范围，再设计管理员确认和幂等写入；在副本验证双用户隔离。真实导入未完成，不得拿 AI 生成词义或词频填空。
 4. **Phase 3 · PWA 与移动端可用性**（可与 2.9 并行，部分完成）
-   F-2 手机详情路由、列表返回状态与账号隔离已在本地 `main`；完整释义、音标、复习历史和文章暴露在手机详情可见，桌面双栏保留。相同代码在隔离整合 worktree 的完整门禁后端 545 / 1 skipped、前端 54 通过。GitHub PR #1 另实现 PWA、F-3 图片列表和 F-4 安全区，但 OCR 缓存清理边界待修，尚未合并；F-6 底栏与 Android/iOS 真机验收仍待做。
+   F-2 手机详情路由、列表返回状态与账号隔离已在本地 `main`；完整释义、音标、复习历史和文章暴露在手机详情可见，桌面双栏保留。`codex/pr1-ocr-pwa-integration` 已修复 PR #1 的两处 OCR 模型缓存缺陷（误删无关／正在下载的目录、非零但截断的文件被当作完整缓存），并整合 PWA 安装基础、F-3 移动端导入图片列表与 F-4 安全区；SW 边界为 `/api` 与 `/api/**` 永不缓存。**F-6 底栏、断点快照与 Android/iOS 真机（安装、离线壳）验收仍待做**；该分支未 push、未 merge。
 5. **Phase 4 · 生产部署上线**（必须先完成 2.8 + 2.9；建议 Phase 3 也已完成）
    Caddy + HTTPS + systemd；`VOCAB_COOKIE_SECURE=true`；**固化 `--proxy-headers --forwarded-allow-ips`**（风险 #2）；将已验收的公共词库交付服务器；备份定时器 + 保留 + 异地 + 恢复演练。
 6. （更远）Phase 5 学习算法升级与独立的外部词频资料接入、Phase 6 平台化（`word` 表退场 + CI）。
