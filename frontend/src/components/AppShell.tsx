@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { BookOpen, Home, Import, LibraryBig, LogOut, Settings, Sparkles } from 'lucide-react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useAuth } from '../useAuth'
 import { HelpCenter } from './HelpCenter'
 
@@ -15,15 +15,6 @@ const items = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
-  const location = useLocation()
-  const navigate = useNavigate()
-  const signOut = () => {
-    if (location.pathname === '/library') {
-      navigate('/library', { replace: true, state: null })
-      window.scrollTo(0, 0)
-    }
-    void logout()
-  }
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -41,7 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <strong>{user?.display_name || user?.username || ''}</strong>
             {user?.is_admin && <small>管理员</small>}
           </div>
-          <button className="account-logout" type="button" onClick={signOut} aria-label="退出登录">
+          <button className="account-logout" type="button" onClick={() => void logout()} aria-label="退出登录">
             <LogOut size={16} strokeWidth={1.8} />
             <span>退出</span>
           </button>

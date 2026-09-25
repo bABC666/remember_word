@@ -59,6 +59,7 @@ function mobile(matches: boolean) {
 function mockApi(options: {
   currentUser?: () => number
   detailResponse?: () => Promise<Response>
+  listResponse?: () => Promise<Response>
 } = {}) {
   const requests: string[] = []
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
@@ -69,7 +70,10 @@ function mockApi(options: {
     if (url === '/api/auth/login') return Promise.resolve(Response.json(me(options.currentUser?.() ?? 1)))
     if (url === '/api/settings/onboarding') return Promise.resolve(Response.json({ seen: true }))
     if (url === '/api/dashboard') return Promise.resolve(Response.json({ today_new: 0, due_reviews: 0, weak_words: 0, reading_status: 'not_generated', streak_days: 0 }))
-    if (url.startsWith('/api/words?')) return Promise.resolve(Response.json({ total: 1, words: [savedWord] }))
+    if (url.startsWith('/api/words?')) {
+      if (options.listResponse) return options.listResponse()
+      return Promise.resolve(Response.json({ total: 1, words: [savedWord] }))
+    }
     if (url === '/api/words/state/42') {
       if (options.detailResponse) return options.detailResponse()
       return Promise.resolve(Response.json(detail))
@@ -227,6 +231,7 @@ describe('mobile library detail', () => {
     await userEvent.type(screen.getByLabelText('密码'), 'secret')
     await userEvent.click(screen.getByRole('button', { name: '登录' }))
     const search = await screen.findByRole('textbox', { name: '搜索单词' })
+    await screen.findByRole('link', { name: /amber/ })
     expect(window.location.pathname).toBe('/library')
     expect(window.location.search).toBe('')
     expect(search).toHaveValue('')
@@ -234,7 +239,60 @@ describe('mobile library detail', () => {
     expect(screen.getByRole('button', { name: '最近加入' })).toHaveAttribute('aria-pressed', 'false')
     expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(0)
     expect(window.scrollY).toBe(0)
-    expect(requests.at(-1)).toBe('/api/words?search=&status=&view=')
+    expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
+      .toBe('/api/words?search=&status=&view=')
+  })
+
+  it('clears A filters and position after a library 401, including browser back under B', async () => {
+    let userId = 1
+    let expireA = false
+    vi.stubGlobal('scrollY', 240)
+    vi.stubGlobal('scrollTo', vi.fn((_x: number, y: number) => vi.stubGlobal('scrollY', y)))
+    const requests = mockApi({
+      currentUser: () => userId,
+      listResponse: () => Promise.resolve(expireA && userId === 1
+        ? Response.json({ detail: '请先登录' }, { status: 401 })
+        : Response.json({ total: 1, words: [{ ...savedWord, word: userId === 1 ? 'amber' : 'beta' }] })),
+    })
+    render(<App />)
+    await userEvent.type(await screen.findByRole('textbox', { name: '搜索单词' }), 'amber')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '学习状态' }), 'weak')
+    await userEvent.click(screen.getByRole('button', { name: '最近加入' }))
+    document.querySelector<HTMLElement>('.word-list')!.scrollTop = 135
+    screen.getByRole('link', { name: /amber/ }).focus()
+    await userEvent.click(screen.getByRole('link', { name: '今日概览' }))
+    await screen.findByRole('heading', { name: '今天也从一个词开始。' })
+    await userEvent.click(screen.getByRole('link', { name: '我的词库' }))
+    await screen.findByRole('textbox', { name: '搜索单词' })
+    await userEvent.type(screen.getByRole('textbox', { name: '搜索单词' }), 'amber')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '学习状态' }), 'weak')
+    expireA = true
+    await userEvent.click(screen.getByRole('button', { name: '长期未复习' }))
+    await screen.findByRole('form', { name: '登录拾词' })
+    userId = 2
+    await userEvent.type(screen.getByLabelText('用户名'), 'beta')
+    await userEvent.type(screen.getByLabelText('密码'), 'secret')
+    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    expect(await screen.findByRole('textbox', { name: '搜索单词' })).toHaveValue('')
+    await screen.findByRole('link', { name: /beta/ })
+    expect(window.location.pathname + window.location.search).toBe('/library')
+    expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(0)
+    expect(window.scrollY).toBe(0)
+    expect(screen.getByRole('link', { name: /beta/ })).not.toHaveFocus()
+    window.history.back()
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
+    window.history.back()
+    await waitFor(() => {
+      expect(window.location.pathname + window.location.search).toBe('/library')
+      expect(screen.getByRole('textbox', { name: '搜索单词' })).toHaveValue('')
+      expect(screen.getByRole('combobox', { name: '学习状态' })).toHaveValue('')
+      expect(screen.getByRole('button', { name: '最近加入' })).toHaveAttribute('aria-pressed', 'false')
+      expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(0)
+      expect(window.scrollY).toBe(0)
+      expect(screen.getByRole('link', { name: /beta/ })).not.toHaveFocus()
+    })
+    expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
+      .toBe('/api/words?search=&status=&view=')
   })
 
   it('keeps a filtered library URL through a normal refresh of the same account', async () => {

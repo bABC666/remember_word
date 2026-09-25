@@ -67,7 +67,7 @@ export function LibraryPage({ positions }: { positions: Map<string, LibraryPosit
     const next = new URLSearchParams(params)
     if (value) next.set(name, value)
     else next.delete(name)
-    setParams(next, { replace: true })
+    setParams(next, { replace: true, state: location.state })
   }
 
   const rememberPosition = (wordStateId: number) => {
