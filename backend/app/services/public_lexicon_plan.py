@@ -39,8 +39,10 @@ from typing import Any
 
 from app.services.public_lexicon_joint_preview import (
     FIELD_ORDER,
+    PROVENANCE_FIELDS,
     ManifestSpecs,
     load_manifest,
+    missing_provenance_fields,
     preview_sources,
 )
 from app.services.public_lexicon_preview import FIELDS
@@ -665,6 +667,16 @@ def _source_blocks(
             # step has to re-open the same file, and a manifest may name one in a
             # subdirectory. Recorded here because the plan is the confirm contract.
             "declared_path": str(spec.path),
+            # The declared provenance, frozen into the digest. A plan is not only
+            # "which values would be written" but "on whose authority", so changing a
+            # licence declaration has to invalidate it. Missing fields are recorded
+            # as empty strings and reported as a blocker rather than raising: the
+            # plan stays a reviewable artifact that says what is still owed.
+            "provenance": {
+                field: (spec.provenance or {}).get(field, "")
+                for field in PROVENANCE_FIELDS
+            },
+            "missing_provenance": missing_provenance_fields(spec.provenance),
             "file": dict(preview["file"]),
             "mapping": mapping,
             "mapping_sha256": mapping_sha,
@@ -926,6 +938,14 @@ def _blockers(
     for source in sources:
         if source["file_level_issues"]:
             blockers.append(f"source_file_unusable:{source['source_id']} produced no rows")
+        if source["missing_provenance"]:
+            # The design is explicit that an import without a settled licence may be
+            # evaluated locally but must not be published. Blocks by default, exactly
+            # like an unadjudicated conflict.
+            blockers.append(
+                f"incomplete_provenance:{source['source_id']} missing "
+                + ", ".join(source["missing_provenance"])
+            )
         unacknowledged = [
             line for line in source["unreadable_rows"]
             if (source["source_id"], line) not in book.rows

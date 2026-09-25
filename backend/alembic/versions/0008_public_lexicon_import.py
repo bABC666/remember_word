@@ -49,6 +49,17 @@ Also note what the unique keys buy:
   piece of evidence is recorded once; across runs a re-adjudication appends its own
   row. Keying on ``evidence_sha256`` alone would make re-adjudication either
   impossible or a rewrite of history.
+
+Authorisation metadata is mandatory
+-----------------------------------
+``source_artifact`` carries a CHECK constraint requiring the publisher, version,
+acquisition time, licence id, use scope and display scope to be non-empty. The
+design's rule is that a source whose content licence is unsettled may be evaluated
+locally but must not be published, and the failure mode it guards against is an
+import that *looks* complete: rows on disk, evidence traceable to a file, and a
+blank licence nobody notices until the question is asked. The plan blocks on
+incomplete provenance and the confirmation refuses it with a readable message;
+this constraint is what makes a blank row impossible rather than merely discouraged.
 """
 
 from alembic import op
@@ -85,6 +96,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "file_sha256", "mapping_sha256", "role", name="uq_source_artifact_identity"
+        ),
+        # No blank authorisation metadata, enforced by the database rather than only
+        # by the application: a row with an empty publisher, version, acquisition
+        # time, licence or scope is an import nobody can audit later.
+        sa.CheckConstraint(
+            "length(trim(publisher)) > 0"
+            " AND length(trim(version)) > 0"
+            " AND length(trim(obtained_at_utc)) > 0"
+            " AND length(trim(license_id)) > 0"
+            " AND length(trim(use_scope)) > 0"
+            " AND length(trim(display_scope)) > 0",
+            name="ck_source_artifact_provenance_present",
         ),
     )
     op.create_index("ix_source_artifact_mapping_sha256", "source_artifact",

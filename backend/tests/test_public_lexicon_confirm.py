@@ -21,6 +21,8 @@ from typing import Any
 
 import pytest
 
+from tests.test_public_lexicon_plan import provenance_block
+
 
 def _normalized(token: str) -> str:
     """The word these tests import, as ``strip().casefold()`` will see it."""
@@ -77,10 +79,12 @@ def _manifest(root: Path) -> Path:
         "required_fields": ["meaning"],
         "sources": [
             {"id": "primary", "role": "primary", "file": "primary.csv",
-             "columns": {"word": "head", "meaning": "cn"}},
+             "columns": {"word": "head", "meaning": "cn"},
+             "provenance": provenance_block("primary")},
             {"id": "supplement", "role": "meaning", "file": "supplement.csv",
              "columns": {"word": "term", "meaning": "translation",
-                         "phonetic": "ipa", "part_of_speech": "pos"}},
+                         "phonetic": "ipa", "part_of_speech": "pos"},
+             "provenance": provenance_block("supplement")},
         ],
     }, ensure_ascii=False), encoding="utf-8")
     return path
@@ -922,3 +926,108 @@ def test_cli_writes_a_failure_report_outside_the_transaction(
         _cli_argv(root, plan_path, confirm=plan["run_id"], report=report)
     ) == 1
     assert json.loads(report.read_text(encoding="utf-8")) == written
+
+
+# --- the declared provenance reaches the row, or nothing is written ----------
+#
+# Three layers guard the same rule, and each is tested separately because they fail
+# in different circumstances: the plan blocks an incomplete declaration (so the
+# operator sees it before confirming), the service refuses it with an actionable
+# message (so a plan whose digest was recomputed by hand still cannot get through),
+# and the table refuses a blank row (so no future code path can create one).
+
+
+def test_confirm_records_the_declared_provenance(admin, tmp_path: Path) -> None:
+    from app.models import PublicImportRunSource, SourceArtifact
+    from app.services.public_lexicon_confirm import confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="prov", target="p29-prov",
+                       decisions=_standard_decisions("prov"))
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-prov", "p29-test-prov")
+        result = confirm_plan(
+            session, plan=plan, administrator=_administrator(session, admin),
+            source_root=root,
+        )
+        artifacts = {
+            row.role: row
+            for row in session.query(SourceArtifact).join(
+                PublicImportRunSource,
+                PublicImportRunSource.source_artifact_id == SourceArtifact.id,
+            ).filter(PublicImportRunSource.import_run_id == result["import_run_id"]).all()
+        }
+
+    assert set(artifacts) == {"primary", "meaning"}
+    for artifact in artifacts.values():
+        assert artifact.publisher == "synthetic publisher"
+        assert artifact.version == "2026-09-25"
+        assert artifact.obtained_at_utc == "2026-09-25T00:00:00Z"
+        assert artifact.license_id == "synthetic-test-only"
+        assert artifact.use_scope == "local-evaluation"
+        assert artifact.display_scope == "not-for-publication"
+        assert artifact.storage_locator.startswith("sources/")
+        assert artifact.format == "delimited-text-v1"
+        assert artifact.file_sha256 and artifact.mapping_sha256
+    # The locator is the declared one, not a fallback the writer invented.
+    assert artifacts["primary"].storage_locator == "sources/primary.csv"
+
+
+def test_confirm_refuses_a_plan_with_incomplete_provenance(
+    admin, tmp_path: Path
+) -> None:
+    """Bypass the plan's own blocker: the service must still refuse."""
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="provgap", target="p29-provgap",
+                       decisions=_standard_decisions("provgap"))
+    for source in plan["sources"]:
+        source["provenance"]["license_id"] = ""
+        source["missing_provenance"] = ["license_id"]
+    # Someone recomputed the digest and cleared the blockers by hand. The service
+    # still has to refuse, because the row it would write has no licence.
+    plan["confirmation_blockers"] = []
+    plan["confirmation_ready"] = True
+    plan["plan_sha256"] = plan_digest(plan)
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-provgap", "p29-test-provgap")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused, match="授权元数据不完整"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+
+    assert after == before
+
+
+def test_the_database_refuses_an_artifact_with_blank_provenance(
+    admin, tmp_path: Path
+) -> None:
+    """The last layer: a blank row cannot be inserted by any path at all."""
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models import SourceArtifact
+
+    with admin.session() as session:
+        session.add(SourceArtifact(
+            role="primary",
+            name="blank.csv",
+            # Every required provenance field left empty.
+            format="delimited-text-v1",
+            mapping_json="{}",
+            mapping_sha256="0" * 64,
+            file_sha256="1" * 64,
+            byte_size=1,
+        ))
+        with pytest.raises(IntegrityError, match="ck_source_artifact_provenance_present"):
+            session.commit()
+        session.rollback()
+        assert session.query(SourceArtifact).filter_by(name="blank.csv").count() == 0

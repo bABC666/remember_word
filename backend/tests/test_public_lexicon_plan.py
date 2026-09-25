@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+from app.services.public_lexicon_joint_preview import PROVENANCE_REQUIRED_FIELDS
 from app.services.public_lexicon_plan import (
     PlanError,
     build_plan,
@@ -33,8 +34,33 @@ def _write(root: Path, name: str, text: str) -> None:
     (root / name).write_text(text, encoding="utf-8")
 
 
+def provenance_block(source_id: str = "source") -> dict[str, str]:
+    """A complete declared provenance block for a synthetic source.
+
+    Real declarations are the operator's problem; what these tests pin is that a
+    plan without one is blocked, so every manifest here carries a valid block unless
+    the test is specifically about provenance.
+    """
+    return {
+        "publisher": "synthetic publisher",
+        "version": "2026-09-25",
+        "obtained_at_utc": "2026-09-25T00:00:00Z",
+        "license_id": "synthetic-test-only",
+        "use_scope": "local-evaluation",
+        "display_scope": "not-for-publication",
+        "storage_locator": f"sources/{source_id}.csv",
+    }
+
+
 def _manifest(root: Path, sources: list[dict[str, Any]], **extra: Any) -> Path:
-    document: dict[str, Any] = {"required_fields": ["meaning"], "sources": sources}
+    document: dict[str, Any] = {
+        "required_fields": ["meaning"],
+        "sources": [
+            source if "provenance" in source
+            else {**source, "provenance": provenance_block(source.get("id", "source"))}
+            for source in sources
+        ],
+    }
     document.update(extra)
     path = root / "manifest.json"
     path.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
@@ -670,3 +696,146 @@ def test_plan_source_raw_stays_the_primary_line_even_when_a_supplement_is_defaul
         for field in ("word", "meaning")
         for item in entry["evidence"][field]
     )
+
+
+# --- declared provenance: an import nobody can audit must not be confirmable ---
+#
+# The design's rule is that a source whose content licence is unsettled may be
+# evaluated locally but must not be published. These tests pin the "recorded, not
+# verified" contract from both sides: the plan freezes whatever was declared and
+# blocks when something required is missing, so the failure is visible in the
+# artifact a human reviews rather than discovered months later on a blank column.
+
+
+def test_plan_blocks_a_source_that_declares_no_provenance(tmp_path: Path) -> None:
+    _write(tmp_path, "primary.csv", PRIMARY)
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"}, "provenance": None},
+    ])
+
+    plan = _plan(tmp_path, manifest, [])
+
+    assert plan["sources"][0]["provenance"]["license_id"] == ""
+    assert plan["sources"][0]["missing_provenance"] == sorted(
+        PROVENANCE_REQUIRED_FIELDS
+    )
+    assert plan["confirmation_ready"] is False
+    assert any(
+        item.startswith("incomplete_provenance:primary")
+        for item in plan["confirmation_blockers"]
+    )
+    # The blocker names what is owed, so an operator does not have to diff it out.
+    blocker = next(
+        item for item in plan["confirmation_blockers"]
+        if item.startswith("incomplete_provenance:primary")
+    )
+    assert "license_id" in blocker and "publisher" in blocker
+
+
+def test_plan_blocks_a_partially_declared_source(tmp_path: Path) -> None:
+    _write(tmp_path, "primary.csv", PRIMARY)
+    partial = provenance_block("primary")
+    partial["license_id"] = "   "
+    partial["display_scope"] = ""
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"}, "provenance": partial},
+    ])
+
+    plan = _plan(tmp_path, manifest, [])
+
+    assert plan["sources"][0]["missing_provenance"] == ["display_scope", "license_id"]
+    assert plan["confirmation_ready"] is False
+    # Whitespace is not a declaration.
+    assert plan["sources"][0]["provenance"]["license_id"] == ""
+
+
+def test_plan_confirms_once_every_source_is_declared(tmp_path: Path) -> None:
+    manifest = _two_sources(tmp_path)
+
+    plan = _plan(tmp_path, manifest, [
+        SELECT_PRIMARY_MEANING,
+        {"normalized_word": "bare", "action": "exclude_word", "note": "缺释义"},
+    ])
+
+    assert all(source["missing_provenance"] == [] for source in plan["sources"])
+    assert plan["confirmation_ready"] is True
+    primary = next(item for item in plan["sources"] if item["source_id"] == "primary")
+    assert primary["provenance"]["license_id"] == "synthetic-test-only"
+    assert primary["provenance"]["storage_locator"] == "sources/primary.csv"
+
+
+def test_plan_digest_covers_the_declared_provenance(tmp_path: Path) -> None:
+    """Changing a licence declaration must invalidate the plan that recorded it."""
+    _write(tmp_path, "primary.csv", PRIMARY)
+    base = provenance_block("primary")
+
+    def build(license_id: str) -> dict[str, Any]:
+        manifest = _manifest(tmp_path, [
+            {"id": "primary", "role": "primary", "file": "primary.csv",
+             "columns": {"word": "head", "meaning": "cn"},
+             "provenance": {**base, "license_id": license_id}},
+        ])
+        return _plan(tmp_path, manifest, [])
+
+    first = build("cc-by-sa-4.0")
+    second = build("internal-only")
+
+    assert first["plan_sha256"] != second["plan_sha256"]
+
+
+@pytest.mark.parametrize(("mutation", "pattern"), [
+    ({"license": "typo"},
+     r"unknown field\(s\) \['license'\]"),
+    ({"obtained_at_utc": "2026-09-25T00:00:00"},
+     r"must be an ISO-8601 instant with a timezone"),
+    ({"obtained_at_utc": "yesterday"},
+     r"must be an ISO-8601 instant with a timezone"),
+    ({"license_text_sha256": "not-a-hash"},
+     r"must be 64 lowercase hex characters"),
+    ({"publisher": 123},
+     r"must be a string"),
+    ({"version": "x" * 121},
+     r"exceeds 120 characters"),
+])
+def test_manifest_refuses_a_malformed_provenance_block(
+    tmp_path: Path, mutation: dict[str, Any], pattern: str
+) -> None:
+    _write(tmp_path, "primary.csv", PRIMARY)
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"},
+         "provenance": {**provenance_block("primary"), **mutation}},
+    ])
+
+    with pytest.raises((TypeError, ValueError), match=pattern):
+        _plan(tmp_path, manifest, [])
+
+
+def test_manifest_refuses_a_provenance_block_that_is_not_an_object(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path, "primary.csv", PRIMARY)
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"}, "provenance": "CC BY-SA"},
+    ])
+
+    with pytest.raises(TypeError, match="provenance must be an object"):
+        _plan(tmp_path, manifest, [])
+
+
+def test_preview_still_tolerates_a_manifest_without_provenance(tmp_path: Path) -> None:
+    """Evaluating a file before its licence is settled is what a preview is for."""
+    from app.services.public_lexicon_joint_preview import preview_manifest
+
+    _write(tmp_path, "primary.csv", PRIMARY)
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"}, "provenance": None},
+    ])
+
+    report = preview_manifest(manifest, source_root=tmp_path)
+
+    assert report["summary"]["candidate_words"] == 2

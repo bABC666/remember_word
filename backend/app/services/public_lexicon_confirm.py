@@ -51,7 +51,10 @@ from app.models import (
     SourceArtifact,
     User,
 )
-from app.services.public_lexicon_joint_preview import FIELD_ORDER
+from app.services.public_lexicon_joint_preview import (
+    FIELD_ORDER,
+    missing_provenance_fields,
+)
 from app.services.public_lexicon_plan import (
     PLAN_TYPE,
     canonical_bytes,
@@ -369,7 +372,24 @@ def _write(
 def _get_or_create_artifact(
     session: Session, source: dict[str, Any], moment: datetime
 ) -> tuple[SourceArtifact, bool]:
-    """One artifact per (file bytes, mapping, role); a later run reuses it."""
+    """One artifact per (file bytes, mapping, role); a later run reuses it.
+
+    The provenance comes from the plan's frozen block, and a blank required field
+    refuses the whole confirmation. That redundancy is deliberate: the plan already
+    blocks on incomplete provenance and the table has a CHECK constraint, and this is
+    the layer that says *why* in words an operator can act on. A row with an empty
+    licence is an import nobody can audit later, so no path should be able to create
+    one -- including a plan whose digest someone recomputed by hand.
+    """
+    provenance = source.get("provenance") or {}
+    missing = missing_provenance_fields(provenance)
+    if missing:
+        raise ConfirmRefused(
+            f"来源 {source['source_id']!r} 的授权元数据不完整（缺少 "
+            + "、".join(missing)
+            + "），拒绝写入。请在清单里补齐来源的发布者、版本、取得时间、许可、"
+            "使用范围与展示范围后重新预览并重新裁定。"
+        )
     found = session.scalar(
         select(SourceArtifact).where(
             SourceArtifact.file_sha256 == source["file"]["sha256"],
@@ -382,12 +402,22 @@ def _get_or_create_artifact(
     artifact = SourceArtifact(
         role=source["role"],
         name=source["file"]["name"],
+        publisher=provenance["publisher"],
+        version=provenance["version"],
+        obtained_at_utc=provenance["obtained_at_utc"],
         format=ARTIFACT_FORMAT,
         mapping_json=canonical_bytes(source["mapping"]).decode("utf-8"),
         mapping_sha256=source["mapping_sha256"],
         file_sha256=source["file"]["sha256"],
         byte_size=int(source["file"]["byte_size"]),
-        storage_locator=f"manifest:{source.get('declared_path', source['file']['name'])}",
+        license_id=provenance["license_id"],
+        license_text_sha256=provenance.get("license_text_sha256", ""),
+        use_scope=provenance["use_scope"],
+        display_scope=provenance["display_scope"],
+        storage_locator=(
+            provenance.get("storage_locator")
+            or f"manifest:{source.get('declared_path', source['file']['name'])}"
+        ),
         created_at=moment,
     )
     session.add(artifact)

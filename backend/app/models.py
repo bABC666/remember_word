@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -572,6 +573,19 @@ class SourceArtifact(Base):
     __table_args__ = (
         UniqueConstraint(
             "file_sha256", "mapping_sha256", "role", name="uq_source_artifact_identity"
+        ),
+        # The last line of defence for "no blank authorisation metadata". The plan
+        # blocks on incomplete provenance and the confirmation refuses it in words;
+        # this makes an artifact row with an empty publisher, version, acquisition
+        # time, licence or scope impossible to insert at all, whatever path tries.
+        CheckConstraint(
+            "length(trim(publisher)) > 0"
+            " AND length(trim(version)) > 0"
+            " AND length(trim(obtained_at_utc)) > 0"
+            " AND length(trim(license_id)) > 0"
+            " AND length(trim(use_scope)) > 0"
+            " AND length(trim(display_scope)) > 0",
+            name="ck_source_artifact_provenance_present",
         ),
     )
 
