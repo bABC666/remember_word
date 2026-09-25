@@ -1,0 +1,321 @@
+{
+  "scratch_root": "C:\\Temp\\shici-f6-acceptance-z0eb1oag",
+  "production_data_named_but_untouched": "D:\\背单词web\\data",
+  "breakpoints": [
+    360,
+    390,
+    414,
+    620,
+    621,
+    720,
+    900,
+    901,
+    1280
+  ],
+  "checks": [
+    {
+      "check": "the worker still controls the page after the nav change",
+      "ok": true,
+      "detail": "controller=http://127.0.0.1:62787/sw.js"
+    },
+    {
+      "check": "phone widths show exactly five entries (four destinations + 更多)",
+      "ok": true,
+      "detail": "[360, 390, 414, 620]"
+    },
+    {
+      "check": "tablet rail and desktop keep all six destinations without 更多",
+      "ok": true,
+      "detail": "[621, 720, 900, 901, 1280]"
+    },
+    {
+      "check": "every phone bar entry is inside the viewport",
+      "ok": true,
+      "detail": "[{\"width\": 360, \"outside\": []}, {\"width\": 390, \"outside\": []}, {\"width\": 414, \"outside\": []}, {\"width\": 620, \"outside\": []}]"
+    },
+    {
+      "check": "every phone bar entry meets the 44px touch target",
+      "ok": true,
+      "detail": "[[360, 67, 50], [360, 67, 50], [360, 67, 50], [360, 67, 50], [360, 67, 50], [390, 73, 50], [390, 73, 50], [390, 73, 50], [390, 73, 50], [390, 73, 50], [414, 78, 50], [414, 78, 50], [414, 78, 50], [414, 78, 50], [414, 78, 50], [620, 119, 50], [620, 119, 50], [620, 119, 50], [620, 119, 50], [620, 119, 50]]"
+    },
+    {
+      "check": "the overflowing account block is out of the phone bar",
+      "ok": true,
+      "detail": "[[360, \"none\"], [390, \"none\"], [414, \"none\"], [620, \"none\"]]"
+    },
+    {
+      "check": "the tablet rail and desktop keep a reachable account block",
+      "ok": true,
+      "detail": "[[621, 539], [720, 539], [900, 539], [901, 503], [1280, 503]]"
+    },
+    {
+      "check": "help is out of the phone bar and available on the rail and desktop",
+      "ok": true,
+      "detail": "[[360, \"none\"], [390, \"none\"], [414, \"none\"], [620, \"none\"], [621, \"flex\"], [720, \"flex\"], [900, \"flex\"], [901, \"flex\"], [1280, \"flex\"]]"
+    },
+    {
+      "check": "no horizontal overflow on the phone-width pages this batch touches",
+      "ok": true,
+      "detail": "{\"/\": {\"innerWidth\": 390, \"scrollWidth\": 375}, \"/study\": {\"innerWidth\": 390, \"scrollWidth\": 375}, \"/reading\": {\"innerWidth\": 390, \"scrollWidth\": 390}, \"/library\": {\"innerWidth\": 390, \"scrollWidth\": 375}, \"/import\": {\"innerWidth\": 390, \"scrollWidth\": 390}}"
+    },
+    {
+      "check": "phone bar entry 今日概览 navigates to / by real click",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 46.59375, \"y\": 813, \"width\": 73, \"height\": 50, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"path.[object SVGAnimatedString]\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "phone bar entry 今日学习 navigates to /study by real click",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 120.7890625, \"y\": 813, \"width\": 73, \"height\": 50, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"path.[object SVGAnimatedString]\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "phone bar entry 阅读练习 navigates to /reading by real click",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 194.9921875, \"y\": 813, \"width\": 73, \"height\": 50, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"svg.[object SVGAnimatedString]\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "phone bar entry 我的词库 navigates to /library by real click",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 269.1953125, \"y\": 813, \"width\": 73, \"height\": 50, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"svg.[object SVGAnimatedString]\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "更多 is reachable and opens the sheet",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 343.390625, \"y\": 813, \"width\": 73, \"height\": 50, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"path.[object SVGAnimatedString]\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "the sheet is a dialog above the bar and fully inside the viewport",
+      "ok": true,
+      "detail": "{\"role\": \"dialog\", \"labelled\": \"mobile-more-title\", \"aboveBar\": true, \"insideViewport\": true, \"expanded\": \"true\"}"
+    },
+    {
+      "check": "单词导入 is reachable from the sheet",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 195, \"y\": 515, \"width\": 340, \"height\": 48, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"A.more-link\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "设置 is reachable from the sheet",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 195, \"y\": 565, \"width\": 340, \"height\": 48, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"A.more-link\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "使用说明 is reachable from the sheet and opens the help dialog",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 195, \"y\": 615, \"width\": 340, \"height\": 48, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"BUTTON.more-link\", \"viewport\": {\"width\": 390, \"height\": 844}, \"afterClick\": {\"help\": true, \"overlay\": true, \"sheet\": false, \"dialogs\": [\"help-title\"], \"target\": null}}"
+    },
+    {
+      "check": "the old in-bar sign-out is no longer rendered on a phone",
+      "ok": true,
+      "detail": "{\"found\": true, \"blockDisplay\": \"none\", \"rendered\": false, \"top\": 0, \"bottom\": 0, \"viewport\": 844}"
+    },
+    {
+      "check": "a phone has no visible sign-out before the sheet is opened",
+      "ok": true,
+      "detail": "visible=0"
+    },
+    {
+      "check": "sign-out is reachable inside the sheet",
+      "ok": true,
+      "detail": "{\"found\": true, \"x\": 195, \"y\": 669, \"width\": 340, \"height\": 48, \"insideViewport\": true, \"hitIsTarget\": true, \"hit\": \"BUTTON.more-link danger\", \"viewport\": {\"width\": 390, \"height\": 844}}"
+    },
+    {
+      "check": "the sheet's sign-out really signs out",
+      "ok": true,
+      "detail": "login form shown"
+    },
+    {
+      "check": "detail opens from a filtered phone list",
+      "ok": true,
+      "detail": "rows=20 word=alpha01"
+    },
+    {
+      "check": "returning from detail restores the filter",
+      "ok": true,
+      "detail": "{\"scroll\": 272, \"search\": \"alpha\"}"
+    },
+    {
+      "check": "returning from detail restores the scroll position",
+      "ok": true,
+      "detail": "before=272 after=272"
+    },
+    {
+      "check": "no /api entry in any Cache Storage bucket",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "check": "no cached response body holds account A's data",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "check": "account A sees its own words",
+      "ok": true,
+      "detail": "length=823"
+    },
+    {
+      "check": "offline reload does not replay account A",
+      "ok": true,
+      "detail": "leaked=[]"
+    },
+    {
+      "check": "account B sees nothing of account A",
+      "ok": true,
+      "detail": "leaked=[]"
+    },
+    {
+      "check": "account B's library is empty rather than A's",
+      "ok": true,
+      "detail": "text='我的词库\\n\\n查看每个词的原始资料、学习状态与完整历史。\\n\\n全部状态\\n新词\\n眼熟\\n学习中\\n已知\\n薄弱\\n已掌握\\n薄弱词\\n最近加入\\n长期未复习\\n没有找到单词\\n\\n从单词书导入后，词条会出现在这里。'"
+    },
+    {
+      "check": "the five-entry bar survives on account B too",
+      "ok": true,
+      "detail": "{\"entries\": 5, \"hasMore\": true}"
+    }
+  ],
+  "observations": [
+    {
+      "topic": "bottom bar / rail at 360px",
+      "entries": 5,
+      "itemWidth": 67,
+      "sidebarPosition": "fixed",
+      "accountDisplay": "none",
+      "helpDisplay": "none"
+    },
+    {
+      "topic": "bottom bar / rail at 390px",
+      "entries": 5,
+      "itemWidth": 73,
+      "sidebarPosition": "fixed",
+      "accountDisplay": "none",
+      "helpDisplay": "none"
+    },
+    {
+      "topic": "bottom bar / rail at 414px",
+      "entries": 5,
+      "itemWidth": 78,
+      "sidebarPosition": "fixed",
+      "accountDisplay": "none",
+      "helpDisplay": "none"
+    },
+    {
+      "topic": "bottom bar / rail at 620px",
+      "entries": 5,
+      "itemWidth": 119,
+      "sidebarPosition": "fixed",
+      "accountDisplay": "none",
+      "helpDisplay": "none"
+    },
+    {
+      "topic": "bottom bar / rail at 621px",
+      "entries": 6,
+      "itemWidth": 57,
+      "sidebarPosition": "sticky",
+      "accountDisplay": "flex",
+      "helpDisplay": "flex"
+    },
+    {
+      "topic": "bottom bar / rail at 720px",
+      "entries": 6,
+      "itemWidth": 57,
+      "sidebarPosition": "sticky",
+      "accountDisplay": "flex",
+      "helpDisplay": "flex"
+    },
+    {
+      "topic": "bottom bar / rail at 900px",
+      "entries": 6,
+      "itemWidth": 57,
+      "sidebarPosition": "sticky",
+      "accountDisplay": "flex",
+      "helpDisplay": "flex"
+    },
+    {
+      "topic": "bottom bar / rail at 901px",
+      "entries": 6,
+      "itemWidth": 193,
+      "sidebarPosition": "sticky",
+      "accountDisplay": "flex",
+      "helpDisplay": "flex"
+    },
+    {
+      "topic": "bottom bar / rail at 1280px",
+      "entries": 6,
+      "itemWidth": 193,
+      "sidebarPosition": "sticky",
+      "accountDisplay": "flex",
+      "helpDisplay": "flex"
+    },
+    {
+      "topic": "/settings width at 390px",
+      "mobileEmulation": {
+        "innerWidth": 961,
+        "innerHeight": 2080,
+        "scrollWidth": 961,
+        "clientWidth": 390,
+        "widest": []
+      },
+      "fixedLayoutViewport": {
+        "innerWidth": 390,
+        "scrollWidth": 961,
+        "clientWidth": 375,
+        "horizontalOverflow": true,
+        "widest": [
+          {
+            "name": "SECTION.settings-section",
+            "width": 945,
+            "left": 16,
+            "right": 961
+          },
+          {
+            "name": "SECTION.settings-section",
+            "width": 945,
+            "left": 16,
+            "right": 961
+          },
+          {
+            "name": "SECTION.settings-section",
+            "width": 945,
+            "left": 16,
+            "right": 961
+          },
+          {
+            "name": "SECTION.settings-section data-section",
+            "width": 945,
+            "left": 16,
+            "right": 961
+          },
+          {
+            "name": "HEADER",
+            "width": 907,
+            "left": 35,
+            "right": 942
+          },
+          {
+            "name": "DIV.form-grid",
+            "width": 907,
+            "left": 35,
+            "right": 942
+          },
+          {
+            "name": "LABEL",
+            "width": 907,
+            "left": 35,
+            "right": 942
+          },
+          {
+            "name": "INPUT",
+            "width": 907,
+            "left": 35,
+            "right": 942
+          }
+        ]
+      },
+      "note": "measured on main's settings page, which this batch does not touch"
+    }
+  ],
+  "viewport_reapplied": 0,
+  "passed": 32,
+  "failed": 0
+}
