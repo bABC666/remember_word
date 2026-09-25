@@ -156,6 +156,11 @@ describe('signed-in devices', () => {
     // A never-used session says so rather than showing "Invalid Date".
     expect(screen.getByText('—')).toBeInTheDocument()
 
+    // G8: the user-agent line is ellipsized so one long string cannot widen the
+    // page, which only stays acceptable because the full value is still there.
+    expect(screen.getByText(CURRENT_DEVICE)).toHaveAttribute('title', CURRENT_DEVICE)
+    expect(screen.getByText(OTHER_DEVICE)).toHaveAttribute('title', OTHER_DEVICE)
+
     // Neither the response's extra fields nor any 64-hex string may reach the DOM.
     const text = document.body.textContent ?? ''
     expect(text).not.toContain(TOKEN_HASH)
