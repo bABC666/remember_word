@@ -683,6 +683,15 @@ class EntrySourceEvidence(Base):
         UniqueConstraint(
             "evidence_sha256", "import_run_id", name="uq_entry_source_evidence"
         ),
+        # The stored revision is compared byte-for-byte with what a re-read of the
+        # source produces, and a link is built from it. Whitespace at either end would
+        # make those two disagree while looking identical on screen. SQLite's
+        # one-argument trim() removes spaces only; refusing control characters belongs
+        # to the mapping declaration that supplies the value, not to this column.
+        CheckConstraint(
+            "source_revision = trim(source_revision)",
+            name="ck_entry_source_evidence_revision_trimmed",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -716,6 +725,22 @@ class EntrySourceEvidence(Base):
     selection_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
     confirmed_by_username: Mapped[str] = mapped_column(String(64), default="")
     confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    #: The pinned revision of the source *page* this row's value was read from, when
+    #: the source declares one (zh.wiktionary pins one ``oldid`` per word; a source
+    #: pinned as a whole declares a single commit). Empty means "no revision known",
+    #: which is the honest answer both for a source that declares none and for a row
+    #: whose cell is empty -- so it is ``NOT NULL DEFAULT ''`` rather than nullable:
+    #: there is exactly one way to say "unknown", and it is not also the way to say
+    #: "this row forgot to record one".
+    #:
+    #: ``row_locator`` alone cannot stand in for it. A line number is only meaningful
+    #: together with the revision of the file it indexes, and the point of this column
+    #: is that a reader can get back to the exact page revision a displayed value came
+    #: from without the source file still being on disk.
+    #:
+    #: Declared last because migration 0010 appends it: a table built by the migrations
+    #: and one built by ``create_all`` then have the same column order.
+    source_revision: Mapped[str] = mapped_column(String(64), default="")
 
 
 # --- Phase 2.9 follow-up: the short meaning the study page shows -------------
