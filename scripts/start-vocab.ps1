@@ -58,15 +58,31 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Frontend build failed with exit code $LASTEXITCODE" }
 } finally { Pop-Location }
 
-Write-Host 'Applying database migrations...' -ForegroundColor Cyan
-Push-Location $backendRoot
-try {
-    & $python -m alembic -c alembic.ini upgrade head
-    if ($LASTEXITCODE -ne 0) { throw "Database migration failed with exit code $LASTEXITCODE" }
-} finally { Pop-Location }
+Write-Host 'Checking the database schema...' -ForegroundColor Cyan
+# Never `alembic upgrade head` from here. This launcher is what the desktop shortcut
+# runs, so an unconditional migration would apply any new revision to the user's real
+# database with no rehearsal, no backup, no explicit revision and no verification --
+# and the server would then start cleanly, so nothing would report that it happened.
+# scripts/prepare-database.ps1 decides instead: it starts without touching the schema
+# when the database already matches the code, initialises only a database with
+# nothing in it, and otherwise refuses and prints the explicit migration procedure.
+#
+# No -DatabasePath: the script asks python to resolve it from the process environment
+# plus the same .env file uvicorn will load. Once resolved, it is passed back as an
+# absolute db_url, so initialisation targets exactly the database that was inspected.
+$envFile = Join-Path $projectRoot '.env'
+$prepareArgs = @{ PythonPath = $python; RepositoryRoot = $projectRoot }
+if (Test-Path -LiteralPath $envFile) {
+    $prepareArgs.EnvFile = $envFile
+}
+& (Join-Path $PSScriptRoot 'prepare-database.ps1') @prepareArgs
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ''
+    Write-Host 'The server was not started: the database schema needs an operator.' -ForegroundColor Red
+    exit $LASTEXITCODE
+}
 
 $arguments = @('-m', 'uvicorn', 'app.main:app', '--app-dir', $backendRoot, '--host', '127.0.0.1', '--port', '8000')
-$envFile = Join-Path $projectRoot '.env'
 if (Test-Path -LiteralPath $envFile) {
     $arguments += @('--env-file', $envFile)
 }
