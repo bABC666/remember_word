@@ -499,6 +499,179 @@ def test_a_tampered_plan_is_refused(admin, tmp_path: Path) -> None:
     assert after == before
 
 
+def test_a_recomputed_digest_cannot_smuggle_a_default_no_source_states(
+    admin, tmp_path: Path
+) -> None:
+    """A hand-edited plan that recomputes its own digest must still be refused.
+
+    ``plan_sha256`` catches an accidental edit; it is not a signature, and anyone who
+    edits the plan can recompute it. That is exactly the actor the provenance gate
+    already defends against, so the value the plan would *write* has to be re-derived
+    from the evidence the plan itself points at. Without that, a plan could store one
+    meaning on ``lexicon_entry`` while ``entry_source_evidence`` recorded a different
+    -- and true -- source value as ``selected``, leaving an audit trail that
+    contradicts the content it claims to justify.
+    """
+    from app.models import LexiconEntry
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="smugl", target="p29-smugl",
+                       decisions=_standard_decisions("smugl"))
+    ready = next(entry for entry in plan["entries"] if entry["status"] == "ready")
+    ready["default_snapshot"]["source_meanings"] = ["完全编造的释义"]
+    plan["plan_sha256"] = plan_digest(plan)
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "p29-smugl", "p29-test-smugl")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused, match="证据"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+        written = session.query(LexiconEntry).filter_by(lexicon_id=lexicon.id).all()
+
+    assert after == before
+    assert written == []
+
+
+def test_a_recomputed_digest_cannot_point_a_default_at_another_source_value(
+    admin, tmp_path: Path
+) -> None:
+    """The locator the plan declares as selected is checked too, not just the text."""
+    from app.models import LexiconEntry
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="devia", target="p29-devia",
+                       decisions=_standard_decisions("devia"))
+    ready = next(entry for entry in plan["entries"] if entry["status"] == "ready")
+    # Keep the written text plausible but claim a *different* row selected it: the
+    # entry would then carry a value whose evidence row says something else.
+    ready["default_snapshot"]["source_meanings"] = ["主词表释义-devia"]
+    ready["default_evidence"]["meaning"] = [{"source_id": "supplement", "line": 2}]
+    plan["plan_sha256"] = plan_digest(plan)
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "p29-devia", "p29-test-devia")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused, match="证据"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+        written = session.query(LexiconEntry).filter_by(lexicon_id=lexicon.id).all()
+
+    assert after == before
+    assert written == []
+
+
+def test_a_recomputed_digest_cannot_rewrite_the_primary_raw_line(
+    admin, tmp_path: Path
+) -> None:
+    """``source_raw`` is the anchor the whole slice promises can be re-checked."""
+    from app.models import LexiconEntry
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="rawln", target="p29-rawln",
+                       decisions=_standard_decisions("rawln"))
+    ready = next(entry for entry in plan["entries"] if entry["status"] == "ready")
+    ready["default_snapshot"]["source_raw"] = "Wordrawln,伪造的整行"
+    plan["plan_sha256"] = plan_digest(plan)
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "p29-rawln", "p29-test-rawln")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused, match="source_raw"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+        written = session.query(LexiconEntry).filter_by(lexicon_id=lexicon.id).all()
+
+    assert after == before
+    assert written == []
+
+
+def test_a_malformed_snapshot_is_refused_rather_than_crashing(
+    admin, tmp_path: Path
+) -> None:
+    """A digest-recomputed plan with a null snapshot refuses, and does not raise TypeError."""
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="nulls", target="p29-nulls",
+                       decisions=_standard_decisions("nulls"))
+    ready = next(entry for entry in plan["entries"] if entry["status"] == "ready")
+    ready["default_snapshot"] = None
+    plan["plan_sha256"] = plan_digest(plan)
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-nulls", "p29-test-nulls")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+
+    assert after == before
+
+
+def test_a_run_recorded_against_another_lexicon_is_not_a_retry(admin, tmp_path: Path) -> None:
+    """``already_applied`` must mean "applied *here*", or it tells the operator a lie.
+
+    ``plan_sha256`` freezes the target lexicon's name, not its id. Rename the lexicon a
+    plan was applied to and give its name to a new one, and the digest still resolves --
+    to the new lexicon. Answering the retry shortcut then would report a completed
+    import while writing nothing to the target the administrator is looking at.
+    """
+    from app.models import LexiconEntry
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="retgt", target="p29-retgt",
+                       decisions=_standard_decisions("retgt"))
+
+    with admin.session() as session:
+        first = _system_lexicon(session, "p29-retgt", "p29-test-retgt-a")
+        administrator = _administrator(session, admin)
+        original = confirm_plan(
+            session, plan=plan, administrator=administrator, source_root=root
+        )
+        first.name = "p29-retgt-renamed"
+        session.commit()
+        second = _system_lexicon(session, "p29-retgt", "p29-test-retgt-b")
+        before = _counts(session)
+
+        with pytest.raises(ConfirmRefused, match="另一个公共词库"):
+            confirm_plan(
+                session, plan=plan, administrator=administrator, source_root=root
+            )
+        after = _counts(session)
+        in_second = session.query(LexiconEntry).filter_by(lexicon_id=second.id).count()
+
+    assert original["status"] == "applied"
+    assert original["target_lexicon"]["id"] == first.id
+    assert after == before
+    assert in_second == 0
+
+
 def test_a_missing_or_ambiguous_target_lexicon_is_refused(
     admin, tmp_path: Path
 ) -> None:
@@ -582,14 +755,14 @@ def test_a_failure_inside_the_write_rolls_everything_back(
                        decisions=_standard_decisions("rollb"))
 
     def explode(*_args, **_kwargs):
-        # Raised only after the run, the artifacts and the new entry exist, so the
-        # assertions below are about the rollback and not about ordering.
+        # Raised only after the artifacts and the new entries exist, so the assertions
+        # below are about the rollback and not about ordering.
         raise RuntimeError("injected failure while recording evidence")
 
     with admin.session() as session:
         lexicon = _system_lexicon(session, "p29-rollb", "p29-test-rollb")
         before = _counts(session)
-        monkeypatch.setattr(service, "_record_evidence", explode)
+        monkeypatch.setattr(service, "_plan_evidence", explode)
         with pytest.raises(RuntimeError, match="injected failure"):
             service.confirm_plan(
                 session, plan=plan, administrator=_administrator(session, admin),
@@ -662,24 +835,29 @@ def test_re_adjudication_appends_history_and_never_rewrites_it(
     assert first_entry.source_meanings == ["主词表释义-hist"]
 
 
-def test_a_second_run_never_updates_or_deletes_provenance(
+def test_no_confirmation_ever_updates_or_deletes_provenance(
     admin, tmp_path: Path
 ) -> None:
-    """Fail loudly if a later confirmation ever starts mutating recorded history."""
+    """Fail loudly if a confirmation ever starts mutating what it recorded.
+
+    The guard covers **every** table 0008 creates and runs across **both** runs, not
+    only the second one and not only the evidence table: the confirm path issues no
+    ``UPDATE`` and no ``DELETE`` at all, and a narrower guard is exactly how that
+    claim stops being true without any test noticing.
+    """
     from sqlalchemy import event
 
     from app.services.public_lexicon_confirm import confirm_plan
 
     mutating: list[str] = []
-    guarded = ("entry_source_evidence", "source_artifact")
+    guarded = ("entry_source_evidence", "source_artifact", "public_import_run",
+               "public_import_run_source", "lexicon_entry")
 
     def watch(_conn, _cursor, statement, _params, _context, _many):
         lowered = " ".join(statement.strip().lower().split())
         if not lowered.startswith(("update", "delete")):
             return
         touched = [table for table in guarded if table in lowered]
-        if "lexicon_entry" in lowered and lowered.startswith("update"):
-            touched.append("lexicon_entry")
         if touched:
             mutating.append(f"{lowered[:60]} -> {touched}")
 
@@ -692,9 +870,6 @@ def test_a_second_run_never_updates_or_deletes_provenance(
         _system_lexicon(session, "p29-nomut-a", "p29-test-nomut-a")
         _system_lexicon(session, "p29-nomut-b", "p29-test-nomut-b")
         administrator = _administrator(session, admin)
-        confirm_plan(
-            session, plan=first_plan, administrator=administrator, source_root=root
-        )
         second_plan = _build_plan(
             root, token="nomut", target="p29-nomut-b",
             decisions=[_select_supplement("nomut"), _exclude_bare("nomut")],
@@ -704,8 +879,10 @@ def test_a_second_run_never_updates_or_deletes_provenance(
         event.listen(bind, "before_cursor_execute", watch)
         try:
             confirm_plan(
-                session, plan=second_plan, administrator=administrator,
-                source_root=root,
+                session, plan=first_plan, administrator=administrator, source_root=root
+            )
+            confirm_plan(
+                session, plan=second_plan, administrator=administrator, source_root=root
             )
         finally:
             event.remove(bind, "before_cursor_execute", watch)
@@ -908,7 +1085,7 @@ def test_cli_writes_a_failure_report_outside_the_transaction(
     def explode(*_args, **_kwargs):
         raise RuntimeError("injected failure")
 
-    monkeypatch.setattr(service, "_record_evidence", explode)
+    monkeypatch.setattr(service, "_plan_evidence", explode)
     monkeypatch.setattr(cli.getpass, "getpass", lambda *_a, **_k: ADMIN_PASSWORD)
     assert cli.main(
         _cli_argv(root, plan_path, confirm=plan["run_id"], report=report)

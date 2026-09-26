@@ -27,10 +27,11 @@ Three things it deliberately never does:
   overwrite a definition a user is already studying;
 * it never creates ``UserWordState`` or ``ReviewEvent``. Claiming new words is a
   separate path (design section 5); confirming writes content only;
-* it never issues an UPDATE or DELETE against the provenance tables, and never
-  writes ``lexicon.entry_count``. Evidence is append-only: re-adjudicating the same
-  source value in a later run appends a row carrying that run's identity instead of
-  rewriting the earlier decision.
+* it issues **no ``UPDATE`` and no ``DELETE`` at all**, and never writes
+  ``lexicon.entry_count``. Evidence is append-only: re-adjudicating the same source
+  value in a later run appends a row carrying that run's identity instead of rewriting
+  the earlier decision. The run row's own counters are decided before it is inserted,
+  so not even the audit row is written twice.
 """
 
 from __future__ import annotations
@@ -102,6 +103,18 @@ def confirm_plan(
         select(PublicImportRun).where(PublicImportRun.plan_sha256 == plan["plan_sha256"])
     )
     if existing is not None:
+        # The plan digest names the target lexicon but never its id, so a recorded run
+        # can belong to a *different* lexicon that happens to share the name -- what a
+        # rename plus a new lexicon under the old name leaves behind. Answering
+        # ``already_applied`` there would tell the operator the import is done while
+        # nothing was written to the target in front of them.
+        if existing.target_lexicon_id != lexicon.id:
+            raise ConfirmRefused(
+                f"该计划摘要此前已确认到另一个公共词库（id="
+                f"{existing.target_lexicon_id}），不是本次的目标「{lexicon.name}」"
+                f"（id={lexicon.id}）。本次未写入任何内容；"
+                "请重新生成计划并重新裁定。"
+            )
         # Deliberately checked before the source files are re-read: a retry has to
         # report what the first confirmation did even if the files have since moved.
         return {
@@ -109,6 +122,7 @@ def confirm_plan(
             "run_id": existing.run_id,
             "import_run_id": existing.id,
             "plan_sha256": existing.plan_sha256,
+            "target_lexicon": {"id": lexicon.id, "name": lexicon.name},
             "entries_created": existing.entries_created,
             "entries_matched": existing.entries_matched,
             "evidence_written": existing.evidence_written,
@@ -249,8 +263,10 @@ def _reverify_evidence(
     """Compare the values the plan recorded against the values the files still hold.
 
     The file fingerprint already covers this, but re-deriving by locator is cheap and
-    turns "the file is unchanged" into "the specific value this plan would write is
-    still there", which is what the confirmation actually claims.
+    turns "the file is unchanged" into "the specific value this plan cites is still
+    there", which is what the confirmation actually claims. The values the plan would
+    *write* are re-derived as well -- see :func:`_reverify_written_values`, which is
+    what makes "still there" apply to the content and not only to the citations.
     """
     for entry in plan["entries"]:
         if entry["status"] != "ready":
@@ -264,12 +280,102 @@ def _reverify_evidence(
                         f"{item['source_id']} 第 {item['line']} 行已与计划不符，"
                         "请重新预览并重新裁定。"
                     )
+        _reverify_written_values(previews, entry)
+
+
+def _reverify_written_values(
+    previews: dict[str, dict[str, Any]], entry: dict[str, Any]
+) -> None:
+    """Prove the values this plan would write are the ones its own evidence names.
+
+    ``plan_sha256`` detects an **accidental** edit; it is not a signature, and anyone
+    who edits a plan can recompute it. That caller is already in the threat model --
+    the provenance block is re-proved for exactly that reason -- and the loop above
+    proves the evidence still matches the files. Neither proves that the values in
+    ``default_snapshot``, which are what get written onto ``lexicon_entry``, are the
+    ones that were selected: an edited snapshot would be stored while
+    ``entry_source_evidence`` recorded the real source value as ``selected``, leaving
+    an audit trail that contradicts the content it claims to justify.
+
+    So every written value is re-derived from the locators the plan itself declares as
+    selected. Word, phonetic and part of speech only have to be *one of* the declared
+    values, because one decision may legitimately cite several rows while only the
+    first is stored; the meanings have to be the declared list exactly, in order. A
+    ``no_default`` decision genuinely selects nothing, so an empty declaration
+    constrains nothing.
+    """
+    snapshot = entry.get("default_snapshot")
+    word = entry["normalized_word"]
+    if not isinstance(snapshot, dict):
+        raise ConfirmRefused(
+            f"{word!r} 的计划没有可写入的默认值快照，拒绝确认；请重新预览并重新裁定。"
+        )
+    locators = entry.get("default_evidence") or {}
+
+    def declared_values(field: str) -> list[str]:
+        """The plan's own frozen values at the locators it declares as selected."""
+        frozen = {
+            (item["source_id"], item["line"]): item["raw_value"]
+            for item in entry["evidence"][field]
+        }
+        values: list[str] = []
+        for locator in locators.get(field) or []:
+            key = (locator["source_id"], locator["line"])
+            if key not in frozen:
+                raise ConfirmRefused(
+                    f"{word!r} 的 {field} 选中了计划里没有证据的位置 "
+                    f"{key[0]}:{key[1]}，拒绝确认；请重新预览并重新裁定。"
+                )
+            value = frozen[key].strip()
+            if value not in values:
+                values.append(value)
+        return values
+
+    written_meanings = list(snapshot.get("source_meanings") or [])
+    declared_meanings = declared_values("meaning")
+    if written_meanings != declared_meanings:
+        raise ConfirmRefused(
+            f"{word!r} 计划要写入的释义与它自己的证据不符："
+            f"会写入 {written_meanings}，而声明选中的证据是 {declared_meanings}。"
+            "计划摘要只能发现误改，谁改了计划都能重算摘要，"
+            "因此写入值必须能由计划自己的证据重新推出；请重新预览并重新裁定。"
+        )
+
+    # The primary raw line is the anchor this slice promises can always be re-checked,
+    # so it is compared against the source file itself and not against the plan.
+    primary = locators.get("source_raw") or {}
+    raw_line = _raw_at(previews.get(str(primary.get("source_id"))), primary.get("line"))
+    if raw_line is None or snapshot.get("source_raw") != raw_line:
+        raise ConfirmRefused(
+            f"{word!r} 的 source_raw 与主来源行不符（计划 "
+            f"{str(snapshot.get('source_raw'))[:40]!r}，文件 "
+            f"{str(raw_line)[:40]!r}），拒绝确认；请重新预览并重新裁定。"
+        )
+
+    for field in ("word", "phonetic", "part_of_speech"):
+        allowed = declared_values(field)
+        written = str(snapshot.get(field) or "").strip()
+        if allowed and written not in allowed:
+            raise ConfirmRefused(
+                f"{word!r} 计划要写入的 {field} 值 {written!r} 不在它声明选中的证据 "
+                f"{allowed} 中，拒绝确认；请重新预览并重新裁定。"
+            )
 
 
 def _value_at(preview: dict[str, Any], line: int, field: str) -> str | None:
     for row in preview["rows"]:
         if row["line"] == line:
             return row["values"].get(field)
+    return None
+
+
+def _raw_at(preview: dict[str, Any] | None, line: object) -> str | None:
+    """The source file's own line, verbatim, at one locator."""
+    if not preview or not isinstance(line, int):
+        return None
+    for row in preview["rows"]:
+        if row["line"] == line:
+            return row["raw"]
     return None
 
 
@@ -287,30 +393,14 @@ def _write(
 ) -> dict[str, Any]:
     _reverify_evidence(previews, plan)
 
-    run = PublicImportRun(
-        plan_sha256=plan["plan_sha256"],
-        run_id=plan["run_id"],
-        target_lexicon_id=lexicon.id,
-        confirmed_by_user_id=administrator.id,
-        confirmed_by_username=administrator.username,
-        confirmed_at=moment,
-        status=STATUS_APPLIED,
-    )
-    session.add(run)
-    session.flush()
-
     artifacts: dict[str, SourceArtifact] = {}
+    artifacts_created: dict[str, bool] = {}
     sources_created = 0
     for source in plan["sources"]:
         artifact, created = _get_or_create_artifact(session, source, moment)
         artifacts[source["source_id"]] = artifact
+        artifacts_created[source["source_id"]] = created
         sources_created += int(created)
-        session.add(PublicImportRunSource(
-            import_run_id=run.id,
-            source_artifact_id=artifact.id,
-            outcome="created" if created else "reused",
-            detail=f"role={source['role']} file={source['file']['name']}",
-        ))
 
     created_entries: list[tuple[dict[str, Any], LexiconEntry]] = []
     conflicts: list[dict[str, Any]] = []
@@ -334,25 +424,49 @@ def _write(
             continue
         created_entries.append((entry, _create_entry(session, lexicon, entry)))
 
-    evidence = _record_evidence(
+    # The run's own counters are decided *before* the row exists, so nothing in this
+    # module ever issues an UPDATE: the record of what an import did is inserted once,
+    # complete, and cannot be observed or left half-written in any other state. The
+    # evidence rows only need ``run.id``, so they are added right after the flush.
+    evidence_rows, evidence = _plan_evidence(
         session,
         plan=plan,
-        run_id=run.id,
         artifacts=artifacts,
         created_entries=created_entries,
         administrator=administrator,
         moment=moment,
     )
+    run = PublicImportRun(
+        plan_sha256=plan["plan_sha256"],
+        run_id=plan["run_id"],
+        target_lexicon_id=lexicon.id,
+        confirmed_by_user_id=administrator.id,
+        confirmed_by_username=administrator.username,
+        confirmed_at=moment,
+        status=STATUS_APPLIED,
+        entries_created=len(created_entries),
+        entries_matched=len(conflicts),
+        evidence_written=evidence["written"],
+        result_json={
+            "sources_created": sources_created,
+            "sources_reused": len(plan["sources"]) - sources_created,
+            "conflicts": conflicts,
+            "evidence": evidence,
+        },
+    )
+    session.add(run)
+    session.flush()
 
-    run.entries_created = len(created_entries)
-    run.entries_matched = len(conflicts)
-    run.evidence_written = evidence["written"]
-    run.result_json = {
-        "sources_created": sources_created,
-        "sources_reused": len(plan["sources"]) - sources_created,
-        "conflicts": conflicts,
-        "evidence": evidence,
-    }
+    for source in plan["sources"]:
+        created = artifacts_created[source["source_id"]]
+        session.add(PublicImportRunSource(
+            import_run_id=run.id,
+            source_artifact_id=artifacts[source["source_id"]].id,
+            outcome="created" if created else "reused",
+            detail=f"role={source['role']} file={source['file']['name']}",
+        ))
+    for row in evidence_rows:
+        session.add(EntrySourceEvidence(import_run_id=run.id, **row))
     session.flush()
     return {
         "status": STATUS_APPLIED,
@@ -468,24 +582,47 @@ def _create_entry(
     return created
 
 
-def _record_evidence(
+def _latest_evidence_for(session: Session, key: str) -> dict[str, Any] | None:
+    """The most recent recorded decision for one piece of source evidence.
+
+    Read-only, and deliberately not scoped by run or by lexicon: the question is
+    whether *this* source value was already adjudicated the same way, so a re-import
+    of the same bytes under another target does not record a second identical decision.
+    """
+    prior = session.scalars(
+        select(EntrySourceEvidence)
+        .where(EntrySourceEvidence.evidence_sha256 == key)
+        .order_by(EntrySourceEvidence.id.desc())
+    ).first()
+    if prior is None:
+        return None
+    return {
+        "decision": prior.decision,
+        "selected_for_default": bool(prior.selected_for_default),
+        "selection_order": prior.selection_order,
+    }
+
+
+def _plan_evidence(
     session: Session,
     *,
     plan: dict[str, Any],
-    run_id: int,
     artifacts: dict[str, SourceArtifact],
     created_entries: list[tuple[dict[str, Any], LexiconEntry]],
     administrator: User,
     moment: datetime,
-) -> dict[str, int]:
-    """Append this run's adjudication of each source value, never rewriting history.
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Work out this run's adjudication of each source value, writing nothing.
 
     One row per field value the run actually considered. An identical row from an
     earlier run is not duplicated; a *different* decision on the same source position
-    appends a new row rather than editing the old one, so the earlier decision stays
-    readable. Nothing here issues an UPDATE or a DELETE.
+    becomes a new row rather than an edit of the old one, so the earlier decision stays
+    readable. Nothing here issues an UPDATE or a DELETE -- and nothing here writes at
+    all: the rows are returned for the caller to insert, which is what lets the run row
+    carry its final counters from the moment it is first inserted.
     """
     counters = {"written": 0, "skipped_existing": 0, "readjudicated": 0}
+    rows: list[dict[str, Any]] = []
     for entry, created in created_entries:
         selected = {
             field: [
@@ -504,38 +641,32 @@ def _record_evidence(
                 is_selected = locator in selected[field]
                 position = selected[field].index(locator) if is_selected else None
                 decision = DECISION_SELECTED if is_selected else DECISION_NOT_SELECTED
-                prior = session.scalars(
-                    select(EntrySourceEvidence)
-                    .where(EntrySourceEvidence.evidence_sha256 == item["idempotency_key"])
-                    .order_by(EntrySourceEvidence.id.desc())
-                ).first()
+                prior = _latest_evidence_for(session, item["idempotency_key"])
                 if prior is not None:
                     unchanged = (
-                        prior.decision == decision
-                        and bool(prior.selected_for_default) == is_selected
-                        and prior.selection_order == position
+                        prior["decision"] == decision
+                        and prior["selected_for_default"] == is_selected
+                        and prior["selection_order"] == position
                     )
                     if unchanged:
                         counters["skipped_existing"] += 1
                         continue
                     counters["readjudicated"] += 1
-                session.add(EntrySourceEvidence(
-                    lexicon_entry_id=created.id,
-                    source_artifact_id=artifacts[item["source_id"]].id,
-                    import_run_id=run_id,
-                    normalized_word=entry["normalized_word"],
-                    row_locator=item["line"],
-                    field_kind=field,
-                    sense_key=f"{field}@{item['line']}",
-                    raw_word=raw_words.get(locator, entry["normalized_word"]),
-                    raw_text=item["raw_value"],
-                    evidence_sha256=item["idempotency_key"],
-                    decision=decision,
-                    selected_for_default=is_selected,
-                    selection_order=position,
-                    confirmed_by_username=administrator.username,
-                    confirmed_at=moment,
-                ))
+                rows.append({
+                    "lexicon_entry_id": created.id,
+                    "source_artifact_id": artifacts[item["source_id"]].id,
+                    "normalized_word": entry["normalized_word"],
+                    "row_locator": item["line"],
+                    "field_kind": field,
+                    "sense_key": f"{field}@{item['line']}",
+                    "raw_word": raw_words.get(locator, entry["normalized_word"]),
+                    "raw_text": item["raw_value"],
+                    "evidence_sha256": item["idempotency_key"],
+                    "decision": decision,
+                    "selected_for_default": is_selected,
+                    "selection_order": position,
+                    "confirmed_by_username": administrator.username,
+                    "confirmed_at": moment,
+                })
                 counters["written"] += 1
-    session.flush()
-    return counters
+    return rows, counters
