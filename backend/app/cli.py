@@ -327,6 +327,24 @@ def command_public_lexicon_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_public_lexicon_preflight_target(args: argparse.Namespace) -> int:
+    """Print target differences without application setup or database writes."""
+    import sqlite3
+
+    from app.services.public_lexicon_confirm import ConfirmRefused
+    from app.services.public_lexicon_plan import PlanError, load_plan
+    from app.services.public_lexicon_target_preflight import preflight_target
+
+    try:
+        plan = load_plan(args.plan_path)
+        report = preflight_target(args.database, plan=plan, source_root=args.source_root)
+    except (OSError, ValueError, KeyError, sqlite3.Error, PlanError, ConfirmRefused) as error:
+        print(f"目标公共词库预检失败：{error}", file=sys.stderr)
+        return 2
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if report["ready_for_confirmation"] else 1
+
+
 def command_public_lexicon_confirm(args: argparse.Namespace) -> int:
     """Confirm a locked plan as an administrator, writing public content only.
 
@@ -694,6 +712,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="计划未就绪（confirmation_ready=False）时以非零退出码结束",
     )
     locked_plan.set_defaults(func=command_public_lexicon_plan, file_only_preview=True)
+
+    target_preflight = public_sub.add_parser(
+        "preflight-target", help="对目标公共词库做只读差异预检"
+    )
+    target_preflight.add_argument("--plan", dest="plan_path", type=Path, required=True)
+    target_preflight.add_argument("--source-root", type=Path, required=True)
+    target_preflight.add_argument(
+        "--database", type=Path, required=True,
+        help="显式指定待预检的 SQLite 库路径；仅以只读模式打开",
+    )
+    target_preflight.set_defaults(
+        func=command_public_lexicon_preflight_target, file_only_preview=True
+    )
 
     confirm = public_sub.add_parser(
         "confirm", help="管理员确认锁定计划并写入公共内容层（要求本人当前口令）"
