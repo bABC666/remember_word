@@ -716,3 +716,200 @@ class EntrySourceEvidence(Base):
     selection_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
     confirmed_by_username: Mapped[str] = mapped_column(String(64), default="")
     confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# --- Phase 2.9 follow-up: the short meaning the study page shows -------------
+#
+# Four things in this schema can each be called "the meaning of this word", and the
+# whole point of this section is that they stay apart:
+#
+# 1. ``entry_source_evidence.raw_text`` -- what a source actually said, byte for
+#    byte, append-only (above);
+# 2. ``lexicon_entry.source_raw`` -- the primary source's own line, never rewritten;
+# 3. ``lexicon_entry.source_meanings`` -- the adjudicated *source default* snapshot;
+# 4. ``entry_concise_meaning`` (here) -- a short simplified display value, which is
+#    what the study page prefers.
+#
+# The fourth is not a fifth copy of the third. A source default may be long, full of
+# traditional characters, or carry an entry's whole sense list; a short study value
+# is deliberately allowed to cover fewer senses than the source lists, and may even
+# be text no source contains at all -- provided it is labelled as such. Cramming it
+# into ``default_anchor`` or over ``source_meanings`` would destroy the only record
+# of what the source actually said, so it gets its own table instead.
+
+CONCISE_MEANING_KINDS: tuple[str, ...] = ("source", "derived", "ai_supplement")
+CONCISE_MEANING_STATUSES: tuple[str, ...] = ("candidate", "confirmed", "rejected")
+
+#: The product rule is "one to three short, common senses". The cap is enforced by
+#: the database as well as the service so a later code path cannot widen it silently;
+#: widening it is a product decision and therefore a migration.
+CONCISE_MEANING_MAX_LENGTH = 40
+CONCISE_MEANING_MAX_SLOTS = 3
+
+
+class EntryConciseMeaning(Base):
+    """One short display slot of one entry, with the provenance of its wording.
+
+    ``provenance_kind`` says where the *wording* came from, and the two CHECK
+    constraints make the weaker kinds carry what they must:
+
+    * ``source`` -- the text is a value the source itself contains. It must name the
+      source position it came from (``source_locator``).
+    * ``derived`` -- the text is a documented modification of a source value
+      (traditional to simplified, noise removed, re-worded, one sense extracted). It
+      must name the source position **and** say what was changed, so a reader can
+      check the claim against the source rather than trust it.
+    * ``ai_supplement`` -- no source says this. It must say why it was added, and it
+      is structurally forbidden from pointing at a source position, so a supplement
+      cannot be dressed up as a quotation.
+
+    ``status`` is what keeps an unconfirmed candidate off the page: the read path
+    filters on ``confirmed``, and a ``confirmed`` row cannot exist without a named
+    human and a timestamp.
+    """
+
+    __tablename__ = "entry_concise_meaning"
+    __table_args__ = (
+        # One row per slot. A rejected row does not hold its slot: withdrawing a
+        # value is how a displayed meaning is changed, so the freed slot has to be
+        # usable again without deleting the record of what was withdrawn.
+        Index(
+            "uq_entry_concise_meaning_slot",
+            "lexicon_entry_id",
+            "display_order",
+            unique=True,
+            sqlite_where=text("status <> 'rejected'"),
+        ),
+        CheckConstraint(
+            "length(trim(text)) > 0",
+            name="ck_entry_concise_meaning_text_present",
+        ),
+        CheckConstraint(
+            f"length(text) <= {CONCISE_MEANING_MAX_LENGTH}",
+            name="ck_entry_concise_meaning_text_short",
+        ),
+        CheckConstraint(
+            f"display_order between 1 and {CONCISE_MEANING_MAX_SLOTS}",
+            name="ck_entry_concise_meaning_order_range",
+        ),
+        CheckConstraint(
+            "provenance_kind in ('source', 'derived', 'ai_supplement')",
+            name="ck_entry_concise_meaning_kind",
+        ),
+        CheckConstraint(
+            "status in ('candidate', 'confirmed', 'rejected')",
+            name="ck_entry_concise_meaning_status",
+        ),
+        # A supplement points at no source; everything else must point at one.
+        CheckConstraint(
+            "provenance_kind = 'ai_supplement' OR length(trim(source_locator)) > 0",
+            name="ck_entry_concise_meaning_locator_for_source",
+        ),
+        # ...and a supplement may not carry a source pointer at all. This is the
+        # difference between "an AI wrote this, a human approved it" and "an AI wrote
+        # this and it is dressed up as a quotation": the second shape is not
+        # representable, whatever a later code path intends.
+        CheckConstraint(
+            "provenance_kind <> 'ai_supplement'"
+            " OR (length(trim(source_locator)) = 0 AND source_evidence_id IS NULL)",
+            name="ck_entry_concise_meaning_supplement_has_no_source",
+        ),
+        CheckConstraint(
+            "provenance_kind = 'source' OR length(trim(derivation_note)) > 0",
+            name="ck_entry_concise_meaning_note_when_not_verbatim",
+        ),
+        # Nothing is displayed without a named human behind it.
+        CheckConstraint(
+            "status <> 'confirmed'"
+            " OR (confirmed_at IS NOT NULL AND length(trim(confirmed_by_username)) > 0)",
+            name="ck_entry_concise_meaning_confirmed_is_attributed",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lexicon_entry_id: Mapped[int] = mapped_column(
+        ForeignKey("lexicon_entry.id", ondelete="CASCADE"), index=True
+    )
+    #: 1-based position in the study list. One entry may show at most three.
+    display_order: Mapped[int] = mapped_column(Integer)
+    #: The short, simplified value actually shown.
+    text: Mapped[str] = mapped_column(String(200))
+    #: source | derived | ai_supplement
+    provenance_kind: Mapped[str] = mapped_column(String(16))
+    #: The evidence row this wording came from, when there is one. SET NULL keeps the
+    #: display value readable if the evidence row is ever removed.
+    source_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("entry_source_evidence.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    #: Human-readable source position, e.g. ``primary:12``. Survives evidence deletion,
+    #: which is why it is a column of its own rather than a join.
+    source_locator: Mapped[str] = mapped_column(String(200), default="")
+    #: What was changed, or why a supplement was added.
+    derivation_note: Mapped[str] = mapped_column(Text, default="")
+    #: candidate | confirmed | rejected
+    status: Mapped[str] = mapped_column(String(16), default="candidate", index=True)
+    proposed_by_username: Mapped[str] = mapped_column(String(64), default="")
+    proposed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    confirmed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
+    confirmed_by_username: Mapped[str] = mapped_column(String(64), default="")
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    entry: Mapped[LexiconEntry] = relationship()
+
+    @property
+    def is_displayable(self) -> bool:
+        return self.status == "confirmed"
+
+
+class EntryConciseMeaningRevision(Base):
+    """Append-only record of every proposal, confirmation and withdrawal.
+
+    ``entry_concise_meaning`` answers "what does the study page show now"; this table
+    answers "who put it there, when, and what did it say before". The service never
+    issues an UPDATE or a DELETE against it, and a test enforces that with a
+    statement hook, so the history cannot be edited by a later code path that only
+    meant to change the current value.
+
+    ``lexicon_entry_id`` is ``ON DELETE SET NULL`` for the same reason migration
+    0008's evidence rows are: the record of a human's decision about a word should
+    outlive the entry, and ``normalized_word`` keeps the word identity when it does.
+    """
+
+    __tablename__ = "entry_concise_meaning_revision"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lexicon_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lexicon_entry.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    #: Keeps the word identity when the entry is gone.
+    normalized_word: Mapped[str] = mapped_column(String(160), index=True)
+    concise_meaning_id: Mapped[int | None] = mapped_column(
+        ForeignKey("entry_concise_meaning.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    #: proposed | confirmed | rejected
+    action: Mapped[str] = mapped_column(String(16), index=True)
+    display_order: Mapped[int] = mapped_column(Integer)
+    #: The value as it stood when this action was taken.
+    text: Mapped[str] = mapped_column(String(200), default="")
+    provenance_kind: Mapped[str] = mapped_column(String(16), default="")
+    source_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("entry_source_evidence.id", ondelete="SET NULL"), nullable=True
+    )
+    source_locator: Mapped[str] = mapped_column(String(200), default="")
+    derivation_note: Mapped[str] = mapped_column(Text, default="")
+    #: The account that performed the action. SET NULL plus the username snapshot, so
+    #: deleting an account cannot erase who decided what the shared lexicon shows.
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
+    actor_username: Mapped[str] = mapped_column(String(64), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

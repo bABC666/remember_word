@@ -15,6 +15,9 @@ const savedWord: Word = {
   part_of_speech: 'n.',
   source_meanings: ['琥珀；一种由古代树脂形成的黄色物质', '琥珀色'],
   source_raw: 'amber n. 琥珀；琥珀色。原书补充说明。',
+  // No confirmed short meaning: the detail page must still show the source exactly
+  // as it did before this slice, so the fallback is exercised by every test here.
+  concise_meanings: [],
   anchor: '树脂',
   semantic_note: '在原书语境里指琥珀。',
   status: 'weak',

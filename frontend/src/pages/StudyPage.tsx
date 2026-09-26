@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { BookOpen, RotateCcw } from 'lucide-react'
 import { api } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
+import { ConciseMeaningList } from '../components/ConciseMeaningList'
 import { MeaningList } from '../components/MeaningList'
 import type { ReviewResult, Word } from '../types'
 
@@ -12,6 +13,9 @@ export function StudyPage() {
   const query = useQuery({ queryKey: ['study-today'], queryFn: () => api<{ total: number; words: Word[] }>('/api/study/today') })
   const words = query.data?.words ?? []
   const current = words[index]
+  // A word with no confirmed short meaning answers with an empty list, which is the
+  // fallback signal -- never a server-side substitute of something unreviewed.
+  const short = current?.concise_meanings ?? []
   const mutation = useMutation({
     // `word_state_id`, not the legacy id: a word added from an article has no
     // `word` row, and the legacy route deliberately does not accept a state id.
@@ -44,10 +48,31 @@ export function StudyPage() {
           <button className="reveal-button" onClick={() => setRevealed(true)}><BookOpen size={19} />显示答案 <kbd>Space</kbd></button>
         ) : (
           <div className="answer-area">
-            <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
-            <div className="answer-divider" />
-            <span className="source-label">原书完整释义</span>
-            <MeaningList values={current.source_meanings} fallback={current.source_raw} />
+            {/* The owner's rule for this round: prefer one to three short, common
+                senses. They are shown only when a person confirmed them; otherwise
+                the answer falls back to exactly what it showed before. */}
+            {short.length > 0 ? (
+              <>
+                <ConciseMeaningList values={short} />
+                <div className="answer-divider" />
+                <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
+                <details className="source-raw study-source">
+                  <summary>查看原书完整释义</summary>
+                  <span className="source-label">原书完整释义</span>
+                  <MeaningList values={current.source_meanings} fallback={current.source_raw} />
+                  {current.source_raw && (
+                    <pre className="source-raw-line">{current.source_raw}</pre>
+                  )}
+                </details>
+              </>
+            ) : (
+              <>
+                <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
+                <div className="answer-divider" />
+                <span className="source-label">原书完整释义</span>
+                <MeaningList values={current.source_meanings} fallback={current.source_raw} />
+              </>
+            )}
             {current.semantic_note && <p className="semantic-note">{current.semantic_note}</p>}
           </div>
         )}

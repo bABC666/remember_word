@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from app.models import (
     Article,
     ArticleWordLookup,
@@ -11,7 +13,9 @@ from app.models import (
 from app.services.userdata import WordView
 
 
-def word_dict_from_view(view: WordView) -> dict[str, object]:
+def word_dict_from_view(
+    view: WordView, concise_meanings: list[dict[str, Any]] | None = None
+) -> dict[str, object]:
     """Serialize lexicon content plus **this user's** learning state.
 
     Content comes from the shared ``LexiconEntry``; every learning field comes
@@ -26,6 +30,15 @@ def word_dict_from_view(view: WordView) -> dict[str, object]:
     id made the server accept either identifier on the same route, which is exactly
     the ambiguity that let a request resolve to a different row than the caller
     meant.
+
+    ``concise_meanings`` is the short, human-confirmed display value the study page
+    prefers, passed in already loaded so one response costs one query rather than one
+    per word. It is deliberately a *separate* field from ``source_meanings``: the
+    source default and the source's own raw line are still returned untouched, so a
+    reader who doubts a short value can always go and read the source. An empty list
+    means "no confirmed short meaning" and is the client's signal to fall back; it is
+    never filled in from ``source_meanings`` on the server, because then a client
+    could not tell a reviewed value from an unreviewed one.
     """
     state = view.state
     entry = view.entry
@@ -40,6 +53,7 @@ def word_dict_from_view(view: WordView) -> dict[str, object]:
         "part_of_speech": entry.part_of_speech,
         "source_meanings": entry.source_meanings,
         "source_raw": entry.source_raw,
+        "concise_meanings": list(concise_meanings or []),
         # The user's override wins; the reviewed lexicon anchor is the fallback.
         "anchor": view.anchor,
         "semantic_note": view.semantic_note,

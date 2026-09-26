@@ -46,6 +46,12 @@ from app.services.auth import (
     prune_sessions,
     verify_user_password,
 )
+from app.services.concise_meaning import (
+    CONCISE_MEANING_KINDS,
+    CONCISE_MEANING_MAX_SLOTS,
+    ConciseMeaningProposal,
+    ConciseMeaningRefused,
+)
 from app.services.public_lexicon_joint_preview import preview_manifest
 from app.services.public_lexicon_preview import PreviewMapping, preview_file
 from app.testing_guards import assert_not_real_data
@@ -442,15 +448,365 @@ def command_public_lexicon_confirm(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- concise study meanings ---------------------------------------------------
+#
+# The administrator entry point for the short meanings the study page shows. The
+# product rule is that a human confirms every displayed value, so the two write
+# commands are separate on purpose: ``propose`` only ever creates invisible
+# candidates, and ``confirm`` names the candidates a person has actually read. The
+# operator reads ``status`` in between, which prints the untouched source fields
+# beside the proposals so the review is a comparison rather than a memory test.
+
+
+class ConciseMeaningFileError(Exception):
+    """The proposal file is not usable. Nothing was read and nothing was written."""
+
+
+#: Recognised keys, per level. An unknown key is an error rather than something to
+#: ignore: a typo in ``provenance_kind`` should refuse the file, not silently default
+#: a quoted value to a machine-written supplement.
+_PROPOSAL_FILE_KEYS = frozenset({"format_version", "lexicon", "entries"})
+_PROPOSAL_ENTRY_KEYS = frozenset({"word", "meanings"})
+_PROPOSAL_MEANING_KEYS = frozenset(
+    {
+        "text",
+        "provenance_kind",
+        "display_order",
+        "source_locator",
+        "derivation_note",
+        "source_evidence_id",
+    }
+)
+_PROPOSAL_FORMAT_VERSION = 1
+
+
+def _reject_unknown_keys(payload: dict, allowed: frozenset[str], where: str) -> None:
+    unknown = sorted(set(payload) - allowed)
+    if unknown:
+        raise ConciseMeaningFileError(
+            f"{where} 含未知字段 {'、'.join(unknown)}；"
+            f"允许的字段为 {'、'.join(sorted(allowed))}。"
+            "不忽略未知字段，以免拼写错误被当成默认值。"
+        )
+
+
+def load_proposal_file(path: Path, *, lexicon_name: str) -> list[dict]:
+    """Read and validate the proposal file, returning per-entry proposals.
+
+    Validation happens entirely before the database is opened, so a malformed file
+    cannot leave a half-written review state behind.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ConciseMeaningFileError(f"提案文件无法读取：{error}") from error
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ConciseMeaningFileError(f"提案文件不是合法 JSON：{error}") from error
+    if not isinstance(payload, dict):
+        raise ConciseMeaningFileError("提案文件的顶层必须是对象。")
+    _reject_unknown_keys(payload, _PROPOSAL_FILE_KEYS, "提案文件顶层")
+    if payload.get("format_version") != _PROPOSAL_FORMAT_VERSION:
+        raise ConciseMeaningFileError(
+            f"提案文件 format_version 必须是 {_PROPOSAL_FORMAT_VERSION}，"
+            f"实际为 {payload.get('format_version')!r}。"
+        )
+    declared = payload.get("lexicon")
+    if declared is not None and str(declared).strip() != lexicon_name:
+        raise ConciseMeaningFileError(
+            f"提案文件声明的词库 {declared!r} 与 --lexicon {lexicon_name!r} 不一致。"
+        )
+
+    entries = payload.get("entries")
+    if not isinstance(entries, list) or not entries:
+        raise ConciseMeaningFileError("提案文件的 entries 必须是非空数组。")
+
+    prepared: list[dict] = []
+    for index, entry in enumerate(entries):
+        where = f"entries[{index}]"
+        if not isinstance(entry, dict):
+            raise ConciseMeaningFileError(f"{where} 必须是对象。")
+        _reject_unknown_keys(entry, _PROPOSAL_ENTRY_KEYS, where)
+        word = str(entry.get("word") or "").strip()
+        if not word:
+            raise ConciseMeaningFileError(f"{where} 缺少 word。")
+        meanings = entry.get("meanings")
+        if not isinstance(meanings, list) or not meanings:
+            raise ConciseMeaningFileError(f"{where}（{word}）的 meanings 必须是非空数组。")
+        if len(meanings) > CONCISE_MEANING_MAX_SLOTS:
+            raise ConciseMeaningFileError(
+                f"{where}（{word}）提交了 {len(meanings)} 个义项，"
+                f"学习页最多显示 {CONCISE_MEANING_MAX_SLOTS} 个。"
+            )
+        proposals: list[ConciseMeaningProposal] = []
+        for position, meaning in enumerate(meanings, start=1):
+            meaning_where = f"{where}.meanings[{position - 1}]"
+            if not isinstance(meaning, dict):
+                raise ConciseMeaningFileError(f"{meaning_where} 必须是对象。")
+            _reject_unknown_keys(meaning, _PROPOSAL_MEANING_KEYS, meaning_where)
+            kind = str(meaning.get("provenance_kind") or "").strip()
+            if not kind:
+                raise ConciseMeaningFileError(
+                    f"{meaning_where} 缺少 provenance_kind"
+                    f"（{'、'.join(CONCISE_MEANING_KINDS)} 之一）。"
+                )
+            # Absent means "the position in the list", which is what a reviewer reads
+            # anyway; an explicit value must still be an integer in range.
+            order = meaning.get("display_order", position)
+            if not isinstance(order, int) or isinstance(order, bool):
+                raise ConciseMeaningFileError(f"{meaning_where} 的 display_order 必须是整数。")
+            evidence = meaning.get("source_evidence_id")
+            if evidence is not None and (not isinstance(evidence, int) or isinstance(evidence, bool)):
+                raise ConciseMeaningFileError(
+                    f"{meaning_where} 的 source_evidence_id 必须是整数或省略。"
+                )
+            proposals.append(
+                ConciseMeaningProposal(
+                    text=str(meaning.get("text") or ""),
+                    provenance_kind=kind,
+                    display_order=order,
+                    source_locator=str(meaning.get("source_locator") or ""),
+                    derivation_note=str(meaning.get("derivation_note") or ""),
+                    source_evidence_id=evidence,
+                )
+            )
+        prepared.append({"word": word, "proposals": proposals})
+    return prepared
+
+
+def _resolve_system_lexicon(session, name: str):
+    """Exactly one system public lexicon with this name, or a readable refusal."""
+    from app.models import Lexicon
+
+    matches = session.scalars(
+        select(Lexicon).where(
+            Lexicon.owner_user_id.is_(None),
+            Lexicon.visibility == "public",
+            Lexicon.name == name,
+        )
+    ).all()
+    if not matches:
+        raise ConciseMeaningRefused(f"找不到名为 {name!r} 的系统公共词库。")
+    if len(matches) > 1:
+        raise ConciseMeaningRefused(
+            f"有 {len(matches)} 个系统公共词库都叫 {name!r}，无法确定目标。"
+        )
+    return matches[0]
+
+
+def _resolve_administrator(session, username: str):
+    """The named account, verified with its own current password.
+
+    The password is prompted for and never accepted as an argument, for the reason
+    this module's docstring gives: an argument or an environment variable is already
+    disclosed before the program starts.
+    """
+    password = getpass.getpass(f"请输入管理员 {username} 的当前口令：")
+    user = _find_user(session, username)
+    # An unknown account spends the verification an existing one would, so the time
+    # taken says nothing about whether the account exists.
+    if user is None or not verify_user_password(user, password):
+        raise ConciseMeaningRefused("管理员身份或口令不正确，未写入任何内容。")
+    return user
+
+
+def command_concise_meaning_status(args: argparse.Namespace) -> int:
+    """Read-only: what is displayed, what is proposed, and what the source says."""
+    from app.models import LexiconEntry
+    from app.services.concise_meaning import describe_entry, find_entry
+
+    with _open_session() as session:
+        try:
+            lexicon = _resolve_system_lexicon(session, args.lexicon)
+        except ConciseMeaningRefused as error:
+            print(f"无法定位词库：{error}", file=sys.stderr)
+            return 2
+        if args.word:
+            entry = find_entry(session, lexicon.id, args.word)
+            if entry is None:
+                print(f"词库 {lexicon.name!r} 中没有词条 {args.word!r}。", file=sys.stderr)
+                return 2
+            entries = [entry]
+        else:
+            entries = session.scalars(
+                select(LexiconEntry)
+                .where(LexiconEntry.lexicon_id == lexicon.id)
+                .order_by(LexiconEntry.sequence, LexiconEntry.word)
+            ).all()
+        report = {
+            "lexicon": {"id": lexicon.id, "name": lexicon.name},
+            "entries": [describe_entry(session, entry) for entry in entries],
+        }
+    print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+    return 0
+
+
+def command_concise_meaning_propose(args: argparse.Namespace) -> int:
+    """Append candidates from a file. Nothing becomes visible to any user."""
+    from app.services.concise_meaning import find_entry, propose
+
+    try:
+        prepared = load_proposal_file(args.file, lexicon_name=args.lexicon)
+    except ConciseMeaningFileError as error:
+        print(f"提案文件不可用：{error}", file=sys.stderr)
+        return 2
+
+    try:
+        database = _confirmed_database_path()
+    except Exception as error:  # noqa: BLE001 -- a bad target must fail closed
+        print(f"无法确认目标数据库：{error}", file=sys.stderr)
+        return 2
+
+    print("简短学习释义 · 提交候选（只写候选，不改变任何用户看到的内容）")
+    print(f"目标公共词库: {args.lexicon}")
+
+    with _open_session() as session:
+        written = 0
+        missing: list[str] = []
+        try:
+            lexicon = _resolve_system_lexicon(session, args.lexicon)
+            administrator = _resolve_administrator(session, args.admin)
+            for item in prepared:
+                entry = find_entry(session, lexicon.id, item["word"])
+                if entry is None:
+                    missing.append(item["word"])
+                    continue
+                created = propose(
+                    session, entry=entry, proposals=item["proposals"],
+                    actor=administrator,
+                )
+                written += len(created)
+                for row in created:
+                    print(f"  候选 id={row.id}  {entry.word}  第{row.display_order}位"
+                          f"  {row.text}  [{row.provenance_kind}]")
+            if missing:
+                # Refuse the whole file rather than write half of it: a proposal that
+                # silently skipped words would look complete at review time.
+                raise ConciseMeaningRefused(
+                    "以下词不在目标词库中，整份提案未写入："
+                    + "、".join(missing)
+                    + "。请核对词形（身份规则为去首尾空白 + casefold）。"
+                )
+            session.commit()
+        except ConciseMeaningRefused as error:
+            session.rollback()
+            print()
+            print(f"拒绝写入，未做任何修改：{error}", file=sys.stderr)
+            return 1
+        except Exception as error:  # noqa: BLE001 -- report, then fail closed
+            session.rollback()
+            print()
+            print(f"写入失败，事务已整体回滚，未做任何修改：{error}", file=sys.stderr)
+            return 1
+
+    print()
+    print(f"已写入 {written} 条候选，状态均为 candidate。")
+    print("候选不会出现在任何学习页面上；请用 `concise-meaning status` 审阅后，"
+          "再用 `concise-meaning confirm --id ...` 逐条确认。")
+    print(f"数据库: {database}")
+    return 0
+
+
+def command_concise_meaning_confirm(args: argparse.Namespace) -> int:
+    """Confirm named candidates as a human, which is what puts them on the page."""
+    from app.models import EntryConciseMeaning, LexiconEntry
+    from app.services.concise_meaning import confirm
+
+    try:
+        database = _confirmed_database_path()
+    except Exception as error:  # noqa: BLE001 -- a bad target must fail closed
+        print(f"无法确认目标数据库：{error}", file=sys.stderr)
+        return 2
+
+    ids = list(dict.fromkeys(args.id))
+    print("简短学习释义 · 人工确认（确认后学习页才会显示这些值）")
+    print(f"目标公共词库: {args.lexicon}")
+    print(f"待确认候选 id: {', '.join(str(value) for value in ids)}")
+
+    with _open_session() as session:
+        confirmed = 0
+        try:
+            lexicon = _resolve_system_lexicon(session, args.lexicon)
+            administrator = _resolve_administrator(session, args.admin)
+            for meaning_id in ids:
+                row = session.get(EntryConciseMeaning, meaning_id)
+                if row is None:
+                    raise ConciseMeaningRefused(f"候选 id={meaning_id} 不存在。")
+                entry = session.get(LexiconEntry, row.lexicon_entry_id)
+                if entry is None or entry.lexicon_id != lexicon.id:
+                    raise ConciseMeaningRefused(
+                        f"候选 id={meaning_id} 不属于词库 {lexicon.name!r}。"
+                    )
+                confirm(session, meaning=row, confirmer=administrator, note=args.note)
+                confirmed += 1
+                print(f"  已确认 id={row.id}  {entry.word}  第{row.display_order}位"
+                      f"  {row.text}  [{row.provenance_kind}]")
+            session.commit()
+        except ConciseMeaningRefused as error:
+            session.rollback()
+            print()
+            print(f"拒绝确认，未做任何修改：{error}", file=sys.stderr)
+            return 1
+        except Exception as error:  # noqa: BLE001 -- report, then fail closed
+            session.rollback()
+            print()
+            print(f"确认失败，事务已整体回滚，未做任何修改：{error}", file=sys.stderr)
+            return 1
+
+    print()
+    print(f"已确认 {confirmed} 条。原始来源文本（source_raw / source_meanings）未做任何改动。")
+    print(f"数据库: {database}")
+    return 0
+
+
+def command_concise_meaning_reject(args: argparse.Namespace) -> int:
+    """Withdraw a candidate or a displayed value, with a reason on the record."""
+    from app.models import EntryConciseMeaning
+    from app.services.concise_meaning import reject
+
+    try:
+        database = _confirmed_database_path()
+    except Exception as error:  # noqa: BLE001 -- a bad target must fail closed
+        print(f"无法确认目标数据库：{error}", file=sys.stderr)
+        return 2
+
+    print("简短学习释义 · 撤回/拒绝（记录理由，不删除任何历史）")
+    with _open_session() as session:
+        try:
+            administrator = _resolve_administrator(session, args.admin)
+            row = session.get(EntryConciseMeaning, args.id)
+            if row is None:
+                raise ConciseMeaningRefused(f"候选 id={args.id} 不存在。")
+            reject(session, meaning=row, actor=administrator, note=args.note)
+            session.commit()
+        except ConciseMeaningRefused as error:
+            session.rollback()
+            print()
+            print(f"拒绝执行，未做任何修改：{error}", file=sys.stderr)
+            return 1
+        except Exception as error:  # noqa: BLE001 -- report, then fail closed
+            session.rollback()
+            print()
+            print(f"撤回失败，事务已整体回滚，未做任何修改：{error}", file=sys.stderr)
+            return 1
+        withdrawn_text = row.text
+        withdrawn_order = row.display_order
+    print(f"  已撤回 id={args.id}（原第{withdrawn_order}位「{withdrawn_text}」），该位置已空出。")
+    print(f"数据库: {database}")
+    return 0
+
+
 def _confirmed_database_path() -> Path:
     """Resolve the target database and refuse unless its revision matches the code.
 
-    The confirmation writes tables that only migration ``0008`` creates, so running
-    it against a database that has not been migrated must fail here with a clear
-    message rather than halfway through a transaction. This is the same check the
-    application performs at startup (``verify_schema_revision``, fail-closed); unlike
-    the read-only preview commands, this one is *meant* to run against whatever
-    database the configuration points at, so it does not refuse the real one.
+    The confirmation paths write tables that only migrations ``0008`` and ``0009``
+    create, so running one against a database that has not been migrated must fail
+    here with a clear message rather than halfway through a transaction. This is the
+    same check the application performs at startup (``verify_schema_revision``,
+    fail-closed); unlike the read-only preview commands, these are *meant* to run
+    against whatever database the configuration points at, so they do not refuse the
+    real one.
     """
     url = str(get_engine().url)
     path = database_path_from_url(url)
@@ -746,6 +1102,56 @@ def build_parser() -> argparse.ArgumentParser:
         help="失败时写出新的 JSON 失败报告（拒绝覆盖既有报告）",
     )
     confirm.set_defaults(func=command_public_lexicon_confirm)
+
+    # The study page's short meanings. Three write verbs and one read-only review:
+    # a candidate is inert until a person confirms it by id, and the review command
+    # prints the untouched source fields beside the proposals so the confirmation is
+    # a comparison rather than a memory test.
+    concise = sub.add_parser(
+        "concise-meaning", help="学习页简短释义：候选、人工确认与撤回"
+    )
+    concise_sub = concise.add_subparsers(dest="concise_command", required=True)
+
+    concise_status = concise_sub.add_parser(
+        "status", help="只读查看某词库的展示值、候选与完整历史"
+    )
+    concise_status.add_argument("--lexicon", required=True, help="系统公共词库名称")
+    concise_status.add_argument("--word", default="", help="只看某一个词")
+    concise_status.set_defaults(func=command_concise_meaning_status)
+
+    concise_propose = concise_sub.add_parser(
+        "propose", help="按 JSON 文件提交候选（不会出现在任何学习页面上）"
+    )
+    concise_propose.add_argument("--file", type=Path, required=True, help="候选 JSON 文件")
+    concise_propose.add_argument("--lexicon", required=True, help="目标系统公共词库名称")
+    concise_propose.add_argument(
+        "--admin", required=True, help="执行本次提交的管理员用户名（口令交互输入）"
+    )
+    concise_propose.set_defaults(func=command_concise_meaning_propose)
+
+    concise_confirm = concise_sub.add_parser(
+        "confirm", help="人工确认指定候选（确认后学习页才会显示）"
+    )
+    concise_confirm.add_argument(
+        "--id", type=int, action="append", required=True,
+        help="要确认的候选 id，可重复；id 由 status 命令给出",
+    )
+    concise_confirm.add_argument("--lexicon", required=True, help="目标系统公共词库名称")
+    concise_confirm.add_argument("--note", default="", help="确认备注（可选，写入历史）")
+    concise_confirm.add_argument(
+        "--admin", required=True, help="执行本次确认的管理员用户名（口令交互输入）"
+    )
+    concise_confirm.set_defaults(func=command_concise_meaning_confirm)
+
+    concise_reject = concise_sub.add_parser(
+        "reject", help="撤回或拒绝一条候选/展示值（必须写明理由）"
+    )
+    concise_reject.add_argument("--id", type=int, required=True, help="候选 id")
+    concise_reject.add_argument("--note", required=True, help="理由；会写入历史")
+    concise_reject.add_argument(
+        "--admin", required=True, help="执行本次撤回的管理员用户名（口令交互输入）"
+    )
+    concise_reject.set_defaults(func=command_concise_meaning_reject)
 
     retention = sub.add_parser("history-retention", help="history_event 保留策略（已确认 365 天）")
     retention_sub = retention.add_subparsers(dest="retention_command", required=True)

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query
 from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.schemas import ReviewRequest
+from app.services.concise_meaning import entry_short_meanings
 from app.services.study import (
     build_today_queue,
     record_review_for_user,
@@ -36,7 +37,14 @@ def today_queue(
     boundaries are in ``docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md``.
     """
     queue = build_today_queue(session, user, limit=limit)
-    words = [word_dict_from_view(view) for view in queue.words]
+    # One query for the whole response. ``entry_short_meanings`` returns only
+    # human-confirmed values, so a word with an unconfirmed proposal answers with an
+    # empty list and the client falls back to the source meanings.
+    short = entry_short_meanings(session, (view.entry.id for view in queue.words))
+    words = [
+        word_dict_from_view(view, short.get(view.entry.id))
+        for view in queue.words
+    ]
     return {
         "total": len(words),
         "words": words,

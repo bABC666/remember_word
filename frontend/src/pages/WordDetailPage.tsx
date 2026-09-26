@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Clock3, TriangleAlert } from 'lucide-react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
+import { ConciseMeaningList } from '../components/ConciseMeaningList'
 import { MeaningList } from '../components/MeaningList'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { statusLabels, type LibraryPosition, type WordDetail } from './wordDetailModel'
@@ -24,6 +25,9 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
         </div>
         <span className={`status status-${word.status}`}>{statusLabels[word.status]}</span>
       </header>
+      {/* The component supplies its own labelled section, so a word with nothing
+          confirmed renders no empty "核心释义" block at all. */}
+      <ConciseMeaningList values={word.concise_meanings} />
       <section>
         <span>最小语义锚点</span>
         <h3>{word.anchor || '—'}</h3>

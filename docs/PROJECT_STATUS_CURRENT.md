@@ -20,6 +20,8 @@
 
 > **源分支验收快照（2026-09-25，现已合入本地 `main`）**：`codex/phase-2-9-locked-plan` 新增只读锁定人工裁定计划，不打开应用数据库、不写词条或学习状态、无 schema/migration。源分支的 `scripts/check.ps1` exit 0：后端 572 passed / 1 skipped、前端 54 passed；其后的定点收尾为 578 passed / 1 skipped。合流后的最新门禁见上表。确认写入分支后续已完成授权元数据必填与 Level 2 迁移预演；启动器阻断已由 `30afed9` 独立关闭，`0008` 的真实来源与双用户验收仍未关闭。
 
+> **隔离分支快照（2026-09-26，`codex/phase-2-9-concise-meaning`，未合入、未推送）**：负责人本轮产品口径确定后（先供两个账号；学习页优先显示 1–3 个常见、简体的核心义项，允许不覆盖全部义项；来源完整原文始终可回查；AI 自拟补充只能作为候选、须人工确认、不得冒充来源原文），该分支实现了**简短学习释义**的存储、人工确认与展示链路。schema 新增 `0009_entry_concise_meaning`（两张表，**叠加在同样未发布的 `0008` 之上，不改 `0008`**），短释义独立于 `source_meanings`/`source_raw`/`default_anchor` 存放；确认只有管理员 CLI，未确认候选在读路径上取不到。合成数据验证：原文逐字节不变、未确认候选不可展示、繁简并存、空值回退、双账号共享内容而学习状态独立；迁移预演为 0008→0009→0008 往返、外键 33→40、既有 19 条 `lexicon_entry` 来源文本不变。设计与剩余阻断见 `docs/V1.2-PHASE2.9-CONCISE-MEANING-DESIGN.md` 与 `...-SLICE-RECORD.md`。**该分支依赖 `codex/phase29-target-readonly-preflight`，两者与 `0008` 必须一起评审；生产库未被打开或迁移。**
+
 > **同分支定点收尾（2026-09-25，未推送）**：`git diff --check` 的在库问题（切片记录末尾多余空行）已修；确认写入设计的两个取舍给出**定稿建议**并附实测与变异验证——①迁移编号不写进文档，实施时取目录 `max+1`（公共导入先做，`revoke_reason` 与 Phase 5 T7 顺延，后者是此前漏记的第二个 `0008` 提法）；②公共导入**不更新** `lexicon.entry_count`（实测四个读取调用点全部走真实 `COUNT(*)`、前端零引用，故该选择对用户可见行为零影响并保住基线对 `lexicon` 行的检出能力）；③与来源报告核对确认归一化仍是 `strip_casefold_v1`、**未**采用报告 §7.1 的"只保留字母数字"矩阵规则，`source_raw` 仍是 primary 原行且不拼接。新增 `backend/tests/test_lexicon_entry_count.py`（4 项）与 2 项身份/原文契约测试；两条契约均通过**变异验证**（临时改实现则测试失败，已还原）。全后端 **578 passed / 1 skipped**（上一轮 572 + 本轮 6）、前端 54 passed / 8 files、ruff 通过、`git diff --check` exit 0、`scripts/check.ps1` **exit 0**。**未实施确认写入、未做 migration、未改 schema、未写生产库。**
 
 ---

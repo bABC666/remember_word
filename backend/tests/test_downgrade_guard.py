@@ -229,15 +229,18 @@ def test_refused_downgrade_cannot_be_unlocked_by_the_override(
 def test_staging_clone_downgrade_runs_and_keeps_the_data(tmp_path: Path) -> None:
     """The guard must not be a wall: a disposable clone still downgrades.
 
-    This also exercises ``0008.downgrade()`` (four tables dropped whole) and
-    ``0007.downgrade()``, which has to rebuild the same nine tables to remove the
-    foreign keys, and proves the rebuild preserves rows.
+    This also exercises ``0009.downgrade()`` (two tables dropped whole),
+    ``0008.downgrade()`` (four tables dropped whole) and ``0007.downgrade()``, which
+    has to rebuild the same nine tables to remove the foreign keys, and proves the
+    rebuild preserves rows.
 
-    The head foreign-key count moved 26 -> 33 in Phase 2.9: migration ``0008`` adds
-    four tables carrying seven foreign keys (``public_import_run`` 2,
-    ``public_import_run_source`` 2, ``entry_source_evidence`` 3). The assertion is
-    on the physical count, so it has to move with the schema; 17 after the downgrade
-    to ``0006`` is unchanged, which is the part that proves the rebuild is exact.
+    The head foreign-key count moved 26 -> 33 -> 40: migration ``0008`` adds four
+    tables carrying seven foreign keys (``public_import_run`` 2,
+    ``public_import_run_source`` 2, ``entry_source_evidence`` 3), and ``0009`` adds
+    two more carrying seven (``entry_concise_meaning`` 3,
+    ``entry_concise_meaning_revision`` 4). The assertion is on the physical count, so
+    it has to move with the schema; 17 after the downgrade to ``0006`` is unchanged,
+    which is the part that proves the rebuild is exact.
     """
     staging = tmp_path / "app-data" / "staging"
     staging.mkdir(parents=True)
@@ -248,7 +251,7 @@ def test_staging_clone_downgrade_runs_and_keeps_the_data(tmp_path: Path) -> None
 
     result = run_alembic(database, "upgrade", "head", extra_env=env)
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
-    assert foreign_key_count(database) == 33
+    assert foreign_key_count(database) == 40
     connection = sqlite3.connect(str(database))
     try:
         connection.execute(

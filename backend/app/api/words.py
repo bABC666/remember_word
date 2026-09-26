@@ -8,6 +8,7 @@ from sqlalchemy import or_, select
 from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.models import Article, ArticleWordExposure, LexiconEntry, ReviewEvent, UserWordState
+from app.services.concise_meaning import entry_short_meanings
 from app.services.userdata import WordView, load_user_word, load_user_word_state
 
 router = APIRouter(prefix="/api/words", tags=["words"])
@@ -67,9 +68,13 @@ def list_words(
         query = query.order_by(LexiconEntry.word)
 
     rows = session.execute(query.limit(limit)).all()
+    views = [_to_view(row) for row in rows]
+    short = entry_short_meanings(session, (view.entry.id for view in views))
     return {
-        "total": len(rows),
-        "words": [word_dict_from_view(_to_view(row)) for row in rows],
+        "total": len(views),
+        "words": [
+            word_dict_from_view(view, short.get(view.entry.id)) for view in views
+        ],
     }
 
 
@@ -130,7 +135,9 @@ def _word_detail(session: SessionDep, user: CurrentUser, view: WordView) -> dict
     ).all()
 
     return {
-        **word_dict_from_view(view),
+        **word_dict_from_view(
+            view, entry_short_meanings(session, [view.entry.id]).get(view.entry.id)
+        ),
         "review_history": [review_dict(item) for item in reviews],
         "article_exposures": [
             {
