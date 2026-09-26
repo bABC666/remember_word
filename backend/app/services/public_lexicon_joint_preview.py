@@ -13,7 +13,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from app.services.public_lexicon_preview import FIELDS, PreviewMapping, preview_file
+from app.services.public_lexicon_preview import (
+    FIELDS,
+    REVISION_KEYS,
+    PreviewMapping,
+    RevisionDeclaration,
+    preview_file,
+)
 
 FIELD_ORDER = ("word", "meaning", "phonetic", "part_of_speech")
 MAX_SOURCES = 8
@@ -124,6 +130,51 @@ def parse_provenance(source_id: str, value: object) -> dict[str, str] | None:
             )
         normalised[field] = text
     return normalised
+
+
+def parse_revision(source_id: str, value: object) -> RevisionDeclaration | None:
+    """Validate one manifest ``revision`` declaration and normalise it.
+
+    ``None`` means the source declares no revision at all, which is an ordinary
+    answer: a file pinned as a whole package may have no per-row revision to point at,
+    and the design's response to that is no link rather than a guessed one.
+
+    An unknown key is refused rather than ignored, for the same reason
+    :func:`parse_provenance` refuses one -- a typo like ``"url"`` would otherwise
+    record no template while the source still looks fully declared, and the failure
+    would surface as a missing link much later.
+
+    Unlike provenance, the declared strings are **not** stripped: a column name or a
+    revision identifier is compared against file contents exactly, so quietly trimming
+    one would hide the mismatch instead of naming it. :class:`RevisionDeclaration`
+    refuses the whitespace with a message that says which field is at fault.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise TypeError(
+            f"invalid_manifest: source {source_id!r} revision must be an object"
+        )
+    unknown = sorted(set(value) - set(REVISION_KEYS))
+    if unknown:
+        raise ValueError(
+            f"invalid_manifest: source {source_id!r} revision has unknown field(s) "
+            f"{unknown}; known fields are {list(REVISION_KEYS)}"
+        )
+    declared: dict[str, str] = {}
+    for field in REVISION_KEYS:
+        raw = value.get(field, "")
+        if not isinstance(raw, str):
+            raise TypeError(
+                f"invalid_manifest: source {source_id!r} revision.{field} must be a string"
+            )
+        declared[field] = raw
+    try:
+        return RevisionDeclaration(**declared)
+    except ValueError as error:
+        raise ValueError(
+            f"invalid_manifest: source {source_id!r} revision: {error}"
+        ) from error
 
 
 def _parse_instant(text: str) -> datetime | None:
@@ -305,6 +356,7 @@ def load_manifest(path: Path, *, source_root: Path) -> ManifestSpecs:
                 columns=columns, required_fields=tuple(row_required),
                 encoding=item.get("encoding", "utf-8-sig"),
                 delimiter=item.get("delimiter", ","),
+                revision=parse_revision(item["id"], item.get("revision")),
             ),
             role=role,
             provenance=parse_provenance(item["id"], item.get("provenance")),

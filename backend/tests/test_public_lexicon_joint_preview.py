@@ -203,3 +203,179 @@ def test_joint_cli_manifest_is_read_only_and_confined(world, tmp_path: Path, cap
         "public-lexicon", "preview-many", str(escaped_manifest), "--source-root", str(root)
     ]) == 2
     assert "outside_source_root" in capsys.readouterr().err
+
+
+# --- the manifest's non-field revision declaration ----------------------------
+#
+# Exercised through the read-only entry points only: this slice reads the
+# declaration, it does not freeze it into a plan or write it anywhere.
+
+REVISION_TEMPLATE = "https://zh.wiktionary.org/w/index.php?oldid={revision}"
+
+
+def _manifest_with(root: Path, source: dict) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / "manifest.json"
+    path.write_text(
+        json.dumps({"sources": [{"id": "pinned", "file": "words.csv", **source}]}),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_manifest_reads_a_revision_declaration_into_the_frozen_mapping(
+    tmp_path: Path,
+) -> None:
+    from app.services.public_lexicon_joint_preview import preview_manifest
+
+    root = tmp_path / "sources"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "words.csv").write_text(
+        "head,cn,oldid\nadmit,承认,6588944\n", encoding="utf-8"
+    )
+    manifest = _manifest_with(root, {
+        "columns": {"word": "head", "meaning": "cn"},
+        "encoding": "utf-8",
+        "revision": {"column": "oldid", "url_template": REVISION_TEMPLATE},
+    })
+
+    report = preview_manifest(manifest, source_root=root)
+    preview = report["sources"][0]["preview"]
+
+    assert preview["mapping"]["revision"] == {
+        "column": "oldid", "value": "", "url_template": REVISION_TEMPLATE,
+    }
+    assert preview["rows"][0]["source_revision"] == "6588944", (
+        "the declaration reaches the row it describes"
+    )
+
+
+def test_manifest_reads_the_whole_file_revision_form(tmp_path: Path) -> None:
+    from app.services.public_lexicon_joint_preview import preview_manifest
+
+    commit = "70dc6b68c855f21e666a7a291ff8ead5ca1f7b44"
+    root = tmp_path / "sources"
+    root.mkdir(parents=True)
+    (root / "words.csv").write_text("head\nabnormal\n", encoding="utf-8")
+    manifest = _manifest_with(root, {
+        "columns": {"word": "head"},
+        "encoding": "utf-8",
+        "revision": {
+            "value": commit,
+            "url_template": "https://github.com/exam-data/NETEMVocabulary/tree/{revision}",
+        },
+    })
+
+    report = preview_manifest(manifest, source_root=root)
+    preview = report["sources"][0]["preview"]
+
+    assert preview["mapping"]["revision"]["value"] == commit
+    assert preview["rows"][0]["source_revision"] == commit
+
+
+def test_a_manifest_without_a_revision_block_is_unchanged(tmp_path: Path) -> None:
+    """Old manifests keep working, and keep producing the mapping they always did."""
+    from app.services.public_lexicon_joint_preview import load_manifest, preview_manifest
+
+    root = tmp_path / "sources"
+    root.mkdir(parents=True)
+    (root / "words.csv").write_text("head,cn\nadmit,承认\n", encoding="utf-8")
+    manifest = _manifest_with(root, {
+        "columns": {"word": "head", "meaning": "cn"}, "encoding": "utf-8",
+    })
+
+    specs = load_manifest(manifest, source_root=root)
+    assert specs.sources[0].mapping.revision is None
+
+    preview = preview_manifest(manifest, source_root=root)["sources"][0]["preview"]
+    assert set(preview["mapping"]) == {
+        "columns", "required_fields", "encoding", "delimiter"
+    }
+    assert "source_revision" not in preview["rows"][0], (
+        "a source that declares no revision must produce the byte-identical report "
+        "it produced before the declaration existed"
+    )
+
+
+@pytest.mark.parametrize(("revision", "message"), [
+    ({"column": "oldid", "value": "1", "url_template": REVISION_TEMPLATE},
+     r"exactly one of column or value"),
+    ({"url_template": REVISION_TEMPLATE}, r"exactly one of column or value"),
+    ({"column": "oldid"}, r"needs a url_template"),
+    ({"column": "oldid", "url_template": "https://example.org/page"},
+     r"exactly one \{revision\} placeholder, found 0"),
+    ({"column": "oldid", "url_template": "http://example.org/{revision}"},
+     r"must start with https://"),
+    ({"column": "oldid", "url_template": "https://example.org/a b/{revision}"},
+     r"whitespace or a control character"),
+    ({"column": " oldid", "url_template": REVISION_TEMPLATE},
+     r"leading or trailing whitespace"),
+    ({"value": "70dc6b68\u0000", "url_template": REVISION_TEMPLATE},
+     r"control character"),
+    ({"column": "c" * 65, "url_template": REVISION_TEMPLATE},
+     r"longer than 64 characters"),
+    ({"column": "oldid", "url_template": "https://e.org/" + "a" * 400 + "{revision}"},
+     r"longer than 400 characters"),
+])
+def test_manifest_refuses_a_revision_that_could_not_produce_a_link(
+    tmp_path: Path, revision: dict, message: str
+) -> None:
+    """Every refusal names the source it came from."""
+    from app.services.public_lexicon_joint_preview import preview_manifest
+
+    root = tmp_path / "sources"
+    root.mkdir(parents=True)
+    (root / "words.csv").write_text("head,oldid\nadmit,6588944\n", encoding="utf-8")
+    manifest = _manifest_with(root, {
+        "columns": {"word": "head"}, "encoding": "utf-8", "revision": revision,
+    })
+
+    with pytest.raises(ValueError, match=f"source 'pinned' revision.*{message}"):
+        preview_manifest(manifest, source_root=root)
+
+
+def test_manifest_refuses_an_unknown_revision_key_rather_than_ignoring_it(
+    tmp_path: Path,
+) -> None:
+    """A typo must be named, not silently recorded as "no template"."""
+    from app.services.public_lexicon_joint_preview import preview_manifest
+
+    root = tmp_path / "sources"
+    root.mkdir(parents=True)
+    (root / "words.csv").write_text("head,oldid\nadmit,6588944\n", encoding="utf-8")
+    manifest = _manifest_with(root, {
+        "columns": {"word": "head"},
+        "encoding": "utf-8",
+        "revision": {
+            "column": "oldid", "url": "https://example.org/{revision}",
+            "url_template": REVISION_TEMPLATE,
+        },
+    })
+
+    with pytest.raises(ValueError) as error:
+        preview_manifest(manifest, source_root=root)
+    assert "unknown field(s) ['url']" in str(error.value)
+    assert "known fields are ['column', 'value', 'url_template']" in str(error.value)
+
+
+@pytest.mark.parametrize(("revision", "message"), [
+    ("CC BY-SA", r"revision must be an object"),
+    (["oldid"], r"revision must be an object"),
+    ({"column": 42}, r"revision\.column must be a string"),
+    ({"column": "oldid", "url_template": None},
+     r"revision\.url_template must be a string"),
+])
+def test_manifest_refuses_a_revision_block_of_the_wrong_shape(
+    tmp_path: Path, revision, message: str
+) -> None:
+    from app.services.public_lexicon_joint_preview import preview_manifest
+
+    root = tmp_path / "sources"
+    root.mkdir(parents=True)
+    (root / "words.csv").write_text("head,oldid\nadmit,6588944\n", encoding="utf-8")
+    manifest = _manifest_with(root, {
+        "columns": {"word": "head"}, "encoding": "utf-8", "revision": revision,
+    })
+
+    with pytest.raises(TypeError, match=f"source 'pinned' {message}"):
+        preview_manifest(manifest, source_root=root)
