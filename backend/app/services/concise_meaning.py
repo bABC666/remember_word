@@ -218,7 +218,19 @@ def propose(
     occupied = _slots(session, entry.id)
     created: list[EntryConciseMeaning] = []
     for proposal, text, locator, note in checked:
-        _require_evidence_belongs_to_entry(session, entry, proposal.source_evidence_id)
+        evidence = _require_evidence_belongs_to_entry(
+            session, entry, proposal.source_evidence_id
+        )
+        if proposal.provenance_kind == KIND_SOURCE:
+            recorded_texts = (
+                [evidence.raw_text] if evidence is not None
+                else [*entry.source_meanings, entry.source_raw]
+            )
+            if not any(text in recorded for recorded in recorded_texts if recorded):
+                raise ConciseMeaningRefused(
+                    f"「{text}」未见于该词的来源原文，不能标为来源逐字内容。"
+                    "若经过改写，请用 derived 并说明改动；若没有来源，请用 ai_supplement。"
+                )
         existing = occupied.get(proposal.display_order)
         if existing is not None:
             if existing.status == STATUS_CONFIRMED:
@@ -355,14 +367,14 @@ def _reject_row(
 
 def _require_evidence_belongs_to_entry(
     session: Session, entry: LexiconEntry, evidence_id: int | None
-) -> None:
+) -> EntrySourceEvidence | None:
     """A quote has to point at evidence of *this* word.
 
     Without this check a proposal could cite another word's evidence row and look
     sourced while saying nothing about this one.
     """
     if evidence_id is None:
-        return
+        return None
     evidence = session.get(EntrySourceEvidence, evidence_id)
     if evidence is None:
         raise ConciseMeaningRefused(f"证据行 {evidence_id} 不存在。")
@@ -370,6 +382,7 @@ def _require_evidence_belongs_to_entry(
         raise ConciseMeaningRefused(
             f"证据行 {evidence_id} 不属于词条「{entry.word}」，不能作为它的来源。"
         )
+    return evidence
 
 
 def _record(

@@ -304,6 +304,23 @@ def test_confirming_changes_no_source_field(admin) -> None:
     assert before == after
 
 
+def test_source_label_refuses_wording_absent_from_recorded_source(admin) -> None:
+    """A made-up locator cannot turn an AI supplement into a verbatim quote."""
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-false-quote", "cm-test-false-quote")
+        entry = _entry(session, lexicon, "recruit",
+                       source_meanings=["补充；恢复健康"],
+                       source_raw="recruit v. 补充；恢复健康")
+        with pytest.raises(ConciseMeaningRefused, match="来源原文"):
+            propose(
+                session, entry=entry,
+                proposals=[_proposal("招募", kind=KIND_SOURCE,
+                                     locator="primary:2")],
+                actor=_user(session, admin),
+            )
+        assert _rows(session, entry.id) == []
+
+
 def test_a_simplified_value_displays_simplified_while_the_source_keeps_traditional(
     admin,
 ) -> None:
@@ -504,13 +521,59 @@ def test_evidence_from_another_entry_is_refused(admin) -> None:
         assert "不属于词条" in str(error.value)
 
 
+def test_source_label_must_match_its_pointed_evidence(admin) -> None:
+    from app.models import EntrySourceEvidence, PublicImportRun, SourceArtifact
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-evidence-text", "cm-test-evidence-text")
+        entry = _entry(session, lexicon, "recruit", source_meanings=["招募"],
+                       source_raw="recruit v. 招募")
+        artifact = SourceArtifact(
+            role="primary", name="synthetic.csv", publisher="synthetic",
+            version="1", obtained_at_utc="2026-01-01T00:00:00Z",
+            format="delimited-text-v1", mapping_json="{}",
+            mapping_sha256="a" * 64, file_sha256="b" * 64,
+            license_id="synthetic", use_scope="local", display_scope="local",
+        )
+        session.add(artifact)
+        session.flush()
+        run = PublicImportRun(
+            plan_sha256="c" * 64, run_id="run-1", target_lexicon_id=lexicon.id,
+            confirmed_by_username="x", status="applied",
+        )
+        session.add(run)
+        session.flush()
+        evidence = EntrySourceEvidence(
+            lexicon_entry_id=entry.id, source_artifact_id=artifact.id,
+            import_run_id=run.id, normalized_word=entry.normalized_word,
+            row_locator=2, field_kind="meaning", sense_key="meaning@2",
+            raw_word=entry.word, raw_text="补充；恢复健康",
+            evidence_sha256="d" * 64, decision="selected",
+            selected_for_default=True,
+        )
+        session.add(evidence)
+        session.commit()
+
+        with pytest.raises(ConciseMeaningRefused, match="来源原文"):
+            propose(
+                session, entry=entry,
+                proposals=[ConciseMeaningProposal(
+                    text="招募", provenance_kind=KIND_SOURCE, display_order=1,
+                    source_locator="primary:2", source_evidence_id=evidence.id,
+                )],
+                actor=_user(session, admin),
+            )
+        assert _rows(session, entry.id) == []
+
+
 # --- nothing is shown until a human confirms it ------------------------------
 
 
 def test_an_unconfirmed_candidate_is_never_loaded(admin) -> None:
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-gate", "cm-test-gate")
-        entry = _entry(session, lexicon, "recruit")
+        entry = _entry(session, lexicon, "recruit",
+                       source_meanings=["招募；新兵"])
         rows = propose(
             session, entry=entry,
             proposals=[_proposal("招募", order=1), _proposal("新兵", order=2)],
@@ -534,7 +597,8 @@ def test_a_normal_user_cannot_propose_confirm_or_reject(admin, member) -> None:
 
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-authz", "cm-test-authz")
-        entry = _entry(session, lexicon, "cast")
+        entry = _entry(session, lexicon, "cast",
+                       source_meanings=["投掷；铸造"])
         row = propose(session, entry=entry, proposals=[_proposal("投掷")],
                       actor=_user(session, admin))
         confirm(session, meaning=row[0], confirmer=_user(session, admin))
@@ -566,7 +630,7 @@ def test_a_normal_user_cannot_propose_confirm_or_reject(admin, member) -> None:
 def test_confirming_twice_records_one_confirmation(admin) -> None:
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-idem", "cm-test-idem")
-        entry = _entry(session, lexicon, "awe")
+        entry = _entry(session, lexicon, "awe", source_meanings=["敬畏"])
         row = propose(session, entry=entry, proposals=[_proposal("敬畏")],
                       actor=_user(session, admin))[0]
         administrator = _user(session, admin)
@@ -583,7 +647,8 @@ def test_a_confirmed_value_is_replaced_by_withdrawal_not_by_overwrite(admin) -> 
 
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-replace", "cm-test-replace")
-        entry = _entry(session, lexicon, "turnover")
+        entry = _entry(session, lexicon, "turnover",
+                       source_meanings=["营业额；周转"])
         administrator = _user(session, admin)
         row = propose(session, entry=entry, proposals=[_proposal("营业额")],
                       actor=administrator)[0]
@@ -630,7 +695,7 @@ def test_a_confirmed_value_is_replaced_by_withdrawal_not_by_overwrite(admin) -> 
 def test_a_rejection_must_state_a_reason(admin) -> None:
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-note", "cm-test-note")
-        entry = _entry(session, lexicon, "menu")
+        entry = _entry(session, lexicon, "menu", source_meanings=["选单"])
         administrator = _user(session, admin)
         row = propose(session, entry=entry, proposals=[_proposal("选单")],
                       actor=administrator)[0]
@@ -646,7 +711,8 @@ def test_no_path_updates_or_deletes_the_history(admin) -> None:
 
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-append", "cm-test-append")
-        entry = _entry(session, lexicon, "reduction")
+        entry = _entry(session, lexicon, "reduction",
+                       source_meanings=["减少；缩减"])
         administrator = _user(session, admin)
 
         mutating: list[str] = []
