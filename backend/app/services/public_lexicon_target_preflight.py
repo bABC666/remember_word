@@ -26,6 +26,7 @@ PROVENANCE_FIELDS = (
 CONTENT_FIELDS = (
     "word", "phonetic", "part_of_speech", "source_meanings", "source_raw", "sequence",
 )
+UNAPPROVED_MARKERS = ("未获批准", "未经批准", "not approved", "unapproved")
 
 
 def preflight_target(
@@ -39,6 +40,11 @@ def preflight_target(
     blockers = list(plan.get("confirmation_blockers") or [])
     if plan.get("confirmation_ready") is not True and not blockers:
         blockers.append("plan_not_ready")
+    pending_sources = [
+        source["source_id"] for source in plan["sources"]
+        if _explicitly_unapproved(source.get("provenance") or {})
+    ]
+    blockers.extend(f"owner_approval_pending:{source_id}" for source_id in pending_sources)
     try:
         previews = _reverify_sources(plan, source_root=source_root)
         _reverify_evidence(previews, plan)
@@ -118,10 +124,19 @@ def preflight_target(
         counts["blocked"] += counts["new"] + counts["matched"]
         counts["new"] = counts["matched"] = 0
     return {
+        "authorization_review": {
+            "status": "pending_owner_approval" if pending_sources else "not_assessed",
+            "pending_sources": pending_sources,
+            "message": (
+                "来源声明明确写明未获批准；仍待负责人批准。机器预检不判断许可有效性。"
+                if pending_sources else
+                "来源元数据仅为提交者声明；机器预检未核实许可或负责人批准。"
+            ),
+        },
         "plan_sha256": plan["plan_sha256"], "database": str(db_path),
         "target": target, "sources": sources, "entries": entries, "prior_run": prior_run,
         "counts": counts, "blockers": list(dict.fromkeys(blockers)),
-        "ready_for_confirmation": not blockers,
+        "technical_preflight_passed": not blockers,
         "notice": "机器预检只报告差异；授权真实性与释义选择仍须人工核实。",
     }
 
@@ -136,6 +151,7 @@ def _has_tables(connection: sqlite3.Connection) -> bool:
 
 def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> dict[str, Any]:
     provenance = source.get("provenance") or {}
+    explicitly_unapproved = _explicitly_unapproved(provenance)
     row = connection.execute(
         "SELECT id, publisher, version, obtained_at_utc, license_id, "
         "license_text_sha256, use_scope, display_scope, storage_locator "
@@ -158,6 +174,9 @@ def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> di
         "file_sha256": source["file"]["sha256"],
         "mapping_sha256": source["mapping_sha256"],
         "declared_provenance": declared,
+        "declared_approval_state": (
+            "explicitly_unapproved" if explicitly_unapproved else "not_assessed"
+        ),
         "missing_provenance": missing_provenance_fields(provenance),
         "source_artifact_id": row["id"] if row else None,
         "artifact_status": (
@@ -165,3 +184,12 @@ def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> di
         ),
         "provenance_differences": differences,
     }
+
+
+def _explicitly_unapproved(provenance: dict[str, Any]) -> bool:
+    """Recognize a submitter's explicit unapproved label, not legal validity."""
+    return any(
+        marker in str(value).casefold()
+        for value in provenance.values()
+        for marker in UNAPPROVED_MARKERS
+    )

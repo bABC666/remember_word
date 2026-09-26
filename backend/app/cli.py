@@ -342,7 +342,7 @@ def command_public_lexicon_preflight_target(args: argparse.Namespace) -> int:
         print(f"目标公共词库预检失败：{error}", file=sys.stderr)
         return 2
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0 if report["ready_for_confirmation"] else 1
+    return 0 if report["technical_preflight_passed"] else 1
 
 
 def command_public_lexicon_confirm(args: argparse.Namespace) -> int:
