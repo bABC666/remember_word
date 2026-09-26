@@ -10,6 +10,7 @@ import hashlib
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from app.services.public_lexicon_preview import FIELDS, PreviewMapping, preview_file
@@ -18,6 +19,40 @@ FIELD_ORDER = ("word", "meaning", "phonetic", "part_of_speech")
 MAX_SOURCES = 8
 MAX_MANIFEST_BYTES = 256 * 1024
 MAX_JOINT_REPORT_BYTES = 32 * 1024 * 1024
+
+#: What a source must declare before its content may be written into the shared
+#: lexicon. The design asks for the source's name, publisher, version, acquisition
+#: time, licence, and the storage/processing/display scope it is allowed under, and
+#: is explicit that these are **recorded, not verified**: a fingerprint cannot make a
+#: licence claim true. What they must never be is empty. A row with a blank licence
+#: is an import nobody can audit later, and the cheapest place to refuse it is before
+#: it is written.
+PROVENANCE_REQUIRED_FIELDS = (
+    "publisher",
+    "version",
+    "obtained_at_utc",
+    "license_id",
+    "use_scope",
+    "display_scope",
+)
+
+#: Optional, but validated when present. ``license_text_sha256`` fingerprints the
+#: licence text when it ships as a file rather than a named licence; a manifest may
+#: name a licence (``license_id``) without one.
+PROVENANCE_OPTIONAL_FIELDS = ("license_text_sha256", "storage_locator")
+
+PROVENANCE_FIELDS = PROVENANCE_REQUIRED_FIELDS + PROVENANCE_OPTIONAL_FIELDS
+
+PROVENANCE_MAX_LENGTHS = {
+    "publisher": 200,
+    "version": 120,
+    "obtained_at_utc": 40,
+    "license_id": 80,
+    "license_text_sha256": 64,
+    "use_scope": 200,
+    "display_scope": 200,
+    "storage_locator": 400,
+}
 
 
 @dataclass(frozen=True)
@@ -30,6 +65,11 @@ class SourceSpec:
     #: source alone decides word membership. It stays optional here so manifests
     #: written before roles existed keep previewing; the plan loader requires it.
     role: str | None = None
+    #: The declared provenance block, or None when the manifest omits it. The
+    #: read-only comparison tolerates its absence -- evaluating a file before its
+    #: licence is settled is exactly what a preview is for -- while the plan reports
+    #: it as a blocker and confirmation refuses without it.
+    provenance: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if not self.source_id or self.source_id != self.source_id.strip():
@@ -40,13 +80,86 @@ class SourceSpec:
             raise ValueError("invalid_role: use a nonempty role name or omit it")
 
 
+def parse_provenance(source_id: str, value: object) -> dict[str, str] | None:
+    """Validate one manifest ``provenance`` block and normalise it.
+
+    Shape is enforced here, completeness is not: an unknown key is refused rather
+    than ignored (a typo like ``"license"`` would otherwise silently record nothing),
+    timestamps must parse and carry a timezone, and a licence fingerprint must be a
+    real SHA-256. Whether the required fields are *filled in* is the plan's decision,
+    because that is the artifact a human reviews before confirming.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise TypeError(f"invalid_manifest: source {source_id!r} provenance must be an object")
+    unknown = sorted(set(value) - set(PROVENANCE_FIELDS))
+    if unknown:
+        raise ValueError(
+            f"invalid_manifest: source {source_id!r} provenance has unknown field(s) "
+            f"{unknown}; known fields are {list(PROVENANCE_FIELDS)}"
+        )
+    normalised: dict[str, str] = {}
+    for field in PROVENANCE_FIELDS:
+        raw = value.get(field, "")
+        if not isinstance(raw, str):
+            raise TypeError(
+                f"invalid_manifest: source {source_id!r} provenance.{field} must be a string"
+            )
+        text = raw.strip()
+        limit = PROVENANCE_MAX_LENGTHS[field]
+        if len(text) > limit:
+            raise ValueError(
+                f"invalid_manifest: source {source_id!r} provenance.{field} exceeds {limit} characters"
+            )
+        if field == "obtained_at_utc" and text and _parse_instant(text) is None:
+            raise ValueError(
+                f"invalid_manifest: source {source_id!r} provenance.obtained_at_utc "
+                "must be an ISO-8601 instant with a timezone, e.g. 2026-09-25T00:00:00Z"
+            )
+        if field == "license_text_sha256" and text and not _is_sha256(text):
+            raise ValueError(
+                f"invalid_manifest: source {source_id!r} provenance.license_text_sha256 "
+                "must be 64 lowercase hex characters"
+            )
+        normalised[field] = text
+    return normalised
+
+
+def _parse_instant(text: str) -> datetime | None:
+    # Python 3.11's fromisoformat accepts the trailing "Z" itself, so no rewriting.
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def _is_sha256(text: str) -> bool:
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
+
+
+def missing_provenance_fields(provenance: dict[str, str] | None) -> list[str]:
+    """The required provenance fields a source has not filled in.
+
+    Sorted, and whitespace-only values count as missing, because the result goes into
+    a blocker string that is part of the plan digest: it has to be stable across runs
+    and it has to mean "declared" rather than "present as characters".
+    """
+    declared = provenance or {}
+    return sorted(
+        field for field in PROVENANCE_REQUIRED_FIELDS
+        if not declared.get(field, "").strip()
+    )
+
+
 @dataclass(frozen=True)
 class ManifestSpecs:
     """A parsed manifest plus the fingerprint of the bytes it was parsed from.
 
     The fingerprint matters because the plan is only reproducible when the exact
-    manifest that produced it is known; ``sources`` carries the declared roles,
-    which the read-only comparison ignores but the plan depends on.
+    manifest that produced it is known; ``sources`` carries the declared roles and
+    provenance, which the read-only comparison ignores but the plan depends on.
     """
 
     sources: list[SourceSpec]
@@ -194,6 +307,7 @@ def load_manifest(path: Path, *, source_root: Path) -> ManifestSpecs:
                 delimiter=item.get("delimiter", ","),
             ),
             role=role,
+            provenance=parse_provenance(item["id"], item.get("provenance")),
         ))
     return ManifestSpecs(
         sources=specs,

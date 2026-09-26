@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -537,3 +538,181 @@ class UserWordState(Base):
     @property
     def anchor(self) -> str:
         return self.anchor_override or self.entry.default_anchor
+
+
+# --- Phase 2.9: public lexicon import provenance -----------------------------
+#
+# These four tables record where shared public content came from and what a human
+# decided about it. They are append-only by construction: nothing in the confirm
+# path issues an UPDATE or a DELETE, so a later run that re-adjudicates the same
+# source value adds its own row instead of rewriting the earlier decision.
+#
+# Two deliberate deviations from the first draft of
+# ``docs/V1.2-PHASE2.9-CONFIRM-WRITE-DESIGN.md``, both in the direction the
+# repository already takes elsewhere (see migration 0007's delete semantics):
+#
+# * ``entry_source_evidence.lexicon_entry_id`` is ``ON DELETE SET NULL`` rather
+#   than ``CASCADE``. Evidence is an audit record of what a source said and what
+#   was decided about it; deleting an entry must not erase that record, and the
+#   row keeps its word identity through ``normalized_word``.
+# * the evidence unique key is ``(evidence_sha256, import_run_id)`` rather than
+#   ``evidence_sha256`` alone. Keying on the evidence alone would make a genuine
+#   re-adjudication either impossible or a rewrite of history.
+
+
+class SourceArtifact(Base):
+    """One source file, read through one mapping, in one declared role.
+
+    Identity is the file bytes plus the mapping, never the file name: the same
+    bytes re-labelled in a manifest are still the same input, and a different
+    mapping of the same file is a different one. A row is written once and never
+    updated -- a new file version or a new mapping is a new artifact.
+    """
+
+    __tablename__ = "source_artifact"
+    __table_args__ = (
+        UniqueConstraint(
+            "file_sha256", "mapping_sha256", "role", name="uq_source_artifact_identity"
+        ),
+        # The last line of defence for "no blank authorisation metadata". The plan
+        # blocks on incomplete provenance and the confirmation refuses it in words;
+        # this makes an artifact row with an empty publisher, version, acquisition
+        # time, licence or scope impossible to insert at all, whatever path tries.
+        CheckConstraint(
+            "length(trim(publisher)) > 0"
+            " AND length(trim(version)) > 0"
+            " AND length(trim(obtained_at_utc)) > 0"
+            " AND length(trim(license_id)) > 0"
+            " AND length(trim(use_scope)) > 0"
+            " AND length(trim(display_scope)) > 0",
+            name="ck_source_artifact_provenance_present",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    role: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(200))
+    publisher: Mapped[str] = mapped_column(String(200), default="")
+    version: Mapped[str] = mapped_column(String(120), default="")
+    obtained_at_utc: Mapped[str] = mapped_column(String(40), default="")
+    format: Mapped[str] = mapped_column(String(32), default="")
+    #: The frozen mapping this artifact was read through, and its fingerprint.
+    mapping_json: Mapped[str] = mapped_column(Text, default="")
+    mapping_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    file_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    byte_size: Mapped[int] = mapped_column(Integer, default=0)
+    #: Licence evidence. These record what a human declared, not what is true.
+    license_id: Mapped[str] = mapped_column(String(80), default="")
+    license_text_sha256: Mapped[str] = mapped_column(String(64), default="")
+    use_scope: Mapped[str] = mapped_column(String(200), default="")
+    display_scope: Mapped[str] = mapped_column(String(200), default="")
+    storage_locator: Mapped[str] = mapped_column(String(400), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PublicImportRun(Base):
+    """One administrator confirmation attempt, keyed by the plan it confirmed.
+
+    ``plan_sha256`` is unique because it is the retry key: confirming the same plan
+    twice must return the first run's result rather than write anything again.
+    """
+
+    __tablename__ = "public_import_run"
+    __table_args__ = (
+        UniqueConstraint("plan_sha256", name="uq_public_import_run_plan"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_sha256: Mapped[str] = mapped_column(String(64))
+    run_id: Mapped[str] = mapped_column(String(64))
+    target_lexicon_id: Mapped[int] = mapped_column(
+        ForeignKey("lexicon.id", ondelete="RESTRICT"), index=True
+    )
+    #: The confirming administrator. SET NULL on account deletion, with the name
+    #: kept as an immutable snapshot, so removing an account cannot silently erase
+    #: the record of who confirmed a public import.
+    confirmed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
+    confirmed_by_username: Mapped[str] = mapped_column(String(64), default="")
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    #: applied | already_applied | refused
+    status: Mapped[str] = mapped_column(String(16))
+    entries_created: Mapped[int] = mapped_column(Integer, default=0)
+    entries_matched: Mapped[int] = mapped_column(Integer, default=0)
+    evidence_written: Mapped[int] = mapped_column(Integer, default=0)
+    result_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    error_report_locator: Mapped[str] = mapped_column(String(400), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PublicImportRunSource(Base):
+    """Which artifacts one run used, and what happened to each."""
+
+    __tablename__ = "public_import_run_source"
+    __table_args__ = (
+        UniqueConstraint(
+            "import_run_id", "source_artifact_id", name="uq_public_import_run_source"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    import_run_id: Mapped[int] = mapped_column(
+        ForeignKey("public_import_run.id", ondelete="RESTRICT"), index=True
+    )
+    source_artifact_id: Mapped[int] = mapped_column(
+        ForeignKey("source_artifact.id", ondelete="RESTRICT"), index=True
+    )
+    #: created | reused  (whether this run was the first to record the artifact)
+    outcome: Mapped[str] = mapped_column(String(24))
+    detail: Mapped[str] = mapped_column(Text, default="")
+
+
+class EntrySourceEvidence(Base):
+    """Append-only record of one source field value and the decision taken on it.
+
+    Written inside the confirming transaction and never updated: ``raw_text`` is the
+    source's own text verbatim, and ``decision``/``selected_for_default`` say what a
+    human did with it. A later run that re-adjudicates the same source position
+    appends a new row carrying its own ``import_run_id`` and ``confirmed_at``, so the
+    earlier decision stays readable.
+    """
+
+    __tablename__ = "entry_source_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "evidence_sha256", "import_run_id", name="uq_entry_source_evidence"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    #: The entry this evidence was adopted into, when this run wrote one. NULL after
+    #: an entry is deleted, and for evidence recorded without an entry.
+    lexicon_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lexicon_entry.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    source_artifact_id: Mapped[int] = mapped_column(
+        ForeignKey("source_artifact.id", ondelete="RESTRICT"), index=True
+    )
+    import_run_id: Mapped[int] = mapped_column(
+        ForeignKey("public_import_run.id", ondelete="RESTRICT"), index=True
+    )
+    #: Keeps the word identity when no entry was written.
+    normalized_word: Mapped[str] = mapped_column(String(160), index=True)
+    #: Physical line number in the source file.
+    row_locator: Mapped[int] = mapped_column(Integer)
+    field_kind: Mapped[str] = mapped_column(String(24))
+    #: Identity of the sense within the row. One row carries one value per field in
+    #: this format, so the locator is the identity; a future format that yields
+    #: several senses per cell must extend this rather than reuse it.
+    sense_key: Mapped[str] = mapped_column(String(80))
+    raw_word: Mapped[str] = mapped_column(String(160), default="")
+    raw_text: Mapped[str] = mapped_column(Text, default="")
+    #: The plan's evidence idempotency key: file x mapping x line x field x value.
+    evidence_sha256: Mapped[str] = mapped_column(String(64))
+    #: selected | not_selected
+    decision: Mapped[str] = mapped_column(String(16))
+    selected_for_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    selection_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confirmed_by_username: Mapped[str] = mapped_column(String(64), default="")
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

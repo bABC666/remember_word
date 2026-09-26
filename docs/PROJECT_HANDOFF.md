@@ -12,7 +12,7 @@
 
 > **2026-09-25 最新合流验收与本地整合**：F-6 和只读真实数据预演报告经独立 worktree 汇入本地 `main`；原样 `scripts/check.ps1` exit 0，后端两轮均 601 passed / 1 skipped、前端 80 passed，合成 `data/` 4 文件零变化且合成 0007 baseline 核验通过。F-6 源分支隔离浏览器验收 32/32。生产库未写入，实例未因本次整合重启；确认写入、真实词库导入和真机验收未完成，Phase 2.9/3 仍未交付。
 
-> **2026-09-26 最新合流验收**：Phase 3 G8 设置页修复及 164 词机器试点报告已进入本地 `main`。独立 worktree 原样 `scripts/check.ps1` exit 0：后端两轮均 601 passed / 1 skipped，前端 84 passed，合成 `data/` 4 文件零变化。试点人工裁定栏仍为空；旧抽取规则漏掉的中文候选尚未确认为可用释义。`codex/phase-2-9-confirm-write` 已补授权声明必填并完成真实生产库副本的 0007→0008 迁移往返预演，但启动器隐式 `upgrade head` 和真实来源确认导入仍是阻断项；该分支未合入 `main`，生产库未迁移。
+> **2026-09-26 最新合流验收**：启动器迁移防护已单独合入并推送 `main`（`30afed9`），隔离 worktree 的 `scripts/check.ps1` exit 0：后端两轮均 625 passed / 1 skipped，前端 84 passed，合成 `data/` 4 文件零变化。`codex/phase-2-9-confirm-write` 的 `0008` 仍未合入；它已完成真实生产库副本的 schema 迁移往返预演，但真实来源确认导入、授权声明真实性及双用户副本验收仍是独立阻断项。生产库未迁移、未写入。
 
 > **2026-09-25 F-6 手机底栏源分支验收快照（随后已合流）**：分支 `codex/f6-mobile-bottom-nav` 当时从 `origin/main` = `93da75a` 建立，≤620px 底栏由 6 项改为 **5 项**（今日概览／今日学习／阅读练习／我的词库／「更多」），导入、设置、帮助与退出登录移入底栏之上的「更多」弹层；账号区块在手机档隐藏，**退出登录不再被挤出视口**；底栏条目补 `aria-label`（标签在 ≤900px 为 `display: none`，原本无可访问名称）。621–900px 图标栏与 ≥901px 桌面侧栏不变。源分支原样 `scripts/check.ps1` **exit 0**：后端 **601 passed / 1 skipped**、前端 **80 passed**、`data/` **200 文件零变化**、VERIFIED BACKUP（`vocab.db` sha256 `fe99e640…`）。隔离浏览器验收 **32/32**：断点 360/390/414/620/621/720/900/901/1280 扫描、5 项全部位于视口内且 ≥67×50、真实命中测试点击可导航、弹层四项可达、退出登录真的登出，并回归了详情返回状态（筛选与滚动 272→272）、账号隔离与 `/api/**` 不进缓存。**Android/iOS 真机未验收**（触摸、iOS 安全区像素、安装）；同轮发现手机宽度下设置页横向溢出（390px 视口下 `scrollWidth=961`），属既有缺口、本批未修，记为路线图 G8。细节见 `docs/2026-09-25-F6-BOTTOM-BAR-ACCEPTANCE.md`。
 
@@ -45,7 +45,7 @@
 | 门禁 | 1.2.0 发布基线历史结果：`scripts/check.ps1` **exit 0**；后端 **522 passed**（含 Batch 8 的 `test_staging_three_user_check.py` 9 项：Batch 10 修好该文件 recorder 的请求体竞态并加了 1 项确定性守卫）+ ruff 全通过 / 前端 **32 passed**；**Batch 12 只改测试说明与文档**（`frontend/src/security.test.tsx` 的测试名称/注释，断言与表单行为未变），门禁重跑 **exit 0**、隔离证明 `data/` **194 文件零变化**、VERIFIED BACKUP（`74442def…`） |
 | 数据 | revision **0007**、18 表 / 26 外键、`integrity_check=ok`、`foreign_key_check=0`、1 个用户（`admin`）；0007 **verified backup** 已存在；基线已从该备份重录（**本批未触碰生产库**） |
 | 运行实例 | ✅ 2026-09-24 已恢复本机 `127.0.0.1:8000` 实例：健康检查返回 `ok`，OpenAPI 版本 `1.2.0`。启动前核对端口、进程、显式数据库目标与 verified backup；启动脚本执行的 Alembic 当前为 0007。启动后数据库仍通过 0007、完整性、外键与 baseline 核验。`data/server.pid` 记录虚拟环境 Python 启动进程，实际监听的是其子进程；请以健康检查和进程链共同判断运行状态。 |
-| 下一步 | Phase 2.9：先加固 `start-vocab.ps1`，使数据库 revision 落后于代码时拒绝隐式迁移；再为现有真实来源清单补 `provenance`、设计并验证新版本维基词典抽取规则，逐词完成小批量人工裁定，在隔离副本上验收真实确认导入及双用户隔离。Phase 3：F-6 与设置页 G8 已整合，下一步是 Android/iOS 真机安装、软键盘和安全区验收。Phase 4 仍以后两阶段验收为前置。 |
+| 下一步 | Phase 2.9：为真实来源清单补经核实的 `provenance`，逐词完成人工裁定，并在隔离副本上验收真实确认导入及双用户隔离；`0008` 候选仍留在隔离分支。Phase 3：F-6 与设置页 G8 已整合，下一步是 Android/iOS 真机安装、软键盘和安全区验收。Phase 4 仍以后两阶段验收为前置。 |
 | 第一阅读文件 | `docs/PROJECT_STATUS_CURRENT.md`（接手入口）；协作规则见 `docs/AI_DEVELOPMENT_GUIDE.md` |
 
 **本文件的历史内容一律保留**：§0 事故规则、§5.x 认证细节、§9 已知限制、§12 后续动作均为长期有效记录，不要因为"看起来过时"而删除；有过时的**事实陈述**请就地更正并注明原因。
