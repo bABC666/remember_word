@@ -323,6 +323,30 @@ def test_the_refusal_names_both_revisions_and_the_likely_cost(tmp_path: Path) ->
     assert "Tables/rows" in result.stdout
 
 
+def test_the_refusal_lists_every_rehearsal_tool_that_exists(tmp_path: Path) -> None:
+    """The guidance must not name a stale migration.
+
+    It used to print one hard-coded tool, which is correct only until the next
+    migration lands -- and after 0009 it named a rehearsal that covers the first hop
+    of two. The list is now read from ``tools/``, so this asserts the advice matches
+    what is actually on disk.
+    """
+    behind = behind_head()
+    database = tmp_path / "rehearsals.db"
+    build_database(database, revision=behind, with_rows=True)
+
+    result = run_prepare(database)
+
+    assert result.returncode == 3
+    tools = sorted(
+        path.name
+        for path in (PROJECT_ROOT / "tools").glob("rehearsal_migration_*.py")
+    )
+    assert tools, "the repository ships rehearsal tools; the guidance must name them"
+    for tool in tools:
+        assert tool in result.stdout, f"{tool} is not offered by the refusal message"
+
+
 # --- 3. a previous migration attempt failed ----------------------------------
 
 

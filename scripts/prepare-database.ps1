@@ -70,8 +70,21 @@ function Write-Guidance {
     Write-Host '  1) Take a verified backup first (never migrate without one):'
     Write-Host "       python tools\verify_backup.py <backup-file> --baseline data\recovery\baseline.json"
     Write-Host '  2) Rehearse on an isolated clone (Level 2) and compare row counts and'
-    Write-Host '     per-row fingerprints before and after:'
-    Write-Host "       python tools\rehearsal_migration_0008.py --source `"$Database`""
+    Write-Host '     per-row fingerprints before and after. There is one rehearsal tool per'
+    Write-Host '     migration, and a tool named after a revision rehearses from the one'
+    Write-Host '     before it:'
+    # Listed rather than exemplified: a hard-coded tool name goes stale the moment
+    # another migration is added, and this message is only ever read by someone who
+    # is already being told not to guess.
+    $rehearsals = @(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'tools') `
+        -Filter 'rehearsal_migration_*.py' -Name -ErrorAction SilentlyContinue)
+    if ($rehearsals.Count -eq 0) {
+        Write-Host '       (none found in tools\; follow the runbook below)'
+    } else {
+        foreach ($tool in $rehearsals) {
+            Write-Host "       python tools\$tool --source `"$Database`""
+        }
+    }
     Write-Host '  3) Migrate with an EXPLICIT revision -- never `upgrade head` on real data:'
     Write-Host "       cd `"$RepositoryRoot\backend`""
     Write-Host "       .\.venv\Scripts\python.exe -m alembic -c alembic.ini -x `"db_url=sqlite:///$Database`" upgrade <revision>"
