@@ -26,7 +26,20 @@ PROVENANCE_FIELDS = (
 CONTENT_FIELDS = (
     "word", "phonetic", "part_of_speech", "source_meanings", "source_raw", "sequence",
 )
-UNAPPROVED_MARKERS = ("未获批准", "未经批准", "not approved", "unapproved")
+
+#: Substrings by which a submitter marks a source as *not yet approved*. This is a
+#: recogniser for a declaration, not a licence checker: the machine neither grants nor
+#: judges authorisation. It is a fixed list, so it can only ever be a signal -- which
+#: is why the report also says, unconditionally, that it did not assess authorisation.
+#: The forms below are the ones a Chinese or English manifest actually uses for "not
+#: approved" / "pending approval"; the earlier four-entry list missed ``未获批`` and a
+#: hyphenated ``not-approved``, both of which read as an ordinary declaration.
+UNAPPROVED_MARKERS = (
+    "未获批准", "未获批", "未经批准", "未批准", "未获授权", "未经授权",
+    "待批准", "待审批", "等待批准", "待负责人批准",
+    "not approved", "not-approved", "notapprove", "unapproved", "not authorized",
+    "not authorised", "pending approval", "pending owner approval", "awaiting approval",
+)
 
 
 def preflight_target(
@@ -56,6 +69,7 @@ def preflight_target(
     sources: list[dict[str, Any]] = []
     entries: list[dict[str, Any]] = []
     prior_run: dict[str, Any] | None = None
+    prior_run_other_target: dict[str, Any] | None = None
     ready = [entry for entry in plan["entries"] if entry["status"] == "ready"]
     counts = {
         "new": 0, "matched": 0,
@@ -64,19 +78,13 @@ def preflight_target(
     }
 
     db_path = Path(database).resolve(strict=True)
-    # mode=ro prevents writes even if a future caller accidentally issues DML.
-    with sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True) as connection:
+    read_mode, uri = _read_only_uri(db_path)
+    with sqlite3.connect(uri, uri=True) as connection:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA query_only=ON")
         if not _has_tables(connection):
             blockers.append("target_schema_missing: expected Phase 2.9 import tables")
         else:
-            previous = connection.execute(
-                "SELECT id, run_id FROM public_import_run WHERE plan_sha256 = ?",
-                (plan["plan_sha256"],),
-            ).fetchone()
-            if previous is not None:
-                prior_run = {"id": previous["id"], "run_id": previous["run_id"]}
             matches = connection.execute(
                 "SELECT id FROM lexicon WHERE owner_user_id IS NULL "
                 "AND visibility = 'public' AND name = ? ORDER BY id", (name.strip(),)
@@ -94,8 +102,38 @@ def preflight_target(
                 if source["artifact_status"] == "provenance_mismatch":
                     blockers.append(f"source_artifact_provenance_mismatch:{source['source_id']}")
 
+            # The retry key is the plan digest, and the digest carries the target's
+            # *name*, never its id. A run recorded against a different lexicon -- which
+            # is what a rename plus a new lexicon under the old name leaves behind --
+            # must not be reported as "already done here": the confirmation would then
+            # answer ``already_applied`` and write nothing to the target in front of the
+            # operator. It is reported on its own and it blocks.
+            previous = connection.execute(
+                "SELECT id, run_id, target_lexicon_id FROM public_import_run "
+                "WHERE plan_sha256 = ? ORDER BY id",
+                (plan["plan_sha256"],),
+            ).fetchall()
+            for row in previous:
+                record = {
+                    "id": row["id"], "run_id": row["run_id"],
+                    "target_lexicon_id": row["target_lexicon_id"],
+                }
+                if target["exists"] and row["target_lexicon_id"] == target["id"]:
+                    prior_run = record
+                else:
+                    prior_run_other_target = record
+            if prior_run_other_target is not None:
+                blockers.append("prior_run_target_mismatch")
+
             if target["exists"] and prior_run is None:
                 for entry in ready:
+                    if not isinstance(entry.get("default_snapshot"), dict):
+                        # A digest-recomputed plan can carry a null snapshot; the diff
+                        # cannot be computed, and that is a refusal, not a crash.
+                        blockers.append(
+                            f"malformed_snapshot:{entry['normalized_word']}"
+                        )
+                        continue
                     row = connection.execute(
                         "SELECT id, word, phonetic, part_of_speech, source_meanings, "
                         "source_raw, sequence FROM lexicon_entry "
@@ -134,11 +172,36 @@ def preflight_target(
             ),
         },
         "plan_sha256": plan["plan_sha256"], "database": str(db_path),
-        "target": target, "sources": sources, "entries": entries, "prior_run": prior_run,
+        "read_mode": read_mode,
+        "target": target, "sources": sources, "entries": entries,
+        "prior_run": prior_run,
+        "prior_run_other_target": prior_run_other_target,
         "counts": counts, "blockers": list(dict.fromkeys(blockers)),
         "technical_preflight_passed": not blockers,
         "notice": "机器预检只报告差异；授权真实性与释义选择仍须人工核实。",
     }
+
+
+def _read_only_uri(database: Path) -> tuple[str, str]:
+    """How to open the target without changing anything next to it.
+
+    ``mode=ro`` alone is not enough to call this read-only. Every database the
+    application has opened carries ``journal_mode=WAL`` in its header (``app/db.py``
+    sets it on connect), and SQLite still creates a ``-shm`` wal-index and a ``-wal``
+    beside such a file when it opens it -- two new files in a directory the report
+    describes as unchanged, and an outright failure on genuinely read-only media.
+
+    ``immutable=1`` avoids both, but it also makes SQLite ignore a ``-wal`` that is
+    present, which would answer from a stale snapshot: a database behind the code would
+    compare as current. So it is used only when there is no live ``-wal`` to lose, and
+    the live-WAL case keeps the plain read-only open. Which one was used is reported, so
+    a reader never has to infer it.
+    """
+    wal = Path(str(database) + "-wal")
+    live_wal = wal.exists() and wal.stat().st_size > 0
+    if live_wal:
+        return "read_only_with_live_wal", f"{database.as_uri()}?mode=ro"
+    return "immutable", f"{database.as_uri()}?mode=ro&immutable=1"
 
 
 def _has_tables(connection: sqlite3.Connection) -> bool:
@@ -187,9 +250,17 @@ def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> di
 
 
 def _explicitly_unapproved(provenance: dict[str, Any]) -> bool:
-    """Recognize a submitter's explicit unapproved label, not legal validity."""
-    return any(
-        marker in str(value).casefold()
-        for value in provenance.values()
-        for marker in UNAPPROVED_MARKERS
-    )
+    """Recognize a submitter's explicit unapproved label, not legal validity.
+
+    Case- and separator-insensitive: a manifest that writes ``not-approved`` or
+    ``NOT APPROVED`` is making the same declaration as one that writes ``not
+    approved``, and missing it would report a draft as an ordinary source. The report
+    keeps saying it did not assess authorisation either way.
+    """
+    for value in provenance.values():
+        text = str(value).casefold()
+        flattened = text.replace("-", "").replace("_", "").replace(" ", "")
+        for marker in UNAPPROVED_MARKERS:
+            if marker in text or marker.replace("-", "") in flattened:
+                return True
+    return False

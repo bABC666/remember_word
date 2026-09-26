@@ -344,7 +344,9 @@ def command_public_lexicon_preflight_target(args: argparse.Namespace) -> int:
     try:
         plan = load_plan(args.plan_path)
         report = preflight_target(args.database, plan=plan, source_root=args.source_root)
-    except (OSError, ValueError, KeyError, sqlite3.Error, PlanError, ConfirmRefused) as error:
+    except (
+        OSError, ValueError, TypeError, KeyError, sqlite3.Error, PlanError, ConfirmRefused,
+    ) as error:
         print(f"目标公共词库预检失败：{error}", file=sys.stderr)
         return 2
     print(json.dumps(report, ensure_ascii=False, indent=2))
