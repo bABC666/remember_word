@@ -64,4 +64,26 @@ describe('ConciseMeaningList', () => {
     const { container } = render(<ConciseMeaningList values={[]} />)
     expect(container.firstChild).toBeNull()
   })
+
+  it('names every confirmer, not just the first slot’s', () => {
+    render(<ConciseMeaningList values={[
+      meaning({ text: '高度', display_order: 1, confirmed_by: 'first-admin' }),
+      meaning({ text: '海拔', display_order: 2, confirmed_by: 'second-admin' }),
+    ]} />)
+    // Attributing the second value to the first slot's approver would credit someone
+    // who never saw it.
+    expect(screen.getByText('已由 first-admin、second-admin 人工确认')).toBeTruthy()
+  })
+
+  it('does not print a source position for a supplement even if one is present', () => {
+    // The server cannot produce this shape (a CHECK constraint forbids it); the
+    // component must not depend on that to stay honest.
+    render(<ConciseMeaningList values={[meaning({
+      text: '看似', provenance_kind: 'ai_supplement', provenance_label: '自拟补充',
+      is_source_verbatim: false, is_supplement: true, source_locator: 'primary:9',
+      derivation_note: '补充常见义',
+    })]} />)
+    expect(screen.getByText('自拟补充')).toBeTruthy()
+    expect(screen.queryByText(/来源位置/)).toBeNull()
+  })
 })

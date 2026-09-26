@@ -8,6 +8,7 @@ from app.api.helpers import article_dict, lookup_dict, word_dict_from_view
 from app.models import Article, ArticleWordExposure, ArticleWordLookup, LexiconEntry, UserWordState
 from app.schemas import ArticleGenerateRequest, ArticleJudgeRequest, ArticleLookupRequest
 from app.services.ai import AIProviderError, DeepSeekProvider
+from app.services.concise_meaning import entry_short_meanings
 from app.services.reading import (
     add_lookup_to_wordbook,
     complete_article,
@@ -64,9 +65,12 @@ def get_article(article_id: int, user: CurrentUser, session: SessionDep) -> dict
                 )
             ).all()
         }
+        short = entry_short_meanings(session, (entry.id for _state, entry in rows))
         payload["quiz_words"] = [
             {
-                **word_dict_from_view(WordView(state=state, entry=entry)),
+                **word_dict_from_view(
+                    WordView(state=state, entry=entry), short.get(entry.id)
+                ),
                 "context": contexts.get(entry.id, ""),
             }
             for state, entry in rows
@@ -208,5 +212,11 @@ def add_lookup_word(
     )
     return {
         "lookup": lookup_dict(lookup),
-        "word": word_dict_from_view(WordView(state=state, entry=entry)),
+        # The short, human-confirmed value travels with every word response: an empty
+        # list has to mean "nothing confirmed" and nothing else, so no endpoint may
+        # answer with the default and leave the client unable to tell the difference.
+        "word": word_dict_from_view(
+            WordView(state=state, entry=entry),
+            entry_short_meanings(session, [entry.id]).get(entry.id),
+        ),
     }

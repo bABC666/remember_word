@@ -202,6 +202,13 @@ def propose(
     it with a note, so a draft can be corrected before anyone approves it. A
     **confirmed** value is never replaced this way: it has to be withdrawn first,
     which is a separate, recorded decision.
+
+    Every check runs **before the first write**. ``ConciseMeaningRefused`` promises
+    that a refusal leaves the database exactly as it was, and that has to include the
+    other proposals of the same call: validating the first proposal, writing it, and
+    then refusing the second would leave half of a rejected proposal behind -- and
+    when the second one collides with a displayed value, would have carried out the
+    withdrawal before discovering it had to refuse.
     """
     administrator = _require_administrator(actor)
     at = _moment(moment)
@@ -216,7 +223,8 @@ def propose(
         raise ConciseMeaningRefused("同一个词条内展示位置不能重复。")
 
     occupied = _slots(session, entry.id)
-    created: list[EntryConciseMeaning] = []
+    #: proposal, stripped text, locator, note, the live row in its slot (if any).
+    prepared: list[tuple[ConciseMeaningProposal, str, str, str, EntryConciseMeaning | None]] = []
     for proposal, text, locator, note in checked:
         evidence = _require_evidence_belongs_to_entry(
             session, entry, proposal.source_evidence_id
@@ -232,13 +240,17 @@ def propose(
                     "若经过改写，请用 derived 并说明改动；若没有来源，请用 ai_supplement。"
                 )
         existing = occupied.get(proposal.display_order)
+        if existing is not None and existing.status == STATUS_CONFIRMED:
+            raise ConciseMeaningRefused(
+                f"第 {proposal.display_order} 位已经有一条已确认的释义"
+                f"「{existing.text}」，不能直接覆盖。"
+                "请先拒绝（撤回）它，再重新提交候选并确认。"
+            )
+        prepared.append((proposal, text, locator, note, existing))
+
+    created: list[EntryConciseMeaning] = []
+    for proposal, text, locator, note, existing in prepared:
         if existing is not None:
-            if existing.status == STATUS_CONFIRMED:
-                raise ConciseMeaningRefused(
-                    f"第 {proposal.display_order} 位已经有一条已确认的释义"
-                    f"「{existing.text}」，不能直接覆盖。"
-                    "请先拒绝（撤回）它，再重新提交候选并确认。"
-                )
             _reject_row(
                 session,
                 row=existing,
@@ -272,7 +284,6 @@ def propose(
             note=note,
             at=at,
         )
-        occupied[proposal.display_order] = row
         created.append(row)
     session.flush()
     return created

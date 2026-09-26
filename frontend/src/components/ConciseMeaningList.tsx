@@ -20,6 +20,10 @@ export function ConciseMeaningList({
 }) {
   if (!values.length) return null
   const meanings = [...values].sort((left, right) => left.display_order - right.display_order)
+  // Every slot carries its own confirmer, and different slots may have been approved
+  // by different people. Naming only the first one would attribute the rest to
+  // someone who never saw them.
+  const confirmers = [...new Set(meanings.map((meaning) => meaning.confirmed_by).filter(Boolean))]
   return (
     <section className="concise-meanings" aria-label={label}>
       <span className="concise-label">{label}</span>
@@ -35,14 +39,17 @@ export function ConciseMeaningList({
             {meaning.derivation_note && (
               <small className="concise-note">{meaning.derivation_note}</small>
             )}
-            {meaning.source_locator && (
+            {/* A supplement has no source position by construction; keying on the
+                flag as well as the field keeps the client honest on its own rather
+                than only because the server cannot produce that shape. */}
+            {!meaning.is_supplement && meaning.source_locator && (
               <small className="concise-locator">来源位置 {meaning.source_locator}</small>
             )}
           </li>
         ))}
       </ol>
       <small className="concise-confirmed-by">
-        已由 {meanings[0]?.confirmed_by || '管理员'} 人工确认
+        已由 {confirmers.join('、') || '管理员'} 人工确认
       </small>
     </section>
   )

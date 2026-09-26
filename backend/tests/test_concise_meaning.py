@@ -46,6 +46,8 @@ ADMIN_PASSWORD = "test-password-123"
 
 #: System lexicons this module created, so its teardown can remove them again.
 _created_lexicon_ids: list[int] = []
+#: Articles this module created, which carry exposures pointing at its entries.
+_created_article_ids: list[int] = []
 
 
 # --- fixtures and helpers ----------------------------------------------------
@@ -66,8 +68,9 @@ def _remove_synthetic_lexicons():
     and the artifact references are ``ON DELETE RESTRICT`` by design.
     """
     _created_lexicon_ids.clear()
+    _created_article_ids.clear()
     yield
-    if not _created_lexicon_ids:
+    if not _created_lexicon_ids and not _created_article_ids:
         return
     _delete_created_lexicons()
 
@@ -77,6 +80,8 @@ def _delete_created_lexicons() -> None:
 
     from app.db import get_session_factory
     from app.models import (
+        Article,
+        ArticleWordExposure,
         EntryConciseMeaning,
         EntryConciseMeaningRevision,
         EntrySourceEvidence,
@@ -90,10 +95,25 @@ def _delete_created_lexicons() -> None:
     )
 
     lexicon_ids = list(dict.fromkeys(_created_lexicon_ids))
+    article_ids = list(dict.fromkeys(_created_article_ids))
     with get_session_factory()() as session:
         entry_ids = list(session.scalars(
-            select(LexiconEntry.id).where(LexiconEntry.lexicon_id.in_(lexicon_ids))
+            select(LexiconEntry.id).where(LexiconEntry.lexicon_id.in_(lexicon_ids or [-1]))
         ))
+        # Exposures are counted globally by tests/test_reading_flow.py, so a row this
+        # module leaves behind fails an unrelated test that never mentions this one.
+        if entry_ids:
+            session.execute(delete(ArticleWordExposure).where(
+                ArticleWordExposure.lexicon_entry_id.in_(entry_ids)
+            ))
+        if article_ids:
+            session.execute(delete(ArticleWordExposure).where(
+                ArticleWordExposure.article_id.in_(article_ids)
+            ))
+            session.execute(delete(ReviewEvent).where(
+                ReviewEvent.article_id.in_(article_ids)
+            ))
+            session.execute(delete(Article).where(Article.id.in_(article_ids)))
         run_ids = list(session.scalars(
             select(PublicImportRun.id).where(
                 PublicImportRun.target_lexicon_id.in_(lexicon_ids)
@@ -566,6 +586,85 @@ def test_source_label_must_match_its_pointed_evidence(admin) -> None:
         assert _rows(session, entry.id) == []
 
 
+# --- a refusal must write nothing at all -------------------------------------
+#
+# ``ConciseMeaningRefused`` promises "Raised before any row is added, so a refusal
+# leaves the database exactly as it was". The two tests below are the cases where that
+# promise was false while the check that fails ran inside the write loop: an earlier
+# proposal in the same call had already been written, so a *refused* call could add a
+# candidate -- and, worse, withdraw a displayed value. The shipped CLI hid it by
+# rolling the transaction back; the service contract did not hold.
+#
+# Both tests therefore inspect the session **without** rolling it back. A
+# flushed-but-uncommitted row is exactly what the promise is about: any caller that
+# catches the refusal and then commits would keep it.
+
+
+def test_a_refused_proposal_writes_none_of_its_siblings(admin) -> None:
+    """A second bad proposal must not leave the first one behind."""
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-atomic-a", "cm-test-atomic-a")
+        entry = _entry(session, lexicon, "amber", source_meanings=["琥珀；琥珀色"],
+                       source_raw="amber n. 琥珀；琥珀色")
+        session.commit()
+        with pytest.raises(ConciseMeaningRefused) as error:
+            propose(
+                session, entry=entry,
+                proposals=[
+                    _proposal("琥珀", order=1),
+                    # Not in the recorded source text, so this one is refused.
+                    _proposal("招募", order=2),
+                ],
+                actor=_user(session, admin),
+            )
+        assert "来源原文" in str(error.value)
+        assert _rows(session, entry.id) == [], (
+            "a refused call must not leave the sibling proposal behind"
+        )
+        assert _revisions(session, entry.id) == []
+
+
+def test_a_refused_slot_conflict_does_not_withdraw_the_displayed_value(admin) -> None:
+    """A refusal must not turn a displayed value into a withdrawn one."""
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-atomic-b", "cm-test-atomic-b")
+        entry = _entry(session, lexicon, "turnover",
+                       source_meanings=["营业额；周转；周转率"],
+                       source_raw="turnover n. 营业额；周转；周转率")
+        displayed = propose(session, entry=entry,
+                            proposals=[_proposal("营业额", order=1)],
+                            actor=_user(session, admin))
+        confirm(session, meaning=displayed[0], confirmer=_user(session, admin))
+        # A live candidate in another slot, which the refused call would replace.
+        propose(session, entry=entry, proposals=[_proposal("周转", order=2)],
+                actor=_user(session, admin))
+        session.commit()
+
+        with pytest.raises(ConciseMeaningRefused) as error:
+            propose(
+                session, entry=entry,
+                proposals=[
+                    _proposal("周转率", kind=KIND_DERIVED, order=2, note="抽取单个义项"),
+                    # Slot 1 is already confirmed: this is the refusal.
+                    _proposal("周转", order=1),
+                ],
+                actor=_user(session, admin),
+            )
+        assert "已确认" in str(error.value)
+
+        by_slot = {row.display_order: row for row in _rows(session, entry.id)}
+        assert by_slot[1].status == STATUS_CONFIRMED, (
+            "a refused call must not withdraw the value that is on the page"
+        )
+        assert by_slot[1].text == "营业额"
+        assert by_slot[2].status == STATUS_CANDIDATE
+        assert by_slot[2].text == "周转"
+        assert len(by_slot) == 2, "a refused call must not add a row"
+        assert [
+            revision.action for revision in _revisions(session, entry.id)
+        ] == ["proposed", "confirmed", "proposed"]
+
+
 # --- nothing is shown until a human confirms it ------------------------------
 
 
@@ -837,6 +936,61 @@ def test_word_detail_and_list_include_the_confirmed_value(admin) -> None:
     )
     assert [item["text"] for item in listed["concise_meanings"]] == ["农村的"]
     assert listed["source_raw"] == "rural adj. 農村的"
+
+
+def test_every_word_response_reports_the_confirmed_value_or_nothing(admin) -> None:
+    """An empty list must mean "nothing confirmed" on every endpoint, not "not loaded".
+
+    The reading page's quiz answers come from ``GET /api/articles/{id}``, which used to
+    build its words without the short meanings and therefore answer ``[]`` for words
+    that do have confirmed values. A client cannot tell that apart from a genuine
+    absence, so the documented fallback signal stops meaning anything. This pins the
+    rule for the endpoints that return words without being the three study routes.
+    """
+    from app.api import helpers
+    from app.models import Article, ArticleWordExposure
+    from app.services.userdata import get_or_create_word_state
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-api-article", "cm-test-api-article")
+        entry = _entry(session, lexicon, "altitude", source_meanings=["高度；海拔"],
+                       source_raw="altitude n. 高度；海拔")
+        administrator = _user(session, admin)
+        get_or_create_word_state(session, administrator, entry)
+        row = propose(session, entry=entry, proposals=[_proposal("高度", order=1)],
+                      actor=administrator)[0]
+        confirm(session, meaning=row, confirmer=administrator)
+        article = Article(
+            user_id=administrator.id, title="synthetic", content="altitude",
+            target_words=["altitude"], completed=True,
+        )
+        session.add(article)
+        session.flush()
+        session.add(ArticleWordExposure(
+            article_id=article.id, lexicon_entry_id=entry.id,
+            context="synthetic context",
+        ))
+        session.commit()
+        article_id = article.id
+        entry_id = entry.id
+        # The session-scoped application database outlives this test, and
+        # tests/test_reading_flow.py counts exposures globally.
+        _created_article_ids.append(article_id)
+
+    article_body = admin.client.get(f"/api/articles/{article_id}")
+    assert article_body.status_code == 200, article_body.text
+    quiz = next(
+        item for item in article_body.json()["quiz_words"]
+        if item["lexicon_entry_id"] == entry_id
+    )
+    assert [item["text"] for item in quiz["concise_meanings"]] == ["高度"]
+
+    # And no caller may fall back to the default: a missing argument is not allowed to
+    # look like "nothing confirmed".
+    with pytest.raises(TypeError):
+        helpers.word_dict_from_view(  # type: ignore[call-arg]
+            type("V", (), {"state": None, "entry": None})()
+        )
 
 
 def test_two_users_share_the_short_meaning_and_keep_their_own_state(admin, member) -> None:

@@ -14,7 +14,7 @@ from app.services.userdata import WordView
 
 
 def word_dict_from_view(
-    view: WordView, concise_meanings: list[dict[str, Any]] | None = None
+    view: WordView, concise_meanings: list[dict[str, Any]] | None
 ) -> dict[str, object]:
     """Serialize lexicon content plus **this user's** learning state.
 
@@ -39,6 +39,11 @@ def word_dict_from_view(
     means "no confirmed short meaning" and is the client's signal to fall back; it is
     never filled in from ``source_meanings`` on the server, because then a client
     could not tell a reviewed value from an unreviewed one.
+
+    It has **no default**, and that is the point: a caller that forgets it would emit
+    an empty list for a word that does have a confirmed value, which is
+    indistinguishable from "nothing confirmed" and quietly turns the fallback signal
+    into a lie. Every caller loads the values it is about to return.
     """
     state = view.state
     entry = view.entry
