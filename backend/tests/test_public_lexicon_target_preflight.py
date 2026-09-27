@@ -47,6 +47,206 @@ def _plan(tmp_path: Path, token: str, target: str):
     )
 
 
+# --- a target whose schema cannot hold what the write would record ------------
+#
+# The confirmation writes ``entry_source_evidence.source_revision``, which migration
+# 0010 adds. Every other test in this module runs against a database built from the
+# ORM, so the column is always there and the *absent* case is invisible to them. A
+# real target can be behind: it can still be at 0009, or it can claim to be newer
+# while missing the column (a rebuild that dropped it, a hand-written schema, a
+# stamp applied without running the migration). The check therefore asks the
+# database what columns it has rather than trusting its recorded revision.
+#
+# These databases are built by the real Alembic revisions in a subprocess, the way
+# ``tests/test_entry_source_revision.py`` does, and they are explicitly *not* the
+# application's database: ``run_alembic`` is always given an absolute ``db_url`` and
+# its own ``VOCAB_DATA_DIR``. Nothing here approaches ``data/``.
+
+EVIDENCE_TABLE = "entry_source_evidence"
+REVISION_COLUMN = "source_revision"
+REVISION_0009 = "0009_entry_concise_meaning"
+REVISION_0010 = "0010_entry_source_revision"
+
+
+def _at_revision(tmp_path: Path, revision_name: str):
+    """A synthetic database migrated to one revision, plus its target-file helpers.
+
+    Returns the database, a callable that steps it further through the real
+    migrations, and the database's *name* -- the report identifies the target it read,
+    so a test must be able to say which file that was without comparing paths form.
+
+    One target per call, because ``alembic upgrade`` takes one: a caller that needs a
+    later revision passes the migration it wants the database to sit at.
+    """
+    from tests.conftest import run_alembic
+
+    staging = tmp_path / "app-data" / "staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    database = (staging / "target-0009.db").resolve()
+    declared_real = tmp_path / "app-data" / "declared-real"
+    declared_real.mkdir(exist_ok=True)
+
+    def _run(*arguments: str):
+        result = run_alembic(
+            database, *arguments,
+            extra_env={"VOCAB_REAL_DATA_DIR": str(declared_real)},
+        )
+        assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    _run("upgrade", revision_name)
+    return database, _run, database.name
+
+
+def _columns(database: Path, table: str) -> list[str]:
+    """The column names a database really has, read outside the preflight code."""
+    connection = sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)
+    try:
+        return [row[1] for row in connection.execute(f'pragma table_info("{table}")')]
+    finally:
+        connection.close()
+
+
+def _seed_target_lexicon(database: Path, name: str) -> None:
+    """A public system lexicon, written directly and before the read-only check runs.
+
+    A direct sqlite3 writer, not the application's engine: this database is a
+    synthetic file the test owns, and the point is that the preflight itself performs
+    no write of any kind. Confirmation of that is the byte and sidecar comparison each
+    test below makes *after* the report is produced.
+    """
+    connection = sqlite3.connect(str(database))
+    try:
+        connection.execute(
+            "INSERT INTO lexicon (owner_user_id, name, description, visibility, "
+            "source_type, entry_count, created_at, updated_at) "
+            "VALUES (NULL, ?, '', 'public', ?, 0, "
+            "'2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+            (name, f"test-{name}"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_a_0009_target_is_blocked_by_the_missing_revision_column(
+    admin, tmp_path: Path
+) -> None:
+    """The target is fully functional but cannot record the revision the write carries.
+
+    Everything else about this target is fine -- the import tables are there and the
+    named public lexicon exists -- so without the column check the report would say
+    the technical preflight passed, and confirmation would fail only at insert time
+    against a real database, after the operator had been told it was fine.
+    """
+    from app.services.public_lexicon_target_preflight import preflight_target
+
+    root, plan = _plan(tmp_path, "schema09", "schema-0009-public")
+    database, _step, _name = _at_revision(tmp_path, REVISION_0009)
+    _seed_target_lexicon(database, "schema-0009-public")
+
+    assert REVISION_COLUMN not in _columns(database, EVIDENCE_TABLE), (
+        "control: a 0009 database really does lack the column this slice depends on"
+    )
+    before_bytes = hashlib.sha256(database.read_bytes()).hexdigest()
+    before_files = _database_files(database)
+
+    report = preflight_target(database, plan=plan, source_root=root)
+
+    assert any(
+        blocker.startswith("target_schema_missing") and REVISION_COLUMN in blocker
+        for blocker in report["blockers"]
+    ), f"the blocker must name the missing column: {report['blockers']}"
+    assert f"{EVIDENCE_TABLE}.{REVISION_COLUMN}" in " ".join(report["blockers"]), (
+        "the blocker must name the cell, not just the column: an operator has to know "
+        "which table to migrate"
+    )
+    assert report["technical_preflight_passed"] is False, (
+        "a schema that cannot hold the record must not report a passing preflight"
+    )
+    assert report["target"]["exists"] is True, (
+        "the lexicon itself was found; the schema is what blocks"
+    )
+    assert hashlib.sha256(database.read_bytes()).hexdigest() == before_bytes
+    assert _database_files(database) == before_files
+
+
+def test_a_target_that_stamps_0010_without_the_column_is_still_blocked(
+    admin, tmp_path: Path
+) -> None:
+    """A recorded revision is a claim; the column is the fact.
+
+    ``alembic_version`` can say 0010 while the table lacks the column -- a rebuild
+    that dropped it, a hand-written schema, or a stamp applied without running the
+    migration. Reading the version and concluding the column is present is exactly how
+    a preflight passes and a later insert fails, so the check reads the table.
+    """
+    from app.services.public_lexicon_target_preflight import preflight_target
+
+    root, plan = _plan(tmp_path, "schema10x", "schema-0010x-public")
+    database, _step, _name = _at_revision(tmp_path, REVISION_0009)
+    connection = sqlite3.connect(str(database))
+    try:
+        connection.execute(
+            "UPDATE alembic_version SET version_num = ?", (REVISION_0010,)
+        )
+        connection.commit()
+        recorded = connection.execute(
+            "SELECT version_num FROM alembic_version"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    _seed_target_lexicon(database, "schema-0010x-public")
+
+    assert recorded == REVISION_0010, "control: the database claims to be at 0010"
+    assert REVISION_COLUMN not in _columns(database, EVIDENCE_TABLE), (
+        "control: the claim is false -- the column is not there"
+    )
+    before_bytes = hashlib.sha256(database.read_bytes()).hexdigest()
+
+    report = preflight_target(database, plan=plan, source_root=root)
+
+    assert any(
+        blocker.startswith("target_schema_missing") and REVISION_COLUMN in blocker
+        for blocker in report["blockers"]
+    ), f"the stamp must not stand in for the column: {report['blockers']}"
+    assert report["technical_preflight_passed"] is False
+    assert hashlib.sha256(database.read_bytes()).hexdigest() == before_bytes
+
+
+def test_a_0010_target_keeps_its_existing_preflight_result(admin, tmp_path: Path) -> None:
+    """The control: a target that really is at 0010 is unaffected by the new check.
+
+    Migrated by the real 0010 revision rather than built from the ORM, so this asserts
+    the check against the schema users actually get -- and that the column's presence
+    is the *only* thing the new blocker reacts to. Counts, target resolution and the
+    pass/fail verdict are the ones the rest of this module already pins.
+    """
+    from app.services.public_lexicon_target_preflight import preflight_target
+
+    root, plan = _plan(tmp_path, "schema10", "schema-0010-public")
+    database, _step, _name = _at_revision(tmp_path, REVISION_0010)
+    _seed_target_lexicon(database, "schema-0010-public")
+
+    assert REVISION_COLUMN in _columns(database, EVIDENCE_TABLE)
+    before_bytes = hashlib.sha256(database.read_bytes()).hexdigest()
+    before_files = _database_files(database)
+
+    report = preflight_target(database, plan=plan, source_root=root)
+
+    assert not [
+        blocker for blocker in report["blockers"]
+        if blocker.startswith("target_schema_missing")
+    ], f"a migrated 0010 target must not be blocked by the schema check: {report['blockers']}"
+    assert report["technical_preflight_passed"] is True
+    assert report["target"] == {
+        "exists": True, "id": report["target"]["id"], "name": "schema-0010-public",
+    }
+    assert report["target"]["id"] is not None
+    assert report["counts"] == {"new": 1, "matched": 0, "blocked": 0, "excluded": 1}
+    assert hashlib.sha256(database.read_bytes()).hexdigest() == before_bytes
+    assert _database_files(database) == before_files
+
+
 def test_preflight_reports_target_match_content_difference_and_never_writes(
     admin, tmp_path: Path
 ) -> None:

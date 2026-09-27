@@ -27,6 +27,14 @@ CONTENT_FIELDS = (
     "word", "phonetic", "part_of_speech", "source_meanings", "source_raw", "sequence",
 )
 
+#: The one column this preflight requires that the older schema does not have.
+#: Confirmation writes a pinned revision onto every evidence row (design 3.4), and
+#: migration 0010 is what gives ``entry_source_evidence`` that column. A target
+#: without it cannot hold what the write records, so the report has to say so before
+#: an operator reads a passing preflight and then watches an import fail on insert.
+EVIDENCE_TABLE = "entry_source_evidence"
+REVISION_COLUMN = "source_revision"
+
 #: Substrings by which a submitter marks a source as *not yet approved*. This is a
 #: recogniser for a declaration, not a licence checker: the machine neither grants nor
 #: judges authorisation. It is a fixed list, so it can only ever be a signal -- which
@@ -82,6 +90,11 @@ def preflight_target(
     with sqlite3.connect(uri, uri=True) as connection:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA query_only=ON")
+        # Asked unconditionally: a target can have every table this report reads and
+        # still lack the one column the confirmation writes, and the branch below is
+        # skipped entirely in that case -- which is how a 0009 database used to report
+        # passing counts with nothing able to record the revision.
+        blockers.extend(_schema_blockers(connection))
         if not _has_tables(connection):
             blockers.append("target_schema_missing: expected Phase 2.9 import tables")
         else:
@@ -210,6 +223,45 @@ def _has_tables(connection: sqlite3.Connection) -> bool:
         "('lexicon', 'lexicon_entry', 'source_artifact', 'public_import_run')"
     )}
     return found == {"lexicon", "lexicon_entry", "source_artifact", "public_import_run"}
+
+
+def _schema_blockers(connection: sqlite3.Connection) -> list[str]:
+    """What the target's *schema* lacks for the write this plan describes.
+
+    Asked of the database rather than of its recorded revision. ``alembic_version``
+    saying ``0010`` is a claim: the table can still lack the column -- a rebuild that
+    dropped it, a hand-written schema, or a stamp applied without running the
+    migration -- and reading the version to conclude otherwise is precisely how a
+    preflight passes while a later insert fails. So the columns are read, and the
+    blocker names the table and column so the operator knows what to migrate.
+
+    Read-only in the same sense as the rest of the report: one ``PRAGMA table_info``
+    over the connection the caller already opened. It cannot create a table, and the
+    target and its sidecar files are compared before and after in the tests.
+    """
+    table_exists = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
+        (EVIDENCE_TABLE,),
+    ).fetchone()
+    if table_exists is None:
+        return [
+            (
+                f"target_schema_missing: {EVIDENCE_TABLE} is absent; migration 0010 "
+                f"requires it and confirmation writes {EVIDENCE_TABLE}.{REVISION_COLUMN}"
+            )
+        ]
+    columns = {
+        row[1] for row in connection.execute(f'PRAGMA table_info("{EVIDENCE_TABLE}")')
+    }
+    if REVISION_COLUMN not in columns:
+        return [
+            (
+                f"target_schema_missing: {EVIDENCE_TABLE}.{REVISION_COLUMN} is absent; "
+                "migration 0010 adds it and the pinned revision of every evidence row is "
+                "written there, so this target cannot record what the confirmation writes"
+            )
+        ]
+    return []
 
 
 def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> dict[str, Any]:
