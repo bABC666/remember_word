@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
@@ -271,5 +272,60 @@ describe('EntrySourceList', () => {
     }))
 
     expect(screen.getByRole('list', { name: 'sense_note：已采用的来源' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * The field label is an `h3`, and so is every heading in the detail it sits in: the
+ * pre-existing `.word-detail section h3 { font: 600 24px Georgia, serif }` matched it too
+ * and, out-ranking the label's own rule, rendered it as a 24px serif heading. jsdom
+ * computes no cascade from the real sheet here, so the two properties that decide the
+ * outcome -- what the rule declares, and that it out-ranks the one it competes with --
+ * are asserted against the file. The measured proof is the browser walkthrough.
+ */
+describe('the field label rule', () => {
+  // Comments are stripped first: they sit between rules and would otherwise be read as
+  // part of the next selector.
+  const styles = readFileSync('src/styles.css', 'utf-8').replace(/\/\*[\s\S]*?\*\//g, '')
+
+  /** The declaration bodies of every rule whose selector list contains `selector`. */
+  const body = (selector: string) =>
+    [...styles.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+      .filter((match) => match[1].split(',').map((entry) => entry.trim().replace(/\s+/g, ' ')).includes(selector))
+      .map((match) => match[2])
+      .join(';')
+
+  /** [ids, classes and attributes, types] -- enough to order two such selectors. */
+  const specificity = (selector: string): [number, number, number] => [
+    (selector.match(/#[\w-]+/g) ?? []).length,
+    (selector.match(/\.[\w-]+|\[[^\]]*\]/g) ?? []).length,
+    (selector.match(/(?:^|[\s>+~])[a-z][\w-]*/gi) ?? []).length,
+  ]
+  const outranks = (a: number[], b: number[]) =>
+    a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2]
+
+  it('declares the intended 13px bold interface label', () => {
+    const declared = body('.entry-sources .field-source-name')
+    expect(declared).toContain('font-size: 13px')
+    expect(declared).toContain('font-weight: 700')
+    // The `font:` shorthand it competes with also sets a serif family, so the label
+    // takes the interface font back explicitly.
+    expect(declared).toContain('font-family: inherit')
+  })
+
+  it('out-ranks the detail heading rule that was overriding it', () => {
+    expect(body('.entry-sources .field-source-name'), 'the label rule must exist').not.toBe('')
+    const label = specificity('.entry-sources .field-source-name')
+    const heading = specificity('.word-detail section h3')
+    expect(outranks(label, heading), `${label} must out-rank ${heading}`).toBe(true)
+    // ...and that rule is untouched, so the headings it is meant for are unaffected.
+    expect(body('.word-detail section h3')).toContain('font: 600 24px Georgia, serif')
+  })
+
+  it('is scoped to the block, so no other heading is reached', () => {
+    // Nothing declares the label's font on a bare `.field-source-name`; the only bare
+    // `h3` rule in the sheet is the `margin-top: 0` reset every heading already had.
+    expect(body('.field-source-name')).toBe('')
+    expect(body('h3')).not.toMatch(/font-size|font-family|font-weight|font:/)
   })
 })

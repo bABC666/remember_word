@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookOpenCheck, CircleHelp, Database, ScanText, Sparkles, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 
 interface HelpCenterProps {
@@ -44,6 +45,13 @@ export function HelpCenter({ openRequest = 0 }: HelpCenterProps = {}) {
             <article><Sparkles size={20} /><div><h3>在阅读中再次遇见</h3><p>阅读文章不追求硬塞全部单词。自然语境、点词查询和阅读后判断共同形成长期记忆。</p></div></article>
             <article><Database size={20} /><div><h3>记录留在本机</h3><p>词库、复习历史、文章、翻译和查词记录都保存在本地 SQLite，并每天自动备份。</p></div></article>
           </div>
+          {/* The display design's third entry point to `/sources`: one line, and it says
+              what the page is -- a transcript of what an import recorded. It must not
+              read as a grant, so the sentence that keeps every other surface honest is
+              repeated here rather than left to the reader to infer. */}
+          <p className="help-sources">
+            词库内容的来源与许可声明，都记在<Link to="/sources" onClick={close}>数据来源与许可</Link>里，随时可以查看；那里只是如实转述导入时记录的声明，不代表授权已获确认。
+          </p>
           <footer><button className="button primary" disabled={dismiss.isPending} onClick={close}>{dismiss.isPending ? '正在保存…' : '开始使用'}</button></footer>
         </section>
       </div>}

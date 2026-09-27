@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
@@ -93,5 +93,37 @@ describe('App shell', () => {
     await userEvent.click(screen.getByRole('button', { name: '开始使用' }))
     expect(screen.queryByRole('dialog', { name: '欢迎使用拾词' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '使用说明' }).length).toBeGreaterThan(0)
+  })
+
+  it('reaches the recorded sources and licences from the help dialog', async () => {
+    // The display design's third entry point: one line in the help dialog.
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/lexicons')) return json([])
+      return signedInRoutes(url)
+    })
+    window.history.pushState({}, '', '/')
+    render(<App />)
+
+    const [helpEntry] = await screen.findAllByRole('button', { name: '使用说明' })
+    await userEvent.click(helpEntry)
+    const dialog = await screen.findByRole('dialog', { name: '欢迎使用拾词' })
+
+    const link = within(dialog).getByRole('link', { name: '数据来源与许可' })
+    expect(link).toHaveAttribute('href', '/sources')
+
+    // What the line may say: the record is a transcript. What it may not say: that
+    // anybody verified it, least of all that a licence has been granted.
+    const text = dialog.textContent ?? ''
+    expect(text).toMatch(/来源/)
+    for (const claim of ['已获授权', '符合 CC 要求', '官方授权']) {
+      expect(text, claim).not.toContain(claim)
+    }
+    expect(text).toContain('不代表授权已获确认')
+
+    await userEvent.click(link)
+    expect(await screen.findByRole('heading', { name: '数据来源与许可' })).toBeInTheDocument()
+    // Navigating away dismisses the dialog rather than leaving it over the page.
+    expect(screen.queryByRole('dialog', { name: '欢迎使用拾词' })).not.toBeInTheDocument()
   })
 })
