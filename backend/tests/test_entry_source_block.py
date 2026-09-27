@@ -506,6 +506,10 @@ def test_an_empty_revision_cell_answers_an_empty_link(admin, tmp_path: Path) -> 
             {"revision": {"column": "oldid", "value": "",
                           "url_template": "https://example.test/a b/{revision}"}}
         )),
+        ("dynamic-host", json.dumps(
+            {"revision": {"column": "oldid", "value": "",
+                          "url_template": "https://{revision}"}}
+        )),
     ],
 )
 def test_an_unusable_frozen_mapping_answers_an_empty_link(

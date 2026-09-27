@@ -154,7 +154,14 @@ function SourceCard({ row, lexiconId }: { row: SourceArtifactRow; lexiconId: num
   // this right on a fresh load and misses it on that path, so the card that owns the
   // anchor brings itself into view when the fragment names it.
   useEffect(() => {
-    if (decodeURIComponent(hash.replace(/^#/, '')) !== anchor) return
+    let fragment: string
+    try {
+      fragment = decodeURIComponent(hash.replace(/^#/, ''))
+    } catch (error) {
+      if (error instanceof URIError) return
+      throw error
+    }
+    if (fragment !== anchor) return
     card.current?.scrollIntoView({ block: 'start' })
   }, [hash, anchor])
 

@@ -13,6 +13,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 FIELDS = frozenset({"word", "meaning", "phonetic", "part_of_speech"})
 MAX_FILE_BYTES = 8 * 1024 * 1024
@@ -137,6 +138,21 @@ class RevisionDeclaration:
                 f"revision url_template {template!r} contains a placeholder other than "
                 f"{REVISION_PLACEHOLDER}, which would be left in the link verbatim"
             )
+        try:
+            parsed = urlsplit(template)
+            host = parsed.hostname
+            # Reading the port also rejects malformed fixed ports, including an
+            # out-of-range number, before a reader is offered a misleading link.
+            _ = parsed.port
+        except ValueError as error:
+            raise ValueError("revision url_template needs a fixed HTTPS host") from error
+        if (
+            not host or REVISION_PLACEHOLDER in parsed.netloc
+            or "\\" in parsed.netloc
+        ):
+            raise ValueError("revision url_template needs a fixed HTTPS host")
+        if REVISION_PLACEHOLDER not in parsed.path + parsed.query:
+            raise ValueError("revision url_template must put {revision} in the path or query")
 
     def as_mapping(self) -> dict[str, str]:
         """The frozen form, as it enters the mapping digest and ``mapping_json``.

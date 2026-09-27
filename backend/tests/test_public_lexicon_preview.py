@@ -493,6 +493,34 @@ def test_the_declaration_refuses_the_shapes_that_would_leave_a_link_undefined() 
         )
 
 
+@pytest.mark.parametrize("template", [
+    "https://{revision}",
+    "https://{revision}.example.org/page",
+    "https://user:{revision}@example.org/page",
+    "https://example.org:{revision}/page",
+    "https:///{revision}",
+])
+def test_revision_template_requires_a_fixed_https_host(template: str) -> None:
+    from app.services.public_lexicon_preview import RevisionDeclaration
+
+    with pytest.raises(ValueError, match="fixed HTTPS host"):
+        RevisionDeclaration(column="oldid", url_template=template)
+
+
+def test_revision_template_puts_placeholder_only_in_path_or_query() -> None:
+    from app.services.public_lexicon_preview import RevisionDeclaration
+
+    with pytest.raises(ValueError, match="path or query"):
+        RevisionDeclaration(
+            column="oldid", url_template="https://example.org/page#{revision}"
+        )
+    assert RevisionDeclaration(
+        column="oldid", url_template=WIKTIONARY_TEMPLATE
+    ).url_template == WIKTIONARY_TEMPLATE
+    github = "https://github.com/exam-data/NETEMVocabulary/tree/{revision}"
+    assert RevisionDeclaration(column="oldid", url_template=github).url_template == github
+
+
 def test_a_revision_column_cannot_also_be_a_canonical_field() -> None:
     """A source column is either lexicon content or revision metadata, not both.
 

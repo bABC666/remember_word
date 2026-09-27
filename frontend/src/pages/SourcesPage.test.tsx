@@ -242,6 +242,21 @@ describe('what the page shows', () => {
     }
   })
 
+  it.each(['%', '%E0%A4%A'])('ignores an undecodable fragment %s and keeps the page visible', async (fragment) => {
+    const original = Element.prototype.scrollIntoView
+    const scrolled: string[] = []
+    Element.prototype.scrollIntoView = function scrollIntoView() { scrolled.push(this.id) }
+    try {
+      window.history.pushState({}, '', `/sources#${fragment}`)
+      await openSources()
+      expect(await screen.findByRole('heading', { name: '数据来源与许可' })).toBeInTheDocument()
+      expect(await screen.findByRole('article', { name: /词表发布方甲/ })).toBeInTheDocument()
+      expect(scrolled).toEqual([])
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
   it('gives each lexicon its own anchor when one artifact is shared', async () => {
     await openSources()
 
