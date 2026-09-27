@@ -1151,6 +1151,160 @@ def test_a_recomputed_digest_cannot_rewrite_the_primary_raw_line(
     assert written == []
 
 
+def test_the_written_entry_identity_is_re_derived_from_the_written_word(
+    admin, tmp_path: Path
+) -> None:
+    """An edited ``normalized_word`` must be refused, not written as a new word.
+
+    ``normalized_word`` is not displayed, but it is written -- onto ``lexicon_entry``
+    and onto every evidence row -- and it is the value that decides *which* word the
+    import creates. Nothing re-derived it, so a hand-edited plan that recomputed its
+    own digest could store content that is honestly source-derived under an identity
+    no source declares: the entry count rose, the evidence rows agreed with the forged
+    identity, and no report said anything was wrong.
+    """
+    from app.models import LexiconEntry
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="ident", target="p29-ident",
+                       decisions=_standard_decisions("ident"))
+    ready = next(entry for entry in plan["entries"] if entry["status"] == "ready")
+    assert ready["normalized_word"] == _normalized("ident"), "control: the honest identity"
+    ready["normalized_word"] = "身份并不来自任何来源"
+    plan["plan_sha256"] = plan_digest(plan)
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "p29-ident", "p29-test-ident")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused, match="词身份"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+        entries = session.query(LexiconEntry).filter_by(lexicon_id=lexicon.id).all()
+
+    assert after == before, "a refused plan writes nothing at all"
+    assert after["evidence"] == before["evidence"], (
+        "and no evidence row may record that identity either"
+    )
+    assert entries == [], "no entry may carry an identity its own source never stated"
+
+
+def test_an_identity_aimed_at_a_word_the_lexicon_already_holds_is_refused(
+    admin, tmp_path: Path
+) -> None:
+    """The silent half of the same hole: an edited identity became an "ordinary conflict".
+
+    Pointing a ready word's identity at a spelling the target lexicon already holds
+    made the run report ``already_in_lexicon`` and write **nothing** -- ``applied``,
+    no error, and the word the operator meant to import simply absent from the public
+    lexicon. The refusal has to happen on the plan, not be reported as a conflict.
+    """
+    from app.models import EntrySourceEvidence, LexiconEntry
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    plan = _build_plan(root, token="collid", target="p29-collid",
+                       decisions=_standard_decisions("collid"))
+    ready = next(entry for entry in plan["entries"] if entry["status"] == "ready")
+    ready["normalized_word"] = "occupied"
+    plan["plan_sha256"] = plan_digest(plan)
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "p29-collid", "p29-test-collid")
+        held = LexiconEntry(
+            lexicon_id=lexicon.id, word="Occupied", normalized_word="occupied",
+            phonetic="", part_of_speech="", source_meanings=["既有释义"],
+            source_raw="Occupied,既有释义", sequence=1,
+        )
+        session.add(held)
+        session.commit()
+        before = _counts(session)
+        before_entry = (
+            held.id, held.word, held.normalized_word, list(held.source_meanings),
+            held.source_raw,
+        )
+        with pytest.raises(ConfirmRefused, match="词身份"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        session.refresh(held)
+        after = _counts(session)
+        after_entry = (
+            held.id, held.word, held.normalized_word, list(held.source_meanings),
+            held.source_raw,
+        )
+        # Scoped to the entry this plan would have written into: the session database is
+        # shared across this module, so other tests' evidence rows are beside it.
+        evidence = session.query(EntrySourceEvidence).filter_by(
+            lexicon_entry_id=held.id
+        ).all()
+        entries = session.query(LexiconEntry).filter_by(lexicon_id=lexicon.id).count()
+
+    assert after == before, "a refused plan writes nothing at all"
+    assert after_entry == before_entry, "the word already held must stay exactly as it was"
+    assert entries == 1, "only the pre-existing entry exists"
+    assert evidence == [], "no evidence may be recorded against a refused plan's target"
+
+
+def test_a_word_override_that_changes_the_spelling_still_confirms(
+    admin, tmp_path: Path
+) -> None:
+    """The legitimate case the derivation must not break.
+
+    A human may select the *word* field from a supplementary source, whose spelling of
+    the same word differs from the primary's. Both spellings normalize to the same
+    identity, so the identity is still exactly what the written word produces and the
+    plan confirms.
+    """
+    from app.models import LexiconEntry
+    from app.services.public_lexicon_confirm import confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "spell"
+    decisions = [
+        _select_primary(token),
+        _exclude_bare(token),
+        {
+            "normalized_word": _normalized(token), "field": "word", "action": "select",
+            "evidence": [{"source_id": "supplement", "line": 2}],
+            "note": "人工改选补充来源的显示拼写",
+        },
+    ]
+    plan = _build_plan(root, token=token, target="p29-spell", decisions=decisions)
+    ready = next(entry for entry in plan["entries"] if entry["status"] == "ready")
+    assert plan["confirmation_ready"] is True, plan["confirmation_blockers"]
+    # The point of the case: the display spelling is not the primary's, yet the
+    # identity is unchanged.
+    assert ready["default_snapshot"]["word"].strip() != f"Word{token}", (
+        "control: the override really did change the spelling"
+    )
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "p29-spell", "p29-test-spell")
+        result = confirm_plan(
+            session, plan=plan, administrator=_administrator(session, admin),
+            source_root=root,
+        )
+        entry = session.query(LexiconEntry).filter_by(
+            lexicon_id=lexicon.id, normalized_word=_normalized(token)
+        ).one()
+        written_word = entry.word
+
+    assert result["status"] == "applied"
+    assert result["entries_created"] == 1
+    assert written_word == ready["default_snapshot"]["word"]
+    assert written_word.strip().casefold() == _normalized(token)
+
+
 def test_a_malformed_snapshot_is_refused_rather_than_crashing(
     admin, tmp_path: Path
 ) -> None:

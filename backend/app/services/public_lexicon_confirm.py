@@ -57,6 +57,7 @@ from app.models import (
     SourceArtifact,
     User,
 )
+from app.services.concise_meaning import normalize_word
 from app.services.public_lexicon_joint_preview import (
     FIELD_ORDER,
     missing_provenance_fields,
@@ -401,6 +402,12 @@ def _reverify_written_values(
     first is stored; the meanings have to be the declared list exactly, in order. A
     ``no_default`` decision genuinely selects nothing, so an empty declaration
     constrains nothing.
+
+    The entry's **identity** (``normalized_word``) is re-derived too, from the word
+    this run would write and under the plan's own ``strip_casefold_v1`` rule. It is
+    not a displayed value, but it is written -- to ``lexicon_entry`` and to every
+    evidence row -- so it is exactly as much a claim about the source as the meanings
+    are, and the one claim that decides which word an import creates.
     """
     snapshot = entry.get("default_snapshot")
     word = entry["normalized_word"]
@@ -458,6 +465,29 @@ def _reverify_written_values(
                 f"{word!r} 计划要写入的 {field} 值 {written!r} 不在它声明选中的证据 "
                 f"{allowed} 中，拒绝确认；请重新预览并重新裁定。"
             )
+
+    # The identity is written too -- onto ``lexicon_entry`` and onto every evidence
+    # row -- so it is re-derived from the word this run would write, under the same
+    # rule the plan generated it with. Without this the one value that decides *which
+    # word* an import creates was the one value nothing proved: an edited identity was
+    # accepted while the content stayed honestly source-derived, so the plan could
+    # write a word no source declares, with evidence that agrees with it, or aim a
+    # word at a spelling the target already holds and have the entry reported as an
+    # ordinary conflict and never written at all.
+    #
+    # The written word is already proven above to be one of the selected spellings,
+    # and a human's override may change the spelling legitimately (both spellings
+    # normalize to the same identity), so deriving the expected identity from
+    # ``snapshot["word"]`` accepts every honest plan and still refuses an identity
+    # that no spelling the plan declares could produce.
+    expected_identity = normalize_word(str(snapshot.get("word") or ""))
+    if word != expected_identity:
+        raise ConfirmRefused(
+            f"计划要为词形 {str(snapshot.get('word'))!r} 写入词身份 {word!r}，"
+            f"但它按生成计划时的规则应当是 {expected_identity!r}，拒绝确认；"
+            "身份决定词条的 (lexicon_id, normalized_word) 唯一键、以及每行证据记录"
+            "的是哪个词，不能由计划任意指定；请重新预览并重新裁定。"
+        )
 
 
 def _value_at(preview: dict[str, Any], line: int, field: str) -> str | None:
