@@ -52,6 +52,7 @@ function short(overrides: Partial<ConciseMeaning> = {}): ConciseMeaning {
     is_source_verbatim: false,
     is_supplement: false,
     source_locator: 'zhwiktionary:12',
+    source_evidence_id: null,
     derivation_note: '来源为「農村的」，此处为简体转换',
     confirmed_by: 'owner',
     confirmed_at: '2026-09-26T00:00:00Z',

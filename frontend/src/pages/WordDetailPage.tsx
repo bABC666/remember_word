@@ -4,6 +4,7 @@ import { ArrowLeft, Clock3, TriangleAlert } from 'lucide-react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { ConciseMeaningList } from '../components/ConciseMeaningList'
+import { EntrySourceList } from '../components/EntrySourceList'
 import { MeaningList } from '../components/MeaningList'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { statusLabels, type LibraryPosition, type WordDetail } from './wordDetailModel'
@@ -40,6 +41,11 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
           <details className="source-raw"><summary>查看原书原文</summary><pre>{word.source_raw}</pre></details>
         )}
       </section>
+      {/* Placed after the source's own text, so a reader who doubts a value meets the
+          record of where it came from next. The concise blocks above keep their own
+          labels: a rewritten or self-authored short value is never presented as the
+          source's words, and this block does not change that. */}
+      <EntrySourceList sources={word.sources} />
       <div className="detail-stats">
         <div><strong>{word.recall_success}</strong><span>成功回忆</span></div>
         <div><strong>{word.recall_fail}</strong><span>回忆失败</span></div>

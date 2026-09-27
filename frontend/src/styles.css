@@ -271,3 +271,35 @@ h1, h2, h3, p { margin-top: 0; }
   .lexicon-section { padding: 18px 16px; }
 }
 
+/* --- Phase 2.9: the per-word source record ---------------------------------
+   The block beside the values on the word detail: which source each field came
+   from, and the two states a row can be in. An adopted row is a solid card, an
+   unadopted one is dashed and sits behind its own summary, so the two cannot be
+   read as the same thing at a glance -- the distinction the whole block exists
+   for.  Tracks are `minmax(0, 1fr)` throughout: a raw source line is exactly the
+   long unbreakable text that widens a page on a phone (G8). */
+.entry-sources { margin-top: 22px; }
+.source-state { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.field-source { margin-top: 16px; }
+.field-source-name { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #4b5468; }
+.source-rows { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; }
+.source-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: #fbfbfc; }
+.source-row.unadopted { border-style: dashed; background: transparent; }
+.source-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.source-row-head strong { font-size: 13px; overflow-wrap: anywhere; }
+.source-role, .source-decision { padding: 2px 7px; border-radius: 999px; background: #eef0f4; color: #687184; font-size: 10px; }
+.source-decision { background: var(--green-soft); color: var(--green); }
+.source-decision.unadopted { background: var(--amber-soft); color: #8a5f16; }
+.source-row-text { margin: 2px 0 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.source-row-meta, .source-row-revision, .source-row-nolink { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.source-row-nolink { color: #8a5f16; }
+.source-row-link, .source-row-card { font-size: 12px; font-weight: 650; color: var(--indigo); }
+.source-row-link { margin-top: 3px; }
+.source-row-card { justify-self: start; }
+.source-candidates { margin-top: 8px; }
+.source-candidates > summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.source-candidates > ul { margin-top: 10px; }
+
+@media (max-width: 620px) {
+  .source-row { padding: 11px 12px; }
+}

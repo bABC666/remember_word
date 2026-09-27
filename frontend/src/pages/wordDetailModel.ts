@@ -1,4 +1,4 @@
-import type { Word } from '../types'
+import type { EntrySources, Word } from '../types'
 
 export type WordDetail = Word & {
   review_history: Array<{
@@ -16,6 +16,12 @@ export type WordDetail = Word & {
     first_exposed_at?: string | null
     last_exposed_at?: string | null
   }>
+  /**
+   * The entry's per-field source record. `GET /api/words/state/{id}` always carries
+   * it; the legacy `GET /api/words/{id}` route does not, and no component here renders
+   * that route's payload.
+   */
+  sources: EntrySources
 }
 
 export type LibraryPosition = {

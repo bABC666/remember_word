@@ -42,6 +42,59 @@ const detail = {
     exposure_count: 3, first_exposed_at: '2026-09-21T00:00:00Z',
     last_exposed_at: '2026-09-23T00:00:00Z',
   }],
+  // The per-field source record the state route always carries. The word came from the
+  // primary source at a pinned revision; the adopted meaning came from another source
+  // that recorded no revision, and the primary's own meaning was recorded without
+  // being adopted. No evidence row repeats a value asserted elsewhere in this file, so
+  // an assertion that used to find one element still finds one.
+  sources: {
+    fields: [
+      {
+        field_kind: 'word',
+        selected: [{
+          source_evidence_id: 31, field_kind: 'word', row_locator: 2, sense_key: 'word@2',
+          raw_text: 'amber', decision: 'selected', selected_for_default: true,
+          selection_order: 0, source_revision: '6588944',
+          source_revision_url: 'https://zh.wiktionary.org/w/index.php?oldid=6588944',
+          source: {
+            source_artifact_id: 3, role: 'primary', name: 'primary.csv',
+            publisher: '考试词表发布方', version: '2026-09-25', license_id: 'CC-BY-SA-4.0',
+          },
+        }],
+        candidates: [],
+      },
+      {
+        field_kind: 'meaning',
+        selected: [{
+          source_evidence_id: 32, field_kind: 'meaning', row_locator: 2, sense_key: 'meaning@2',
+          raw_text: '琥珀色的', decision: 'selected', selected_for_default: true,
+          selection_order: 0, source_revision: '', source_revision_url: '',
+          source: {
+            source_artifact_id: 4, role: 'meaning', name: 'supplement.csv',
+            publisher: '补充来源整理者', version: '2026-09-25', license_id: 'CC-BY-NC-SA-4.0',
+          },
+        }],
+        candidates: [{
+          source_evidence_id: 33, field_kind: 'meaning', row_locator: 2, sense_key: 'meaning@2',
+          raw_text: '琥珀；树脂化石', decision: 'not_selected', selected_for_default: false,
+          selection_order: null, source_revision: '1111111',
+          source_revision_url: 'https://zh.wiktionary.org/w/index.php?oldid=1111111',
+          source: {
+            source_artifact_id: 3, role: 'primary', name: 'primary.csv',
+            publisher: '考试词表发布方', version: '2026-09-25', license_id: 'CC-BY-SA-4.0',
+          },
+        }],
+      },
+    ],
+    completeness: {
+      status: 'incomplete',
+      missing: [{
+        code: 'source_revision_missing', field_kind: 'meaning',
+        message: '字段「meaning」的采用来源没有记录固定修订号',
+      }],
+      message: '该词条的来源记录不完整：字段「meaning」的采用来源没有记录固定修订号。',
+    },
+  },
 }
 
 const me = (id: number) => ({
@@ -373,6 +426,59 @@ describe('mobile library detail', () => {
     await userEvent.click(row)
     expect(window.location.pathname).toBe('/library')
     expect(await screen.findByText('琥珀；一种由古代树脂形成的黄色物质')).toBeInTheDocument()
+    // The right-hand panel is the other entry that reuses the detail component, so the
+    // source record has to appear there too.
+    expect(await screen.findByRole('region', { name: '来源记录' })).toBeInTheDocument()
+  })
+
+  it('shows the per-field sources through the reused detail entry', async () => {
+    window.history.replaceState({}, '', '/library/42')
+    mockApi()
+    render(<App />)
+
+    const record = await screen.findByRole('region', { name: '来源记录' })
+    const wordRows = within(record).getByRole('list', { name: '单词：已采用的来源' })
+    const meaningRows = within(record).getByRole('list', { name: '释义：已采用的来源' })
+    const meaningCandidates = within(record).getByRole('list', { name: '释义：未采用的候选' })
+
+    // The word came from the primary source, and its row carries the link to the exact
+    // revision it was read at.
+    expect(within(wordRows).getByText('考试词表发布方')).toBeInTheDocument()
+    expect(within(wordRows).getByText('amber')).toBeInTheDocument()
+    expect(within(wordRows).getByRole('link', { name: /固定修订/ })).toHaveAttribute(
+      'href', 'https://zh.wiktionary.org/w/index.php?oldid=6588944',
+    )
+    // ...and the internal link to that source's card on the sources page.
+    expect(within(wordRows).getByRole('link', { name: '来源详情' })).toHaveAttribute(
+      'href', '/sources#source-3',
+    )
+
+    // The meaning came from a different source: its publisher must not appear as the
+    // origin of the word, nor the word's as the origin of the meaning.
+    expect(within(meaningRows).getByText('补充来源整理者')).toBeInTheDocument()
+    expect(within(meaningRows).getByRole('link', { name: '来源详情' })).toHaveAttribute(
+      'href', '/sources#source-4',
+    )
+    expect(within(wordRows).queryByText('补充来源整理者')).not.toBeInTheDocument()
+
+    // The primary's own meaning was recorded and not adopted, so it is listed as a
+    // candidate and nowhere near the adopted value.
+    expect(within(meaningCandidates).getByText('琥珀；树脂化石')).toBeInTheDocument()
+    expect(within(meaningCandidates).getByText('未采用')).toBeInTheDocument()
+    expect(within(meaningRows).queryByText('琥珀；树脂化石')).not.toBeInTheDocument()
+
+    // The recorded revision is missing for that row, so no link is built for it and the
+    // state is said out loud instead.
+    expect(within(meaningRows).getByText(/没有记录固定修订号/)).toBeInTheDocument()
+    expect(within(meaningRows).queryByRole('link', { name: /固定修订/ })).not.toBeInTheDocument()
+
+    // A partial record says so, and the declaration is quoted as a declaration.
+    expect(within(record).getByText(/该词条的来源记录不完整/)).toBeInTheDocument()
+    expect(within(record).getByText('以上是导入时记录的来源声明，不代表授权已获确认。')).toBeInTheDocument()
+
+    // The source's own line and the full meanings are still on the page.
+    expect(screen.getByText('琥珀；一种由古代树脂形成的黄色物质')).toBeInTheDocument()
+    expect(screen.getByText('查看原书原文')).toBeInTheDocument()
   })
 
   it('shows an owned-word-safe 404 on a direct detail visit', async () => {

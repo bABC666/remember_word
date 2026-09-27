@@ -19,6 +19,18 @@ export interface ConciseMeaning {
   is_supplement: boolean
   /** `primary:12`-style position in the source, empty for a supplement. */
   source_locator: string
+  /**
+   * The evidence row this wording was proposed against, or null when it has none: a
+   * supplement is structurally forbidden from carrying one, and a value proposed
+   * before an import recorded evidence has only `source_locator`.
+   *
+   * Declared but deliberately not consumed by the page yet. A derived or quoted value
+   * may cite a row the import recorded and did **not** adopt, so linking a displayed
+   * value to a source from this id alone would be the very mistake the display design
+   * warns about -- an unadopted candidate standing in as the origin of what is shown.
+   * Reading it correctly means checking the row against `sources.fields`.
+   */
+  source_evidence_id: number | null
   /** What was changed, or why a supplement was added. */
   derivation_note: string
   confirmed_by: string
@@ -118,4 +130,69 @@ export interface ArticleWordLookup {
   source: 'wordbook' | 'ai'
   added_word_id: number | null
   created_at: string
+}
+
+/** One source value the import recorded for one field, and what it decided about it. */
+export interface SourceEvidence {
+  source_evidence_id: number
+  /** `word` | `meaning` | `phonetic` | `part_of_speech`, as the import recorded it. */
+  field_kind: string
+  /** Physical line in the source file the value was read from. */
+  row_locator: number
+  sense_key: string
+  /** The source's own text for this field, verbatim. */
+  raw_text: string
+  /** `selected` | `not_selected`, mirroring `selected_for_default`. */
+  decision: string
+  /** Whether the written content came from this row. The field the split is made on. */
+  selected_for_default: boolean
+  selection_order: number | null
+  /** The pinned revision of the source page, or empty when none was recorded. */
+  source_revision: string
+  /**
+   * The server's back-check link for that exact revision, or empty when it could not
+   * build one honestly: no revision was recorded, or the frozen mapping declares no
+   * usable template. Never a partial URL, and never something a client should assemble
+   * -- an empty string means "show the state, offer no link".
+   */
+  source_revision_url: string
+  /** What the import recorded about the artifact this row belongs to. */
+  source: {
+    source_artifact_id: number
+    role: string
+    name: string
+    publisher: string
+    version: string
+    license_id: string
+  }
+}
+
+/**
+ * One field's evidence, with the rows a human adopted kept apart from the rest.
+ *
+ * The import records a row for every value it considered, so `candidates` is not
+ * noise: it is what a reader may consult. It is a separate list because a row nobody
+ * adopted must never stand beside the value that is actually displayed.
+ */
+export interface SourceFieldGroup {
+  field_kind: string
+  selected: SourceEvidence[]
+  candidates: SourceEvidence[]
+}
+
+/**
+ * Which item of the source record is missing, in the server's own words.
+ *
+ * `status` is `complete` only when every adopted row has a revision and a link, so an
+ * empty `fields` list cannot be mistaken for "nothing to say".
+ */
+export interface SourceCompleteness {
+  status: 'complete' | 'incomplete'
+  missing: Array<{ code: string; field_kind: string; message: string }>
+  message: string
+}
+
+export interface EntrySources {
+  fields: SourceFieldGroup[]
+  completeness: SourceCompleteness
 }

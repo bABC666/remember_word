@@ -12,6 +12,7 @@ function meaning(overrides: Partial<ConciseMeaning> = {}): ConciseMeaning {
     is_source_verbatim: true,
     is_supplement: false,
     source_locator: 'zhwiktionary:4',
+    source_evidence_id: null,
     derivation_note: '',
     confirmed_by: 'owner',
     confirmed_at: '2026-09-26T00:00:00Z',
