@@ -586,6 +586,147 @@ def make_world(isolated_application_engine):
 
 
 @pytest.fixture()
+def created_lexicon_cleanup():
+    """Remove the lexicon content **one test created**, and nothing else.
+
+    ``confirm_plan`` writes to the session-scoped application database by design: the
+    import tests exercise a real confirmation, and a real confirmation creates system
+    lexicons, entries, import runs, source artifacts and evidence rows. Nothing removed
+    them afterwards, so a later test that asserts an empty ``lexicon_entry`` table --
+    ``test_import_flow`` does, to prove a candidate creates nothing before a human
+    confirms it -- saw the leftovers of every earlier import test. ``make_world`` deletes
+    the users it made, which cascades their own data away, but a *system* lexicon has no
+    owner to cascade from, so those rows stayed for the whole session.
+
+    The fixture records the ids that exist before the test and deletes only the ones that
+    appeared during it, walking the foreign keys inwards first: the runs it created (with
+    their link and evidence rows), the entries of the lexicons those runs targeted, the
+    concise meanings, their revision history and the learning states of those entries, and
+    finally the lexicons themselves. A source artifact is deleted only when nothing else
+    still names it, because a file reused by another import *is* the same artifact by
+    design -- deleting it would be deleting another test's source.
+
+    Rows that were already there are never named: the schema's own migrated admin and
+    system lexicon are in the "before" set by construction. There is no unqualified
+    ``DELETE``, no ``drop_all``, and no path that reaches the real data directory.
+    """
+    from sqlalchemy import delete, func, select
+
+    from app import models
+    from app.db import get_session_factory
+
+    tracked = (
+        models.Lexicon,
+        models.LexiconEntry,
+        models.PublicImportRun,
+        models.EntrySourceEvidence,
+        models.SourceArtifact,
+    )
+    factory = get_session_factory()
+
+    def identifiers() -> dict[str, set[int]]:
+        with factory() as session:
+            return {
+                model.__tablename__: set(session.scalars(select(model.id)).all())
+                for model in tracked
+            }
+
+    def delete_ids(session, model, ids: set[int]) -> None:
+        """``DELETE ... WHERE id IN (...)``, skipped entirely when there is nothing."""
+        if ids:
+            session.execute(delete(model).where(model.id.in_(ids)))
+
+    before = identifiers()
+    yield
+    after = identifiers()
+
+    created_runs = after["public_import_run"] - before["public_import_run"]
+    created_entries = after["lexicon_entry"] - before["lexicon_entry"]
+    created_evidence = after["entry_source_evidence"] - before["entry_source_evidence"]
+    created_artifacts = after["source_artifact"] - before["source_artifact"]
+    created_lexicons = after["lexicon"] - before["lexicon"]
+    if not (created_runs or created_lexicons or created_evidence):
+        return
+
+    with factory() as session:
+        targeted = (
+            set(
+                session.scalars(
+                    select(models.PublicImportRun.target_lexicon_id).where(
+                        models.PublicImportRun.id.in_(created_runs)
+                    )
+                ).all()
+            )
+            if created_runs
+            else set()
+        )
+        # Only entries of a lexicon an import of *this* test targeted, and only ones that
+        # appeared during this test: an entry of the schema's own lexicon can never match.
+        entry_ids = (
+            set(
+                session.scalars(
+                    select(models.LexiconEntry.id).where(
+                        models.LexiconEntry.lexicon_id.in_(targeted),
+                        models.LexiconEntry.id.in_(created_entries),
+                    )
+                ).all()
+            )
+            if targeted and created_entries
+            else set()
+        )
+        lexicon_ids = created_lexicons & targeted
+
+        # Bottom-up: revisions outlive their entry (ON DELETE SET NULL), evidence outlives
+        # its entry the same way, and a run is what the lexicons and artifacts hang from.
+        if entry_ids:
+            session.execute(
+                delete(models.EntryConciseMeaningRevision).where(
+                    models.EntryConciseMeaningRevision.lexicon_entry_id.in_(entry_ids)
+                )
+            )
+            session.execute(
+                delete(models.EntryConciseMeaning).where(
+                    models.EntryConciseMeaning.lexicon_entry_id.in_(entry_ids)
+                )
+            )
+            session.execute(
+                delete(models.UserWordState).where(
+                    models.UserWordState.lexicon_entry_id.in_(entry_ids)
+                )
+            )
+        delete_ids(session, models.EntrySourceEvidence, created_evidence)
+        if created_runs:
+            session.execute(
+                delete(models.PublicImportRunSource).where(
+                    models.PublicImportRunSource.import_run_id.in_(created_runs)
+                )
+            )
+        delete_ids(session, models.PublicImportRun, created_runs)
+        delete_ids(session, models.LexiconEntry, entry_ids)
+        if lexicon_ids:
+            session.execute(
+                delete(models.UserLexicon).where(models.UserLexicon.lexicon_id.in_(lexicon_ids))
+            )
+        delete_ids(session, models.Lexicon, lexicon_ids)
+        for artifact_id in sorted(created_artifacts):
+            still_named = (
+                session.scalar(
+                    select(func.count())
+                    .select_from(models.EntrySourceEvidence)
+                    .where(models.EntrySourceEvidence.source_artifact_id == artifact_id)
+                )
+                or session.scalar(
+                    select(func.count())
+                    .select_from(models.PublicImportRunSource)
+                    .where(models.PublicImportRunSource.source_artifact_id == artifact_id)
+                )
+            )
+            if not still_named:
+                delete_ids(session, models.SourceArtifact, {artifact_id})
+        session.commit()
+
+
+@pytest.fixture()
 def world(make_world):
     """One authenticated user, torn down with the test."""
     value = make_world("solo-user")

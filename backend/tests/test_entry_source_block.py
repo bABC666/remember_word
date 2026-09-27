@@ -77,6 +77,20 @@ def admin(make_world):
     value.client.__exit__(None, None, None)
 
 
+@pytest.fixture(autouse=True)
+def _leave_no_imported_lexicon(created_lexicon_cleanup):
+    """Every test here imports through a real confirmation, twice over in one case.
+
+    Each import creates a system lexicon, its entries, the run, the artifacts and the
+    evidence rows in the session's shared database, plus the learning states the detail
+    route needs. A system lexicon has no owner, so deleting the test's user cascades none
+    of it away: without this cleanup a later test that asserts ``lexicon_entry`` is empty
+    sees this file's imports. The fixture (``tests/conftest.py``) deletes only the rows
+    that appeared during this test, and only the artifacts nothing else still names.
+    """
+    return created_lexicon_cleanup
+
+
 # --- synthetic sources -------------------------------------------------------
 
 

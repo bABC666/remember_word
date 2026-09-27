@@ -55,6 +55,19 @@ def admin(make_world):
     value.client.__exit__(None, None, None)
 
 
+@pytest.fixture(autouse=True)
+def _leave_no_imported_lexicon(created_lexicon_cleanup):
+    """Every test here creates lexicon content through a real confirmation.
+
+    ``confirm_plan`` writes system lexicons, entries, import runs, artifacts and evidence
+    rows into the session's shared database, and a system lexicon has no owner whose
+    deletion would cascade them away. Removing what each test created is what keeps a
+    later test's "nothing exists yet" assertion true; the fixture itself
+    (``tests/conftest.py``) deletes only the rows that appeared during this test.
+    """
+    return created_lexicon_cleanup
+
+
 def _session_of(admin):
     return admin.session()
 
