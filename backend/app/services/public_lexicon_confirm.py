@@ -16,7 +16,11 @@ What it does, in order:
 5. re-reads every source file, re-computes its SHA-256 and mapping fingerprint, and
    compares the values it finds against the plan. Any difference refuses the plan
    and asks for a fresh preview;
-6. writes ``source_artifact``, ``public_import_run``, ``public_import_run_source``,
+6. re-derives, from that re-read, the pinned **revision** of every row the plan cites
+   and compares it against the revision the plan froze. A source that declares no
+   revision is untouched by this; a source that declares one has to reproduce the same
+   identifier for the same locator, or the plan is refused;
+7. writes ``source_artifact``, ``public_import_run``, ``public_import_run_source``,
    ``entry_source_evidence`` and any new ``lexicon_entry`` rows **in a single
    transaction**; a failure rolls all of it back.
 
@@ -30,8 +34,9 @@ Three things it deliberately never does:
 * it issues **no ``UPDATE`` and no ``DELETE`` at all**, and never writes
   ``lexicon.entry_count``. Evidence is append-only: re-adjudicating the same source
   value in a later run appends a row carrying that run's identity instead of rewriting
-  the earlier decision. The run row's own counters are decided before it is inserted,
-  so not even the audit row is written twice.
+  the earlier decision -- and a *changed revision* counts as a re-adjudication, not as
+  "nothing new". The run row's own counters are decided before it is inserted, so not
+  even the audit row is written twice.
 """
 
 from __future__ import annotations
@@ -62,7 +67,11 @@ from app.services.public_lexicon_plan import (
     mapping_sha256,
     plan_digest,
 )
-from app.services.public_lexicon_preview import PreviewMapping, preview_file
+from app.services.public_lexicon_preview import (
+    PreviewMapping,
+    RevisionDeclaration,
+    preview_file,
+)
 
 STATUS_APPLIED = "applied"
 STATUS_ALREADY_APPLIED = "already_applied"
@@ -73,6 +82,12 @@ DECISION_NOT_SELECTED = "not_selected"
 #: The one format this slice can re-read. Recorded per artifact so a later reader
 #: can tell which reader produced a row's evidence.
 ARTIFACT_FORMAT = "delimited-text-v1"
+
+#: Returned by :func:`_revision_at` for a source that declares no revision at all.
+#: Distinguishable from ``""``, which is a declared revision column holding an empty
+#: cell -- the same distinction the plan keeps by omitting the key instead of writing
+#: an empty one. Neither is ever filled in by deriving something from the line number.
+_ABSENT = object()
 
 
 class ConfirmRefused(Exception):
@@ -248,12 +263,39 @@ def _reverify_sources(
 
 
 def _mapping_from_plan(source: dict[str, Any]) -> PreviewMapping:
+    """Rebuild the mapping the plan froze -- including its revision declaration.
+
+    The rebuild has to be complete. ``mapping_sha256`` is computed over the mapping the
+    plan stored, so dropping any part of it changes the digest and refuses a plan that
+    is in fact intact. That is the failure a missing declaration produced: every source
+    declaring where its revisions come from became unconfirmable, which is safe but
+    useless.
+
+    The declaration is read back rather than re-derived from the manifest, and it is
+    passed through validation instead of trusted: if the plan's own frozen block is
+    malformed, ``RevisionDeclaration`` says so here, before anything is written.
+    """
     frozen = source["mapping"]
+    declared = frozen.get("revision")
+    if declared is not None and not isinstance(declared, dict):
+        raise ConfirmRefused(
+            f"来源 {source['source_id']!r} 的修订声明不是对象，无法重新读取；请重新预览。"
+        )
+    try:
+        revision = RevisionDeclaration(**declared) if declared is not None else None
+    except (TypeError, ValueError) as error:
+        # A frozen declaration that no longer validates is a plan this path cannot
+        # re-read, so it refuses in the same voice as every other bad input rather than
+        # escaping as a bare TypeError from the dataclass.
+        raise ConfirmRefused(
+            f"来源 {source['source_id']!r} 的修订声明无法重建：{error}；请重新预览。"
+        ) from error
     return PreviewMapping(
         columns=dict(frozen["columns"]),
         required_fields=tuple(frozen["required_fields"]),
         encoding=frozen["encoding"],
         delimiter=frozen["delimiter"],
+        revision=revision,
     )
 
 
@@ -266,7 +308,9 @@ def _reverify_evidence(
     turns "the file is unchanged" into "the specific value this plan cites is still
     there", which is what the confirmation actually claims. The values the plan would
     *write* are re-derived as well -- see :func:`_reverify_written_values`, which is
-    what makes "still there" apply to the content and not only to the citations.
+    what makes "still there" apply to the content and not only to the citations. The
+    pinned revision of each cited row is re-derived here too, by
+    :func:`_reverify_revisions`.
     """
     for entry in plan["entries"]:
         if entry["status"] != "ready":
@@ -280,7 +324,61 @@ def _reverify_evidence(
                         f"{item['source_id']} 第 {item['line']} 行已与计划不符，"
                         "请重新预览并重新裁定。"
                     )
+                _reverify_revisions(
+                    previews, item, word=entry["normalized_word"], field=field
+                )
         _reverify_written_values(previews, entry)
+
+
+def _reverify_revisions(
+    previews: dict[str, dict[str, Any]],
+    item: dict[str, Any],
+    *,
+    word: str,
+    field: str,
+) -> None:
+    """Prove the plan's revision for one cited row is the one the file still states.
+
+    A revision is what makes a locator reproducible: ``row_locator`` says which line,
+    and the revision says which version of the page that line belonged to. So the same
+    treatment the value gets applies to it -- re-derived from the source file and the
+    plan's own locator, never taken on the plan's word. ``plan_sha256`` covers the
+    frozen revision, and it is not a signature; this is the check that makes the stored
+    revision a fact rather than a claim.
+
+    A source that declares no revision is invisible here: the preview records no
+    revision for its rows, and an evidence item without the key matches that absence.
+    """
+    derived = _revision_at(previews.get(str(item["source_id"])), item["line"])
+    if derived is _ABSENT:
+        # The source this plan re-read declares no revision at all, so there is nothing
+        # to compare. An item that nevertheless carries one cannot be confirmed: the
+        # plan would record a revision no re-read of this source can reproduce.
+        if item.get("source_revision") is not None:
+            raise ConfirmRefused(
+                f"{word!r} 的 {field} 证据声明了修订号 "
+                f"{item['source_revision']!r}，但来源 {item['source_id']!r} "
+                "并未声明修订来源，无法重新推导；请重新预览并重新裁定。"
+            )
+        return
+    if item.get("source_revision") != derived:
+        raise ConfirmRefused(
+            f"{word!r} 的 {field} 证据在 {item['source_id']} 第 {item['line']} 行的"
+            f"修订号与计划不符（计划 {item.get('source_revision')!r}，"
+            f"文件 {derived!r}），请重新预览并重新裁定。"
+        )
+
+
+def _revision_at(preview: dict[str, Any] | None, line: object) -> object:
+    """The source file's own revision for one locator, or ``_ABSENT``."""
+    if not preview or not isinstance(line, int):
+        return _ABSENT
+    for row in preview["rows"]:
+        if row["line"] == line:
+            return row.get("source_revision", _ABSENT)
+    # The locator itself did not come back; ``_value_at`` reports that with ``None``,
+    # and a revision has nothing to say about a row that is not there.
+    return _ABSENT
 
 
 def _reverify_written_values(
@@ -588,6 +686,8 @@ def _latest_evidence_for(session: Session, key: str) -> dict[str, Any] | None:
     Read-only, and deliberately not scoped by run or by lexicon: the question is
     whether *this* source value was already adjudicated the same way, so a re-import
     of the same bytes under another target does not record a second identical decision.
+    The revision the row recorded comes back with the decision, because "the same way"
+    includes the revision the value was read at -- see :func:`_plan_evidence`.
     """
     prior = session.scalars(
         select(EntrySourceEvidence)
@@ -600,6 +700,9 @@ def _latest_evidence_for(session: Session, key: str) -> dict[str, Any] | None:
         "decision": prior.decision,
         "selected_for_default": bool(prior.selected_for_default),
         "selection_order": prior.selection_order,
+        # Part of "unchanged": a stored revision that differs from the one this run
+        # re-derived is a different record of the same source value, not a repeat.
+        "source_revision": prior.source_revision,
     }
 
 
@@ -620,6 +723,13 @@ def _plan_evidence(
     readable. Nothing here issues an UPDATE or a DELETE -- and nothing here writes at
     all: the rows are returned for the caller to insert, which is what lets the run row
     carry its final counters from the moment it is first inserted.
+
+    "Identical" covers the pinned revision as well as the decision. The evidence key
+    does not carry the revision -- it identifies the *value*, and a revision is metadata
+    about where that value was read -- so a comparison that ignored it would report
+    "nothing new" while the revision on record had in fact moved, leaving the stored
+    evidence claiming a revision this run never read. A moved revision is a
+    re-adjudication: it appends a row, exactly as a changed decision does.
     """
     counters = {"written": 0, "skipped_existing": 0, "readjudicated": 0}
     rows: list[dict[str, Any]] = []
@@ -641,12 +751,18 @@ def _plan_evidence(
                 is_selected = locator in selected[field]
                 position = selected[field].index(locator) if is_selected else None
                 decision = DECISION_SELECTED if is_selected else DECISION_NOT_SELECTED
+                # What the plan froze, re-proved against the file by
+                # ``_reverify_revisions`` before this runs. Sources that declare no
+                # revision contribute the empty string, which is the column's own way
+                # of saying "no link".
+                revision = str(item.get("source_revision") or "")
                 prior = _latest_evidence_for(session, item["idempotency_key"])
                 if prior is not None:
                     unchanged = (
                         prior["decision"] == decision
                         and prior["selected_for_default"] == is_selected
                         and prior["selection_order"] == position
+                        and prior["source_revision"] == revision
                     )
                     if unchanged:
                         counters["skipped_existing"] += 1
@@ -665,6 +781,7 @@ def _plan_evidence(
                     "decision": decision,
                     "selected_for_default": is_selected,
                     "selection_order": position,
+                    "source_revision": revision,
                     "confirmed_by_username": administrator.username,
                     "confirmed_at": moment,
                 })

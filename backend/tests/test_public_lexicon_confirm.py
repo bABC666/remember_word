@@ -16,6 +16,7 @@ nothing new. Distinct content keeps each test a genuine first import.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -474,63 +475,199 @@ def _revision_manifest(root: Path) -> Path:
     return path
 
 
-def test_a_revision_declaring_plan_is_still_refused_by_the_mapping_gate(
+# --- the pinned revision a value was read at ---------------------------------
+#
+# The plan freezes the revision of every evidence row it cites (design 3.4, the plan
+# step). Confirmation *re-derives* each one from the source file and locator and only
+# then writes it, for the same reason it re-derives every value: the plan's digest
+# covers the claim, but a digest is not a signature and the claim has to be re-proved
+# against the bytes before anything is stored.
+
+PINNED_TEMPLATE = "https://zh.wiktionary.org/w/index.php?oldid={revision}"
+
+
+def _revision_primary_text(token: str, revision: str = "6588944") -> str:
+    """The standard primary file plus one revision column per row."""
+    return (
+        "head,cn,oldid\n"
+        f"Word{token},主词表释义-{token},{revision}\n"
+        f"Bare{token},,\n"
+    )
+
+
+def _revision_supplement_text(token: str, revision: str = "70dc6b68") -> str:
+    """The supplement file too, so one word has two sources at two revisions."""
+    return (
+        "term,translation,ipa,pos,rev\n"
+        f" word{token} ,补充来源释义-{token},/ˈ{token}/,noun,{revision}\n"
+    )
+
+
+def _revision_manifest(root: Path) -> Path:
+    """The standard two sources, each declaring where its rows' revisions come from.
+
+    Both sources declare a *column*, and they declare different ones, so "each row
+    carries the revision of the row it was read from" has a wrong answer available:
+    taking the primary's number for the supplement's row would be invisible if only one
+    source ever carried a revision.
+    """
+    path = root / "manifest.json"
+    path.write_text(json.dumps({
+        "required_fields": ["meaning"],
+        "sources": [
+            {"id": "primary", "role": "primary", "file": "primary.csv",
+             "columns": {"word": "head", "meaning": "cn"},
+             "revision": {"column": "oldid", "url_template": PINNED_TEMPLATE},
+             "provenance": provenance_block("primary")},
+            {"id": "supplement", "role": "meaning", "file": "supplement.csv",
+             "columns": {"word": "term", "meaning": "translation",
+                         "phonetic": "ipa", "part_of_speech": "pos"},
+             "revision": {"column": "rev", "url_template": PINNED_TEMPLATE},
+             "provenance": provenance_block("supplement")},
+        ],
+    }, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def _build_revision_plan(
+    root: Path, *, token: str, target: str, decisions: list[dict[str, Any]],
+    primary_revision: str = "6588944", supplement_revision: str = "70dc6b68",
+) -> dict[str, Any]:
+    from app.services.public_lexicon_plan import build_plan
+
+    _write(root, "primary.csv", _revision_primary_text(token, primary_revision))
+    _write(root, "supplement.csv", _supplement_text(token))
+    _write(root, "supplement.csv",
+           _revision_supplement_text(token, supplement_revision))
+    return build_plan(
+        manifest_path=_revision_manifest(root),
+        source_root=root,
+        decisions_path=_decisions(root, decisions),
+        target_lexicon=target,
+    )
+
+
+def _retarget_plan(plan: dict[str, Any], name: str) -> dict[str, Any]:
+    """The same plan, aimed at a differently named target, with its digest recomputed.
+
+    A plan's digest covers the target's *name*, and two system public lexicons may not
+    share one (``_target_lexicon`` refuses the ambiguity), so a second confirmation of
+    the same source into a second lexicon needs a second plan. Everything that decides
+    the *evidence* -- bytes, mapping, adjudication, revisions -- is untouched, so the
+    evidence keys stay identical; only the destination and the digest differ. This is
+    the sanctioned use of a recomputed digest: the operator is not the adversary here,
+    and every value the path writes is still re-derived from the sources.
+    """
+    from app.services.public_lexicon_plan import plan_digest
+
+    retargeted = json.loads(json.dumps(plan))
+    retargeted["target"]["lexicon"] = name
+    retargeted["plan_sha256"] = plan_digest(retargeted)
+    return retargeted
+
+
+def _revision_rows(session, run_id: int) -> list[dict[str, Any]]:
+    """Every evidence row of one run, with the revision it recorded."""
+    from app.models import EntrySourceEvidence
+
+    return [
+        {
+            "evidence_sha256": row.evidence_sha256,
+            "field_kind": row.field_kind,
+            "normalized_word": row.normalized_word,
+            "source_revision": row.source_revision,
+        }
+        for row in session.query(EntrySourceEvidence).filter_by(
+            import_run_id=run_id
+        ).order_by(EntrySourceEvidence.id).all()
+    ]
+
+
+def test_a_revision_declaring_plan_confirms_and_records_each_rows_revision(
     admin, tmp_path: Path
 ) -> None:
-    """Freezing a revision must not open a way past the mapping-match refusal.
+    """The declaration is passed back, so the plan confirms and the revision is stored.
 
-    The plan now carries the declaration, but the confirmation path rebuilds the
-    mapping from the plan's own fields and does not read the declaration back yet, so
-    the digest it recomputes no longer matches the one the plan froze. That has to keep
-    refusing and keep writing nothing: a revision the confirmation cannot re-prove is
-    exactly the case the gate exists for, and "the plan knows the revision" is not the
-    same as "the confirmation verified it".
-
-    The control half is the same fixture without the declaration, and it confirms --
-    which is what makes the refusal attributable to the declaration rather than to
-    anything else about this fixture.
+    The plan step added the declaration to the frozen mapping; the confirmation path
+    rebuilds the mapping from the plan's own fields, so it has to read the declaration
+    back or the digest it recomputes stops matching and every revision-declaring plan
+    refuses. Reading it back is only half the job: what lands on the evidence row is
+    re-derived per row, so the same word present in two sources at two revisions keeps
+    them apart instead of sharing whichever number was read first.
     """
-    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
-    from app.services.public_lexicon_plan import build_plan
+    from app.models import SourceArtifact
+    from app.services.public_lexicon_confirm import confirm_plan
 
     root = tmp_path / "sources"
     root.mkdir()
-
-    control = _build_plan(root, token="revok", target="p29-revok",
-                          decisions=_standard_decisions("revok"))
-    with admin.session() as session:
-        _system_lexicon(session, "p29-revok", "p29-test-revok")
-        applied = confirm_plan(
-            session, plan=control, administrator=_administrator(session, admin),
-            source_root=root,
-        )
-    assert applied["status"] == "applied"
-
-    token = "revmap"
-    _write(root, "primary.csv",
-           f"head,cn,oldid\nWord{token},主词表释义-{token},6588944\nBare{token},,\n")
-    _write(root, "supplement.csv", _supplement_text(token))
-    decisions = _decisions(root, _standard_decisions(token))
-    plan = build_plan(
-        manifest_path=_revision_manifest(root), source_root=root,
-        decisions_path=decisions, target_lexicon="p29-revmap",
-    )
-    entry = next(
-        item for item in plan["entries"]
-        if item["normalized_word"] == _normalized(token)
-    )
-    assert entry["evidence"]["meaning"][0]["source_revision"] == "6588944", (
-        "the plan really does carry the revision; the refusal below is not because "
-        "the declaration went missing"
-    )
+    token = "revok"
+    plan = _build_revision_plan(root, token=token, target="p29-revok",
+                                decisions=_standard_decisions(token))
+    word = _normalized(token)
+    entry = next(item for item in plan["entries"] if item["normalized_word"] == word)
+    assert [item["source_revision"] for item in entry["evidence"]["word"]] == [
+        "6588944", "70dc6b68",
+    ], "control: the plan froze two different revisions for one word"
     assert plan["confirmation_ready"] is True, (
         "a readiness blocker would refuse the plan for a different reason"
     )
 
     with admin.session() as session:
-        _system_lexicon(session, "p29-revmap", "p29-test-revmap")
+        _system_lexicon(session, "p29-revok", "p29-test-revok")
+        result = confirm_plan(
+            session, plan=plan, administrator=_administrator(session, admin),
+            source_root=root,
+        )
+        rows = _revision_rows(session, result["import_run_id"])
+        roles = {
+            artifact.id: artifact.role
+            for artifact in session.query(SourceArtifact).all()
+        }
+
+    assert result["status"] == "applied"
+    assert rows != []
+    # Per row, not per source and not per file: the primary's rows and the
+    # supplement's all carry the revision of the row each one cites.
+    assert {row["source_revision"] for row in rows} == {"6588944", "70dc6b68"}
+    assert all(row["source_revision"] for row in rows)
+    # The word exists in both sources, and each of its rows keeps its own number.
+    assert {
+        row["source_revision"] for row in rows if row["field_kind"] == "word"
+    } == {"6588944", "70dc6b68"}
+    # Only the adjudicated word is recorded: the excluded one has no evidence at all.
+    assert {row["normalized_word"] for row in rows} == {word}
+    assert set(roles.values()) == {"primary", "meaning"}
+
+
+def test_a_tampered_revision_with_a_recomputed_digest_is_refused(
+    admin, tmp_path: Path
+) -> None:
+    """The revision is re-derived from the file, so editing it cannot get through.
+
+    ``plan_sha256`` catches an accidental edit and is explicitly not a signature: this
+    rewrites one frozen revision, recomputes the digest the way an editor would, and
+    expects confirmation to refuse. The file still holds 6588944, so the plan's claim
+    is the thing that is wrong -- which is exactly what a digest cannot detect on its
+    own.
+    """
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "revtmpr"
+    plan = _build_revision_plan(root, token=token, target="p29-revtmpr",
+                                decisions=_standard_decisions(token))
+    word = _normalized(token)
+    entry = next(item for item in plan["entries"] if item["normalized_word"] == word)
+    entry["evidence"]["word"][0]["source_revision"] = "9999999"
+    plan["plan_sha256"] = plan_digest(plan)
+    assert plan["plan_sha256"] == plan["plan_sha256"], "control: the digest is consistent"
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-revtmpr", "p29-test-revtmpr")
         before = _counts(session)
-        with pytest.raises(ConfirmRefused, match="字段映射已变化"):
+        with pytest.raises(ConfirmRefused, match="修订"):
             confirm_plan(
                 session, plan=plan, administrator=_administrator(session, admin),
                 source_root=root,
@@ -538,6 +675,247 @@ def test_a_revision_declaring_plan_is_still_refused_by_the_mapping_gate(
         after = _counts(session)
 
     assert after == before, "a refused plan must write nothing at all"
+
+
+def test_a_changed_revision_cell_with_an_unchanged_value_refuses_the_plan(
+    admin, tmp_path: Path
+) -> None:
+    """Changing only a revision cell changes the file, so the old plan no longer fits.
+
+    The gate that catches this is the file fingerprint, and this test states why that
+    is the right refusal rather than a re-derivation: the plan describes a read of
+    specific bytes, and a source whose pinned revision moved is a different read even
+    when every imported value is byte-identical. The word, its meaning and every other
+    value are deliberately unchanged, so nothing but the revision differs.
+    """
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "revmove"
+    plan = _build_revision_plan(root, token=token, target="p29-revmove",
+                                decisions=_standard_decisions(token))
+    _write(root, "primary.csv", _revision_primary_text(token, "7500000"))
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-revmove", "p29-test-revmove")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused, match="文件内容已变化"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+
+    assert after == before, "a refused plan must write nothing at all"
+
+
+def test_an_empty_revision_cell_is_confirmed_and_stored_as_empty(
+    admin, tmp_path: Path
+) -> None:
+    """A word with no pinned revision upstream records the honest blank.
+
+    "This row has no revision" is what the empty cell means, and it must survive to the
+    evidence row as an empty value rather than as a guessed number or a refusal: the
+    meaning is real evidence, and the absence of a link is a fact a reader degrades on.
+    """
+    from app.services.public_lexicon_confirm import confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "revempt"
+    plan = _build_revision_plan(root, token=token, target="p29-revempt",
+                                decisions=_standard_decisions(token),
+                                primary_revision="")
+    word = _normalized(token)
+    entry = next(item for item in plan["entries"] if item["normalized_word"] == word)
+    assert entry["evidence"]["word"][0]["source_revision"] == "", (
+        "control: the plan kept the empty cell rather than inventing a revision"
+    )
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-revempt", "p29-test-revempt")
+        result = confirm_plan(
+            session, plan=plan, administrator=_administrator(session, admin),
+            source_root=root,
+        )
+        rows = _revision_rows(session, result["import_run_id"])
+
+    assert result["status"] == "applied"
+    primary_rows = [row for row in rows if row["source_revision"] in ("", "70dc6b68")]
+    assert len(primary_rows) == len(rows), "every row carries one of the two declarations"
+    assert any(row["source_revision"] == "" for row in rows)
+    assert any(row["source_revision"] == "70dc6b68" for row in rows)
+
+
+def test_a_different_source_keeps_its_own_revision_for_the_same_word(
+    admin, tmp_path: Path
+) -> None:
+    """Two sources, one word, two revisions: neither row borrows the other's number."""
+    from app.models import EntrySourceEvidence
+    from app.services.public_lexicon_confirm import confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "revtwo"
+    plan = _build_revision_plan(root, token=token, target="p29-revtwo",
+                                decisions=_standard_decisions(token),
+                                primary_revision="1111111",
+                                supplement_revision="2222222")
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-revtwo", "p29-test-revtwo")
+        result = confirm_plan(
+            session, plan=plan, administrator=_administrator(session, admin),
+            source_root=root,
+        )
+        rows = session.query(EntrySourceEvidence).filter_by(
+            import_run_id=result["import_run_id"]
+        ).all()
+        revisions = {row.source_revision for row in rows}
+
+    assert result["status"] == "applied"
+    assert revisions == {"1111111", "2222222"}, (
+        f"each evidence row must carry its own source row's revision, got {revisions}"
+    )
+
+
+def test_a_repeated_confirmation_of_a_revision_declaring_plan_writes_nothing(
+    admin, tmp_path: Path
+) -> None:
+    """A retry is answered from the recorded run, with or without a revision."""
+    from app.services.public_lexicon_confirm import confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "revretry"
+    plan = _build_revision_plan(root, token=token, target="p29-revretry",
+                                decisions=_standard_decisions(token))
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-revretry", "p29-test-revretry")
+        administrator = _administrator(session, admin)
+        first = confirm_plan(
+            session, plan=plan, administrator=administrator, source_root=root
+        )
+        after_first = _counts(session)
+        rows_after_first = _revision_rows(session, first["import_run_id"])
+        # Even with the sources moved, the retry reports what the first run did.
+        _write(root, "supplement.csv", _revision_supplement_text(token, "3333333"))
+        second = confirm_plan(
+            session, plan=plan, administrator=administrator, source_root=root
+        )
+        after_second = _counts(session)
+
+    assert first["status"] == "applied"
+    assert second["status"] == "already_applied"
+    assert second["run_id"] == first["run_id"]
+    assert after_second == after_first
+    # The first run's rows are exactly what they were, revisions included.
+    assert _revision_rows(session, first["import_run_id"]) == rows_after_first
+
+
+def test_a_changed_revision_is_not_silently_skipped_as_unchanged(
+    admin, tmp_path: Path
+) -> None:
+    """A prior row under the same evidence key must not hide a changed revision.
+
+    Evidence is deduplicated by key, and "unchanged" decides whether a run appends a row
+    or reports nothing new. The key deliberately does not carry the revision -- a
+    revision is metadata about the row, not part of the value's identity -- so a
+    comparison that ignored it would report "nothing new to record" while the source
+    position's revision had in fact moved, leaving the stored evidence claiming a
+    revision this run did not read.
+
+    The prior row is inserted directly, because that is the state the check has to
+    answer for: it is what any writer that predates this column leaves behind.
+    """
+    from app.models import EntrySourceEvidence, PublicImportRunSource, SourceArtifact
+    from app.services.public_lexicon_confirm import confirm_plan
+    from app.services.public_lexicon_plan import evidence_idempotency_key
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "revskip"
+    plan = _build_revision_plan(root, token=token, target="p29-revskip-a",
+                                decisions=_standard_decisions(token))
+    source = next(item for item in plan["sources"] if item["source_id"] == "primary")
+    word = _normalized(token)
+    meaning = next(
+        item for item in next(
+            entry for entry in plan["entries"] if entry["normalized_word"] == word
+        )["evidence"]["meaning"]
+        if item["source_id"] == "primary"
+    )
+    key = evidence_idempotency_key(
+        file_sha256=source["file"]["sha256"],
+        mapping_sha256=source["mapping_sha256"],
+        line=meaning["line"], field="meaning", raw_value=meaning["raw_value"],
+    )
+    assert key == meaning["idempotency_key"], "control: the key is the plan's own"
+
+    with admin.session() as session:
+        first_lexicon = _system_lexicon(session, "p29-revskip-a", "p29-test-revskip-a")
+        second_lexicon = _system_lexicon(session, "p29-revskip-b", "p29-test-revskip-b")
+        administrator = _administrator(session, admin)
+        first = confirm_plan(
+            session, plan=plan, administrator=administrator, source_root=root
+        )
+        # Stand the first run down so the row below is the *only* record of this key.
+        for row in session.query(EntrySourceEvidence).filter_by(
+            import_run_id=first["import_run_id"], evidence_sha256=key
+        ).all():
+            session.delete(row)
+        session.commit()
+        # The primary source's artifact, as *this* run recorded it -- the artifact table
+        # is shared across the session's tests, so it is reached through the run.
+        artifact_id = session.query(PublicImportRunSource.source_artifact_id).join(
+            SourceArtifact,
+            SourceArtifact.id == PublicImportRunSource.source_artifact_id,
+        ).filter(
+            PublicImportRunSource.import_run_id == first["import_run_id"],
+            SourceArtifact.role == "primary",
+        ).one()[0]
+        session.add(EntrySourceEvidence(
+            lexicon_entry_id=None, source_artifact_id=artifact_id,
+            import_run_id=first["import_run_id"], normalized_word=word,
+            row_locator=meaning["line"], field_kind="meaning",
+            sense_key=f"meaning@{meaning['line']}", raw_word=word,
+            raw_text=meaning["raw_value"], evidence_sha256=key,
+            decision="not_selected", selected_for_default=False, selection_order=None,
+            confirmed_by_username="earlier-read", confirmed_at=datetime.now(UTC),
+            source_revision="0000000",
+        ))
+        session.commit()
+
+        # The same evidence, aimed at a second lexicon: a real second write, under the
+        # same evidence key, because the first lexicon already holds the word.
+        second = confirm_plan(
+            session, plan=_retarget_plan(plan, "p29-revskip-b"),
+            administrator=administrator, source_root=root,
+        )
+        recorded = session.query(EntrySourceEvidence).filter_by(
+            evidence_sha256=key
+        ).order_by(EntrySourceEvidence.id).all()
+        revisions = [row.source_revision for row in recorded]
+        decisions = [row.decision for row in recorded]
+        runs = {first["import_run_id"], second["import_run_id"]}
+
+    assert first["target_lexicon"]["id"] == first_lexicon.id
+    assert second["target_lexicon"]["id"] == second_lexicon.id
+    assert runs == {first["import_run_id"], second["import_run_id"]}
+    assert first["status"] == "applied" and second["status"] == "applied"
+    # The second run did write: "unchanged" must not cover a revision that moved.
+    assert second["evidence"]["written"] == 1
+    assert second["evidence"]["readjudicated"] == 1
+    assert second["evidence"]["skipped_existing"] == 5, (
+        "only the moved revision is a change; the five untouched items stay as they are"
+    )
+    # The revision this run actually read is now on record, beside the other one.
+    assert revisions == ["0000000", "6588944"], (
+        f"the run's own revision has to reach a row of its own, got {revisions}"
+    )
+    assert decisions == ["not_selected", "selected"]
 
 
 # --- what must never be confirmable ------------------------------------------
