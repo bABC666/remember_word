@@ -17,6 +17,7 @@ CSV, on the session's temporary database. No test reads a file from ``data/``.
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -279,6 +280,77 @@ def test_another_lexicons_sources_do_not_leak_in(admin, tmp_path: Path) -> None:
     } & {
         source["source_artifact_id"] for source in theirs_payload["sources"]
     }
+
+
+def test_shared_artifacts_report_only_their_own_lexicons_import_runs(
+    admin, tmp_path: Path
+) -> None:
+    """Reused files have one artifact identity but separate target-owned run records."""
+    from sqlalchemy import select
+
+    from app.models import PublicImportRun, PublicImportRunSource
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    first = _import_into(admin, root, token="lexshared", lexicon_name="lex-shared-a")
+    second = _import_into(admin, root, token="lexshared", lexicon_name="lex-shared-b")
+    assert first["lexicon_id"] != second["lexicon_id"]
+    assert first["result"]["run_id"] != second["result"]["run_id"]
+    assert [
+        (source["source_id"], source["file"]["sha256"], source["mapping_sha256"])
+        for source in first["plan"]["sources"]
+    ] == [
+        (source["source_id"], source["file"]["sha256"], source["mapping_sha256"])
+        for source in second["plan"]["sources"]
+    ], "both plans must use identical source bytes and mappings"
+
+    expected: dict[int, dict[int, tuple[str, datetime, str]]] = {}
+    with admin.session() as session:
+        for imported in (first, second):
+            run = session.get(PublicImportRun, imported["result"]["import_run_id"])
+            assert run.target_lexicon_id == imported["lexicon_id"]
+            links = session.scalars(
+                select(PublicImportRunSource).where(
+                    PublicImportRunSource.import_run_id == run.id
+                )
+            ).all()
+            expected[imported["lexicon_id"]] = {
+                link.source_artifact_id: (run.run_id, run.confirmed_at, link.outcome)
+                for link in links
+            }
+
+    first_artifacts = set(expected[first["lexicon_id"]])
+    second_artifacts = set(expected[second["lexicon_id"]])
+    assert first_artifacts and first_artifacts == second_artifacts, (
+        "the two real confirmations must reuse the same source artifacts"
+    )
+    assert {item[2] for item in expected[second["lexicon_id"]].values()} == {"reused"}
+
+    for imported, other, name in (
+        (first, second, "lex-shared-a"),
+        (second, first, "lex-shared-b"),
+    ):
+        response = admin.client.get(f"/api/lexicons/{imported['lexicon_id']}/sources")
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["lexicon"] == {
+            "id": imported["lexicon_id"],
+            "name": name,
+        }
+        assert set(payload) == {"lexicon", "sources", "authorization_review"}
+        assert {source["source_artifact_id"] for source in payload["sources"]} == first_artifacts
+        for source in payload["sources"]:
+            assert set(source) == SOURCE_FIELDS
+            assert len(source["runs"]) == 1
+            recorded = source["runs"][0]
+            assert set(recorded) == {"run_id", "confirmed_at", "outcome"}
+            run_id, confirmed_at, outcome = expected[imported["lexicon_id"]][
+                source["source_artifact_id"]
+            ]
+            assert recorded["run_id"] == run_id
+            assert recorded["run_id"] != other["result"]["run_id"]
+            assert datetime.fromisoformat(recorded["confirmed_at"]) == confirmed_at
+            assert recorded["outcome"] == outcome
 
 
 def test_a_lexicon_with_no_imported_sources_answers_an_empty_list(world) -> None:
