@@ -4,8 +4,17 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, SessionDep
-from app.models import Lexicon, LexiconEntry, UserLexicon, UserWordState
+from app.models import (
+    Lexicon,
+    LexiconEntry,
+    PublicImportRun,
+    PublicImportRunSource,
+    SourceArtifact,
+    UserLexicon,
+    UserWordState,
+)
 from app.schemas import LexiconCreateRequest, LexiconUpdateRequest
+from app.services.public_lexicon_target_preflight import explicitly_unapproved
 from app.services.userdata import (
     load_readable_lexicon,
     user_lexicon,
@@ -222,3 +231,119 @@ def enable_lexicon(
     session.add(membership)
     session.commit()
     return {"ok": True, "lexicon_id": lexicon.id, "enabled": enabled}
+
+
+@router.get("/{lexicon_id}/sources")
+def list_lexicon_sources(
+    lexicon_id: int, user: CurrentUser, session: SessionDep
+) -> dict[str, object]:
+    """The sources a public import recorded for **this** lexicon.
+
+    Read through the import's own relations -- ``public_import_run`` for this
+    ``target_lexicon_id``, then ``public_import_run_source``, then the artifact each
+    row names. Never by scanning ``source_artifact`` and guessing an owner: an
+    artifact carries no lexicon, two imports may legitimately share one (a reused
+    file is the same artifact, by design), and the only thing that says which import
+    used which file is the run's own link row.
+
+    What this returns is the *declaration* an administrator recorded when the import
+    was confirmed, not a verified right to publish. ``source_artifact`` stores what a
+    submitter declared -- publisher, version, licence id, scope -- and the licence
+    text itself is never read from disk here: the row carries only its fingerprint.
+    ``storage_locator``, the mapping, the plan and every local path stay out of the
+    response, because a reader needs to know *what was declared* and nothing about
+    where this machine keeps the file.
+
+    ``authorization_review`` states the limit in the payload itself. A licence field
+    saying ``CC-BY-SA-4.0`` is a declaration, and a field saying "not approved" is
+    too; neither is a machine-verified grant, and the report says so unconditionally.
+    """
+    lexicon = load_readable_lexicon(session, user, lexicon_id)
+
+    rows = session.execute(
+        select(PublicImportRunSource, SourceArtifact, PublicImportRun)
+        .join(SourceArtifact, SourceArtifact.id == PublicImportRunSource.source_artifact_id)
+        .join(PublicImportRun, PublicImportRun.id == PublicImportRunSource.import_run_id)
+        .where(PublicImportRun.target_lexicon_id == lexicon.id)
+        .order_by(PublicImportRun.confirmed_at, PublicImportRunSource.id)
+    ).all()
+
+    sources: dict[int, dict[str, object]] = {}
+    for link, artifact, run in rows:
+        item = sources.get(artifact.id)
+        if item is None:
+            item = {
+                "source_artifact_id": artifact.id,
+                "role": artifact.role,
+                "name": artifact.name,
+                "publisher": artifact.publisher,
+                "version": artifact.version,
+                "obtained_at_utc": artifact.obtained_at_utc,
+                "format": artifact.format,
+                "license_id": artifact.license_id,
+                "license_text_sha256": artifact.license_text_sha256,
+                "file_sha256": artifact.file_sha256,
+                "mapping_sha256": artifact.mapping_sha256,
+                "byte_size": artifact.byte_size,
+                "use_scope": artifact.use_scope,
+                "display_scope": artifact.display_scope,
+                "runs": [],
+            }
+            # Decided after the declaration fields are in place, and kept apart from
+            # the values above on purpose: these are what the *source* declares about
+            # its own use, and the preflight's recogniser reads them to decide whether
+            # a submitter marked the source explicitly unapproved.
+            item["declared_approval_state"] = (
+                "explicitly_unapproved"
+                if explicitly_unapproved(_declared_text(item))
+                else "not_assessed"
+            )
+            sources[artifact.id] = item
+        item["runs"].append({
+            "run_id": run.run_id,
+            "confirmed_at": run.confirmed_at,
+            "outcome": link.outcome,
+        })
+
+    pending = [
+        source["name"] for source in sources.values()
+        if source["declared_approval_state"] == "explicitly_unapproved"
+    ]
+    return {
+        "lexicon": {"id": lexicon.id, "name": lexicon.name},
+        "sources": list(sources.values()),
+        "authorization_review": _authorization_review(pending),
+    }
+
+
+def _declared_text(item: dict[str, object]) -> dict[str, str]:
+    """The declaration fields the unapproved-marker recogniser reads.
+
+    Restated here rather than passed as the artifact row, so adding a column to this
+    response cannot silently widen what the recogniser scans.
+    """
+    return {
+        field: str(item.get(field) or "")
+        for field in ("publisher", "version", "license_id", "use_scope", "display_scope")
+    }
+
+
+def _authorization_review(pending: list[str]) -> dict[str, object]:
+    """Say, unconditionally, that a declared licence is not a verified grant."""
+    if pending:
+        return {
+            "status": "pending_owner_approval",
+            "pending_sources": pending,
+            "message": (
+                "来源声明明确写明未获批准；仍待负责人批准。"
+                "本接口只回放已记录的声明，不核实许可有效性。"
+            ),
+        }
+    return {
+        "status": "not_assessed",
+        "pending_sources": [],
+        "message": (
+            "以下许可与范围字段来自导入时记录的来源声明；本接口未核实许可真实性，"
+            "也不代表授权已获确认。"
+        ),
+    }

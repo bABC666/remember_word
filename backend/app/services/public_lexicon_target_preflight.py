@@ -63,7 +63,7 @@ def preflight_target(
         blockers.append("plan_not_ready")
     pending_sources = [
         source["source_id"] for source in plan["sources"]
-        if _explicitly_unapproved(source.get("provenance") or {})
+        if explicitly_unapproved(source.get("provenance") or {})
     ]
     blockers.extend(f"owner_approval_pending:{source_id}" for source_id in pending_sources)
     try:
@@ -266,7 +266,7 @@ def _schema_blockers(connection: sqlite3.Connection) -> list[str]:
 
 def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> dict[str, Any]:
     provenance = source.get("provenance") or {}
-    explicitly_unapproved = _explicitly_unapproved(provenance)
+    marked_unapproved = explicitly_unapproved(provenance)
     row = connection.execute(
         "SELECT id, publisher, version, obtained_at_utc, license_id, "
         "license_text_sha256, use_scope, display_scope, storage_locator "
@@ -290,7 +290,7 @@ def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> di
         "mapping_sha256": source["mapping_sha256"],
         "declared_provenance": declared,
         "declared_approval_state": (
-            "explicitly_unapproved" if explicitly_unapproved else "not_assessed"
+            "explicitly_unapproved" if marked_unapproved else "not_assessed"
         ),
         "missing_provenance": missing_provenance_fields(provenance),
         "source_artifact_id": row["id"] if row else None,
@@ -301,13 +301,18 @@ def _source_report(connection: sqlite3.Connection, source: dict[str, Any]) -> di
     }
 
 
-def _explicitly_unapproved(provenance: dict[str, Any]) -> bool:
+def explicitly_unapproved(provenance: dict[str, Any]) -> bool:
     """Recognize a submitter's explicit unapproved label, not legal validity.
 
     Case- and separator-insensitive: a manifest that writes ``not-approved`` or
     ``NOT APPROVED`` is making the same declaration as one that writes ``not
     approved``, and missing it would report a draft as an ordinary source. The report
     keeps saying it did not assess authorisation either way.
+
+    Public because the read path that lists a lexicon's declared sources makes the same
+    distinction, and two copies of this marker list is exactly how the two answers start
+    disagreeing: a source marked unapproved would read as pending here and ordinary
+    there.
     """
     for value in provenance.values():
         text = str(value).casefold()
