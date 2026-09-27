@@ -9,6 +9,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.models import Article, ArticleWordExposure, LexiconEntry, ReviewEvent, UserWordState
 from app.services.concise_meaning import entry_short_meanings
+from app.services.entry_provenance import entry_sources
 from app.services.userdata import WordView, load_user_word, load_user_word_state
 
 router = APIRouter(prefix="/api/words", tags=["words"])
@@ -87,8 +88,19 @@ def get_word_state(
     The explicit namespace for words that have no legacy ``word`` row -- every word
     a user adds from an article. ``GET /api/words/{id}`` keeps the V1.1 meaning of
     the id and never falls back to this one.
+
+    This route carries ``sources``: the per-field source record of the entry, with
+    the rows a human adopted kept apart from the candidates they did not, and the
+    link to the pinned revision each adopted row was read at. It is the entry page
+    that shows sources, so only the entry detail route reads them; the legacy
+    ``/api/words/{id}`` answers exactly what it answered before, and neither route
+    changes ``source_raw``, ``source_meanings`` or the learning state.
     """
-    return _word_detail(session, user, load_user_word_state(session, user, state_id))
+    view = load_user_word_state(session, user, state_id)
+    return {
+        **_word_detail(session, user, view),
+        "sources": entry_sources(session, view.entry.id),
+    }
 
 
 @router.get("/{word_id}")

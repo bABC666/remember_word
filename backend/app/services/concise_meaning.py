@@ -466,6 +466,14 @@ def concise_meaning_dict(row: EntryConciseMeaning) -> dict[str, Any]:
     ``is_source_verbatim`` is the field a client must branch on before presenting the
     text as the source's own words; it is derived from the stored kind rather than
     left for a client to infer from the label.
+
+    ``source_evidence_id`` is the evidence row this wording was proposed against, or
+    ``None`` when it has none -- a supplement is structurally forbidden from carrying
+    one, and a value proposed before an import recorded evidence has only its
+    ``source_locator``. It is the id the entry page uses to look up the source's own
+    text and pinned revision for this slot; it is deliberately *not* a resolved
+    source, because resolving one is the source block's job and a second place that
+    did it would be a second place that could pick the wrong row.
     """
     return {
         "text": row.text,
@@ -475,6 +483,7 @@ def concise_meaning_dict(row: EntryConciseMeaning) -> dict[str, Any]:
         "is_source_verbatim": row.provenance_kind == KIND_SOURCE,
         "is_supplement": row.provenance_kind == KIND_AI_SUPPLEMENT,
         "source_locator": row.source_locator,
+        "source_evidence_id": row.source_evidence_id,
         "derivation_note": row.derivation_note,
         "confirmed_by": row.confirmed_by_username,
         "confirmed_at": row.confirmed_at,
