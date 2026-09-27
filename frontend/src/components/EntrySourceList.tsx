@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { sourceCardHref } from '../sourceAnchor'
 import type { EntrySources, SourceEvidence } from '../types'
 
 /**
@@ -23,6 +24,11 @@ import type { EntrySources, SourceEvidence } from '../types'
  * submitter declared and says in words that it is not a statement of authorization. A
  * licence id displayed on its own could read as a grant; the canonical link, where one
  * is known, lives on the sources page this block links to.
+ *
+ * `lexiconId` is the lexicon this entry belongs to -- the payload's `lexicon_id`. It is
+ * required, and it is what makes the link to a source card unambiguous: one artifact may
+ * be a card in several lexicons, so only the pair of ids resolves to this word's own
+ * section.
  */
 
 /** `field_kind` as the import records it, named as a reader knows it. */
@@ -35,7 +41,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 const fieldLabel = (kind: string) => FIELD_LABELS[kind] ?? kind
 
-export function EntrySourceList({ sources }: { sources: EntrySources }) {
+export function EntrySourceList({ sources, lexiconId }: { sources: EntrySources; lexiconId: number }) {
   const fields = sources.fields
   const incomplete = sources.completeness.status === 'incomplete'
   const stateMessage = incomplete
@@ -58,7 +64,7 @@ export function EntrySourceList({ sources }: { sources: EntrySources }) {
             {group.selected.length > 0 ? (
               <ul className="source-rows" aria-label={`${label}：已采用的来源`}>
                 {group.selected.map((row) => (
-                  <EvidenceRow key={row.source_evidence_id} row={row} unadopted={false} />
+                  <EvidenceRow key={row.source_evidence_id} row={row} unadopted={false} lexiconId={lexiconId} />
                 ))}
               </ul>
             ) : (
@@ -69,7 +75,7 @@ export function EntrySourceList({ sources }: { sources: EntrySources }) {
                 <summary>未采用的其他来源（{group.candidates.length}）</summary>
                 <ul className="source-rows unadopted" aria-label={`${label}：未采用的候选`}>
                   {group.candidates.map((row) => (
-                    <EvidenceRow key={row.source_evidence_id} row={row} unadopted />
+                    <EvidenceRow key={row.source_evidence_id} row={row} unadopted lexiconId={lexiconId} />
                   ))}
                 </ul>
               </details>
@@ -85,7 +91,7 @@ export function EntrySourceList({ sources }: { sources: EntrySources }) {
   )
 }
 
-function EvidenceRow({ row, unadopted }: { row: SourceEvidence; unadopted: boolean }) {
+function EvidenceRow({ row, unadopted, lexiconId }: { row: SourceEvidence; unadopted: boolean; lexiconId: number }) {
   return (
     <li className={unadopted ? 'source-row unadopted' : 'source-row'}>
       <div className="source-row-head">
@@ -119,9 +125,11 @@ function EvidenceRow({ row, unadopted }: { row: SourceEvidence; unadopted: boole
         </small>
       )}
       {/* Every recorded row links to its own card on the sources page, including a
-          candidate: a source we did not adopt is still a source we recorded, and the
-          anchor is the artifact's own id. */}
-      <Link className="source-row-card" to={`/sources#source-${row.source.source_artifact_id}`}>
+          candidate: a source we did not adopt is still a source we recorded. The anchor
+          carries the entry's own lexicon as well as the artifact, so a source file
+          shared with another lexicon cannot send the reader into that lexicon's
+          section. */}
+      <Link className="source-row-card" to={sourceCardHref(lexiconId, row.source.source_artifact_id)}>
         来源详情
       </Link>
     </li>

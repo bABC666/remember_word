@@ -47,8 +47,12 @@ function sources(overrides: Partial<EntrySources> = {}): EntrySources {
   }
 }
 
-function renderList(value: EntrySources) {
-  return render(<MemoryRouter><EntrySourceList sources={value} /></MemoryRouter>)
+function renderList(value: EntrySources, lexiconId = 12) {
+  return render(
+    <MemoryRouter>
+      <EntrySourceList sources={value} lexiconId={lexiconId} />
+    </MemoryRouter>,
+  )
 }
 
 /** The adopted rows of one field, found by the label the component gives them. */
@@ -211,7 +215,7 @@ describe('EntrySourceList', () => {
     )
   })
 
-  it('links every row to its own source card on the sources page', () => {
+  it('links every row to its own card in this word\'s lexicon', () => {
     renderList(sources({
       fields: [{
         field_kind: 'meaning',
@@ -225,15 +229,26 @@ describe('EntrySourceList', () => {
           },
         })],
       }],
-    }))
+    }), 12)
 
-    // The anchor is the artifact's own id, which is what the sources page gives its
-    // card -- including for a candidate, which is a source we recorded.
+    // The anchor carries the lexicon as well as the artifact, so an artifact used by
+    // two lexicons resolves to this word's own card rather than to the first match --
+    // and every row gets one, a candidate included: it is a source we recorded.
     expect(adopted('释义').getByRole('link', { name: '来源详情' })).toHaveAttribute(
-      'href', '/sources#source-4',
+      'href', '/sources#source-12-4',
     )
     expect(candidates('释义').getByRole('link', { name: '来源详情' })).toHaveAttribute(
-      'href', '/sources#source-7',
+      'href', '/sources#source-12-7',
+    )
+  })
+
+  it('takes the lexicon from the entry, not from a constant', () => {
+    // The same payload under another lexicon: the link follows the entry's own lexicon,
+    // which is the only id the sources page can be holding a card under.
+    renderList(sources(), 11)
+
+    expect(adopted('释义').getByRole('link', { name: '来源详情' })).toHaveAttribute(
+      'href', '/sources#source-11-4',
     )
   })
 

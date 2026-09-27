@@ -1,6 +1,9 @@
+import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, ShieldAlert } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../api'
+import { sourceCardAnchor } from '../sourceAnchor'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import {
   approvalLabel,
@@ -102,7 +105,7 @@ function LexiconSourcesSection({ lexicon }: { lexicon: LexiconRow }) {
           ) : (
             <div className="source-cards">
               {query.data.sources.map((row) => (
-                <SourceCard key={row.source_artifact_id} row={row} />
+                <SourceCard key={row.source_artifact_id} row={row} lexiconId={lexicon.id} />
               ))}
             </div>
           )}
@@ -134,13 +137,29 @@ function AuthorizationNotice({ review }: { review: AuthorizationReview }) {
   )
 }
 
-function SourceCard({ row }: { row: SourceArtifactRow }) {
-  const titleId = `source-${row.source_artifact_id}-title`
+function SourceCard({ row, lexiconId }: { row: SourceArtifactRow; lexiconId: number }) {
+  // The card's fragment is built by the shared helper, the same one the word detail's
+  // link uses. It carries the lexicon as well as the artifact, because one artifact can
+  // be a card in several lexicons and a bare artifact anchor would make all but the
+  // first one unreachable.
+  const anchor = sourceCardAnchor(lexiconId, row.source_artifact_id)
+  const titleId = `${anchor}-title`
   const link = licenseLink(row.license_id)
+  const card = useRef<HTMLElement>(null)
+  const hash = useLocation().hash
+
+  // A card only exists once this lexicon's sources have loaded, which is later than the
+  // browser's own fragment scroll: arriving here from a word detail is a client-side
+  // navigation, so nothing moved the reader to the card the link named. Chrome gets
+  // this right on a fresh load and misses it on that path, so the card that owns the
+  // anchor brings itself into view when the fragment names it.
+  useEffect(() => {
+    if (decodeURIComponent(hash.replace(/^#/, '')) !== anchor) return
+    card.current?.scrollIntoView({ block: 'start' })
+  }, [hash, anchor])
+
   return (
-    // The id is the anchor the word-detail source block links to
-    // (`/sources#source-<id>`), which is why it is the artifact's own id.
-    <article className="source-card" id={`source-${row.source_artifact_id}`} aria-labelledby={titleId}>
+    <article className="source-card" id={anchor} ref={card} aria-labelledby={titleId}>
       <header>
         <h3 id={titleId}>{row.publisher || row.name}</h3>
         <span className="source-role">{row.role}</span>

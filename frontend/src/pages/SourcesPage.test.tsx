@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
@@ -78,6 +78,10 @@ const SOURCES_BY_LEXICON: Record<number, { sources: unknown[]; review: unknown }
   },
   12: {
     sources: [
+      // The same artifact the first lexicon uses, imported into this one as well:
+      // sharing a source file between lexicons is what the backend allows, and it is
+      // what makes a bare `source-<artifact>` anchor ambiguous.
+      source({ runs: [{ run_id: 'run-private-lexicon', confirmed_at: '2026-09-26T03:00:00Z', outcome: 'reused' }] }),
       source({
         source_artifact_id: 7, role: 'primary', name: 'mine.csv', publisher: '私人整理来源',
         license_id: '', license_text_sha256: '',
@@ -202,16 +206,70 @@ describe('what the page shows', () => {
     const publicLexicon = await screen.findByRole('region', { name: '考研核心词库' })
     const ownLexicon = lexiconSection('我的私人词库')
 
-    // Each lexicon's own sources, and only those: a source of one lexicon must not
-    // be presented as another's.
-    expect(await within(publicLexicon).findByRole('article', { name: /词表发布方甲/ })).toBeInTheDocument()
+    // Each lexicon's own sources, and only those: a source recorded for one lexicon
+    // and not the other must not appear under both.
+    expect(await within(publicLexicon).findByRole('article', { name: /词表发布方乙/ })).toBeInTheDocument()
     expect(await within(ownLexicon).findByRole('article', { name: /私人整理来源/ })).toBeInTheDocument()
     expect(within(publicLexicon).queryByText('私人整理来源')).not.toBeInTheDocument()
-    expect(within(ownLexicon).queryByText('词表发布方甲')).not.toBeInTheDocument()
+    expect(within(ownLexicon).queryByText('补充来源整理者')).not.toBeInTheDocument()
 
-    // The design's per-source anchor is what a word detail block links to.
-    expect(document.getElementById('source-3')).toBeInTheDocument()
-    expect(document.getElementById('source-7')).toBeInTheDocument()
+    // The per-source anchor is what a word detail block links to, and it carries the
+    // lexicon as well as the artifact, so the same artifact can be a card in two
+    // lexicons without either one shadowing the other.
+    expect(document.getElementById('source-11-3')).toBeInTheDocument()
+    expect(document.getElementById('source-11-4')).toBeInTheDocument()
+    expect(document.getElementById('source-12-7')).toBeInTheDocument()
+  })
+
+  it('scrolls to the card the fragment names once that card exists', async () => {
+    // The card is rendered only after this lexicon's sources arrive, which is later
+    // than the browser's own fragment scroll -- so arriving from a word detail would
+    // leave the reader at the top of the page. jsdom has no scrolling of its own, so
+    // the call itself is what is pinned here; the real browser is the walkthrough.
+    const original = Element.prototype.scrollIntoView
+    const scrolled: string[] = []
+    Element.prototype.scrollIntoView = function scrollIntoView() { scrolled.push(this.id) }
+    try {
+      window.history.pushState({}, '', '/sources#source-12-3')
+      await openSources()
+
+      await waitFor(() => expect(scrolled).toContain('source-12-3'))
+      // Only the named card: a page that scrolled the first card would land the reader
+      // in the wrong lexicon's section, which is the bug this anchor form fixes.
+      expect(scrolled).toEqual(['source-12-3'])
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
+  it('gives each lexicon its own anchor when one artifact is shared', async () => {
+    await openSources()
+
+    // Each lexicon reads its own sources: wait until the shared artifact has a card in
+    // both, rather than reading the page while the second query is still in flight.
+    await waitFor(() => {
+      expect(document.getElementById('source-11-3')).not.toBeNull()
+      expect(document.getElementById('source-12-3')).not.toBeNull()
+    })
+
+    const sharedIds = [...document.querySelectorAll('.source-card')]
+      .filter((card) => card.textContent?.includes('词表发布方甲'))
+      .map((card) => card.id)
+    expect(sharedIds).toEqual(['source-11-3', 'source-12-3'])
+
+    // Each card belongs to the lexicon whose section holds it, so an anchor resolves
+    // to the reader's own lexicon instead of whichever card comes first.
+    const sectionOf = (id: string) =>
+      document.getElementById(id)?.closest('.lexicon-section')?.querySelector('h2')?.textContent
+    expect(sectionOf('source-11-3')).toBe('考研核心词库')
+    expect(sectionOf('source-12-3')).toBe('我的私人词库')
+
+    // Nothing on the page may carry an id twice: a duplicate id makes the second card
+    // unreachable as a fragment target, which is exactly how the internal link used to
+    // land in the wrong lexicon's section.
+    const ids = [...document.querySelectorAll('[id]')].map((node) => node.id)
+    expect(ids.length).toBeGreaterThan(10)
+    expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([])
   })
 
   it('states plainly that a lexicon has recorded no sources', async () => {
@@ -240,7 +298,10 @@ describe('what the page shows', () => {
   it('reports the recorded declaration state and the review notice as they are', async () => {
     await openSources()
 
-    expect(await within(await sourceCard('词表发布方甲')).findByText('声明写明未获批准')).toBeInTheDocument()
+    // Scoped to the first lexicon: the same artifact is a card in the second one too.
+    const sharedCard = await within(await screen.findByRole('region', { name: '考研核心词库' }))
+      .findByRole('article', { name: /词表发布方甲/ })
+    expect(within(sharedCard).getByText('声明写明未获批准')).toBeInTheDocument()
     expect(await within(await sourceCard('词表发布方乙')).findByText('尚未评估')).toBeInTheDocument()
 
     const publicLexicon = lexiconSection('考研核心词库')

@@ -448,16 +448,18 @@ describe('mobile library detail', () => {
     expect(within(wordRows).getByRole('link', { name: /固定修订/ })).toHaveAttribute(
       'href', 'https://zh.wiktionary.org/w/index.php?oldid=6588944',
     )
-    // ...and the internal link to that source's card on the sources page.
+    // ...and the internal link to that source's card, in this word's own lexicon: the
+    // anchor carries the lexicon id as well as the artifact's, so a source file shared
+    // with another lexicon cannot send the reader into that lexicon's section.
     expect(within(wordRows).getByRole('link', { name: '来源详情' })).toHaveAttribute(
-      'href', '/sources#source-3',
+      'href', '/sources#source-1-3',
     )
 
     // The meaning came from a different source: its publisher must not appear as the
     // origin of the word, nor the word's as the origin of the meaning.
     expect(within(meaningRows).getByText('补充来源整理者')).toBeInTheDocument()
     expect(within(meaningRows).getByRole('link', { name: '来源详情' })).toHaveAttribute(
-      'href', '/sources#source-4',
+      'href', '/sources#source-1-4',
     )
     expect(within(wordRows).queryByText('补充来源整理者')).not.toBeInTheDocument()
 

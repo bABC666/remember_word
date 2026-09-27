@@ -44,8 +44,9 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
       {/* Placed after the source's own text, so a reader who doubts a value meets the
           record of where it came from next. The concise blocks above keep their own
           labels: a rewritten or self-authored short value is never presented as the
-          source's words, and this block does not change that. */}
-      <EntrySourceList sources={word.sources} />
+          source's words, and this block does not change that. The lexicon is passed in
+          because the entry's own lexicon is what makes the card anchor unambiguous. */}
+      <EntrySourceList sources={word.sources} lexiconId={word.lexicon_id} />
       <div className="detail-stats">
         <div><strong>{word.recall_success}</strong><span>成功回忆</span></div>
         <div><strong>{word.recall_fail}</strong><span>回忆失败</span></div>
