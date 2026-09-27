@@ -244,7 +244,7 @@ h1, h2, h3, p { margin-top: 0; }
 .lexicon-section { padding: 22px 24px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.55); }
 .lexicon-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
 .lexicon-head h2 { margin: 0 0 4px; font-size: 19px; }
-.lexicon-head small { color: var(--muted); font-size: 12px; }
+.lexicon-head small { color: var(--source-secondary); font-size: 12px; }
 .authorization-note { display: flex; gap: 11px; margin-top: 16px; padding: 12px 14px; border-radius: 8px; background: #f4f4f8; color: #4d5670; font-size: 12px; }
 .authorization-note.pending { background: var(--amber-soft); color: #8a5f16; }
 .authorization-note svg { flex: 0 0 auto; margin-top: 1px; }
@@ -255,15 +255,15 @@ h1, h2, h3, p { margin-top: 0; }
 .source-card { padding: 16px 18px; border: 1px solid var(--line); border-radius: 10px; background: white; }
 .source-card > header { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
 .source-card h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
-.source-role { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: #687184; font-size: 10px; }
-.approval-badge { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: #687184; font-size: 10px; }
+.source-role { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: var(--source-secondary); font-size: 10px; }
+.approval-badge { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: var(--source-secondary); font-size: 10px; }
 .approval-badge.unapproved { background: var(--danger-soft); color: var(--danger); }
 .source-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 14px 0 0; }
 .source-meta .full { grid-column: 1 / -1; }
-.source-meta dt { color: var(--muted); font-size: 11px; }
+.source-meta dt { color: var(--source-secondary); font-size: 11px; }
 .source-meta dd { margin: 3px 0 0; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .source-meta a { color: var(--indigo); font-weight: 650; }
-.source-foot { margin: 12px 0 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.source-foot { margin: 12px 0 0; color: var(--source-secondary); font-size: 11px; overflow-wrap: anywhere; }
 .settings-entry { margin: 18px 0 0; }
 
 @media (max-width: 620px) {
@@ -279,7 +279,7 @@ h1, h2, h3, p { margin-top: 0; }
    for.  Tracks are `minmax(0, 1fr)` throughout: a raw source line is exactly the
    long unbreakable text that widens a page on a phone (G8). */
 .entry-sources { margin-top: 22px; }
-.source-state { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.source-state { margin: 10px 0 0; color: var(--source-secondary); font-size: 12px; line-height: 1.6; }
 .field-source { margin-top: 16px; }
 .field-source-name { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #4b5468; }
 .source-rows { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; }
@@ -287,19 +287,46 @@ h1, h2, h3, p { margin-top: 0; }
 .source-row.unadopted { border-style: dashed; background: transparent; }
 .source-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .source-row-head strong { font-size: 13px; overflow-wrap: anywhere; }
-.source-role, .source-decision { padding: 2px 7px; border-radius: 999px; background: #eef0f4; color: #687184; font-size: 10px; }
-.source-decision { background: var(--green-soft); color: var(--green); }
+.source-role, .source-decision { padding: 2px 7px; border-radius: 999px; background: #eef0f4; color: var(--source-secondary); font-size: 10px; }
+.source-decision { background: var(--green-soft); color: #2f6f55; }
 .source-decision.unadopted { background: var(--amber-soft); color: #8a5f16; }
 .source-row-text { margin: 2px 0 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
-.source-row-meta, .source-row-revision, .source-row-nolink { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.source-row-meta, .source-row-revision, .source-row-nolink { display: block; color: var(--source-secondary); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .source-row-nolink { color: #8a5f16; }
 .source-row-link, .source-row-card { font-size: 12px; font-weight: 650; color: var(--indigo); }
 .source-row-link { margin-top: 3px; }
 .source-row-card { justify-self: start; }
 .source-candidates { margin-top: 8px; }
-.source-candidates > summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.source-candidates > summary { cursor: pointer; color: var(--source-secondary); font-size: 12px; }
 .source-candidates > ul { margin-top: 10px; }
 
 @media (max-width: 620px) {
   .source-row { padding: 11px 12px; }
 }
+
+/* --- Phase 2.9 accessibility pass (walkthrough P2/P3) -----------------------
+   Two corrections, on the new source surfaces only.
+
+   **Target size.** At 390px the walkthrough measured the revision link at
+   294x20, the source-detail link at 48x20, the candidates summary at 320x16 and
+   the licence deed link at 82x16 -- all under the 24x24 CSS px minimum. Each
+   now reaches 24px in both directions. The summary keeps its own display,
+   because a disclosure marker is painted only for a list-item; it reaches 24px
+   with a minimum height and padding instead.
+
+   **Contrast.** `--muted` measures 3.6-3.9:1 on these surfaces, under the 4.5:1
+   floor for normal-size text. `--source-secondary` is a local ink that clears
+   4.5:1 on every surface these blocks put text on; `--muted` itself and every
+   existing site-wide control are left exactly as they were. The adopted and
+   unadopted states keep their wording, their colour pair and their border
+   style, so nothing here is carried by colour alone. */
+.sources-page, .entry-sources { --source-secondary: #5f6880; }
+.source-row-link,
+.source-row-card,
+.source-meta a { display: inline-flex; align-items: center; min-width: 24px; min-height: 24px; }
+.source-candidates > summary { min-width: 24px; min-height: 24px; padding: 3px 0; }
+/* The block's own label is a bare span, which the detail's existing
+   `.word-detail section > span` rule paints with `--muted` at 11px; the size is
+   the intended one, the colour is not. Removing the class the component used to
+   carry is what let that rule take over. */
+.entry-sources .source-section-label { color: var(--source-secondary); }

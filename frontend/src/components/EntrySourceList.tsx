@@ -53,7 +53,10 @@ export function EntrySourceList({ sources, lexiconId }: { sources: EntrySources;
     // that the block may not silently disappear: "nothing recorded" and "nothing wrong"
     // would then look alike.
     <section className="entry-sources" aria-label="来源记录">
-      <span>来源记录</span>
+      {/* The class is not decoration: without it the detail's existing
+          `.word-detail section > span` rule paints this label with --muted at 3.9:1,
+          which the accessibility pass below the file has to override. */}
+      <span className="source-section-label">来源记录</span>
       {stateMessage && <p className="source-state">{stateMessage}</p>}
 
       {fields.map((group) => {
