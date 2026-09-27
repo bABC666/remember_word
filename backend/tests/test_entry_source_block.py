@@ -155,13 +155,15 @@ def _import_two_words(
     *,
     token: str,
     lexicon_name: str,
+    source_type: str | None = None,
     primary_revision: str = PRIMARY_REVISION,
     supplement_revision: str = SUPPLEMENT_REVISION,
 ) -> dict[str, Any]:
     """One real confirmation of a two-word source pair, plus this admin's states.
 
     Returns the entry and ``user_word_state`` ids by normalized word, so a test can ask
-    the API for exactly the entry it means.
+    the API for exactly the entry it means. Calling it twice with one token writes the
+    same bytes twice, which is how a second target re-imports one source.
     """
     from app.models import LexiconEntry
     from app.services.public_lexicon_confirm import confirm_plan
@@ -180,7 +182,11 @@ def _import_two_words(
     )
 
     with admin.session() as session:
-        lexicon = _system_lexicon(session, lexicon_name, f"esb-{token}")
+        # ``uq_lexicon_system`` allows one system lexicon per source type, so a second
+        # target needs its own.
+        lexicon = _system_lexicon(
+            session, lexicon_name, source_type or f"esb-{token}"
+        )
         result = confirm_plan(
             session, plan=plan, administrator=_administrator(session, admin),
             source_root=root,
@@ -248,6 +254,20 @@ def _all_strings(value: object) -> list[str]:
     elif isinstance(value, str):
         found.append(value)
     return found
+
+
+def _without_row_ids(block: dict[str, Any]) -> dict[str, Any]:
+    """The block with each row's own record id blanked.
+
+    Two entries written from the same source and the same decision hold the same
+    *content* and their own, different evidence rows. Comparing the ids would only
+    report that, so they are removed and the ids are compared as sets elsewhere.
+    """
+    copied = json.loads(json.dumps(block))
+    for field in copied["fields"]:
+        for row in [*field["selected"], *field["candidates"]]:
+            row["source_evidence_id"] = None
+    return copied
 
 
 # --- one field, one source ---------------------------------------------------
@@ -595,6 +615,97 @@ def test_an_entry_with_no_source_record_answers_an_empty_block(admin) -> None:
     # The values themselves are untouched by the degradation.
     assert detail["source_meanings"] == ["旧数据释义"]
     assert detail["source_raw"] == "esboldword 旧数据释义"
+
+
+def test_a_second_lexicon_records_its_own_evidence_for_the_same_source(
+    admin, tmp_path: Path
+) -> None:
+    """The same file, the same words, the same decisions -- into two public lexicons.
+
+    The evidence key covers the file bytes, the locator, the field and the value; it
+    deliberately does not cover the entry. A deduplication that reads "this source
+    value was already adjudicated" from a row belonging to *another* lexicon's word
+    therefore skips every row of the second import, and the second entry ends up with
+    no source record at all: its detail page answers ``no_evidence`` for content the
+    import really did write.
+
+    Each entry's rows have to belong to that entry, so both words must answer the same
+    complete per-field block -- and the artifact is still reused by fingerprint rather
+    than re-created under a new label.
+    """
+    from app.models import EntrySourceEvidence, PublicImportRunSource
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "esbtwice"
+    word = f"word{token}"
+    first = _import_two_words(admin, root, token=token, lexicon_name="esb-twice-a")
+    second = _import_two_words(
+        admin, root, token=token, lexicon_name="esb-twice-b",
+        source_type=f"esb-{token}-second",
+    )
+
+    assert first["entries"][word] != second["entries"][word], (
+        "control: the two targets hold two different entries"
+    )
+
+    with admin.session() as session:
+        def artifacts_of(run_id: int) -> list[int]:
+            return sorted(session.scalars(
+                select(PublicImportRunSource.source_artifact_id).where(
+                    PublicImportRunSource.import_run_id == run_id
+                )
+            ).all())
+
+        rows_a = session.scalars(
+            select(EntrySourceEvidence).where(
+                EntrySourceEvidence.lexicon_entry_id == first["entries"][word]
+            )
+        ).all()
+        rows_b = session.scalars(
+            select(EntrySourceEvidence).where(
+                EntrySourceEvidence.lexicon_entry_id == second["entries"][word]
+            )
+        ).all()
+        assert artifacts_of(second["run_id"]) == artifacts_of(first["run_id"]), (
+            "the artifact is reused by fingerprint, not re-created for the new target"
+        )
+
+    assert rows_a, "control: the first entry has its own per-field evidence"
+    assert rows_b, (
+        "the second lexicon's entry must have per-field evidence of its own, not none"
+    )
+    assert len(rows_b) == len(rows_a)
+    assert not ({row.id for row in rows_a} & {row.id for row in rows_b}), (
+        "each entry's rows are its own records"
+    )
+    assert {row.lexicon_entry_id for row in rows_b} == {second["entries"][word]}
+
+    block_a = _block(admin, first["states"][word])
+    block_b = _block(admin, second["states"][word])
+    assert block_b["fields"], (
+        "the second entry's detail page must show its sources, not an empty block"
+    )
+    assert block_b["completeness"]["status"] == "complete", block_b["completeness"]
+    assert _without_row_ids(block_b) == _without_row_ids(block_a), (
+        "same source and same decision, the same block -- each entry holding its own rows"
+    )
+    ids_a = {
+        row["source_evidence_id"]
+        for field in block_a["fields"] for row in [*field["selected"], *field["candidates"]]
+    }
+    ids_b = {
+        row["source_evidence_id"]
+        for field in block_b["fields"] for row in [*field["selected"], *field["candidates"]]
+    }
+    assert ids_a and ids_b and not ids_a & ids_b
+
+    # And the link a reader follows is the pinned revision of the row it came from.
+    adopted = _only(_field(block_b, "word")["selected"], adopted=True)
+    assert adopted["source_revision"] == PRIMARY_REVISION
+    assert adopted["source_revision_url"] == PRIMARY_TEMPLATE.format(
+        revision=PRIMARY_REVISION
+    )
 
 
 def test_the_block_holds_only_this_entry_s_evidence(admin, tmp_path: Path) -> None:

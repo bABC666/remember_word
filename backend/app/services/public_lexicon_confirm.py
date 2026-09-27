@@ -680,18 +680,33 @@ def _create_entry(
     return created
 
 
-def _latest_evidence_for(session: Session, key: str) -> dict[str, Any] | None:
-    """The most recent recorded decision for one piece of source evidence.
+def _latest_evidence_for(
+    session: Session, key: str, *, entry_id: int
+) -> dict[str, Any] | None:
+    """The most recent decision **this entry** already holds for one source value.
 
-    Read-only, and deliberately not scoped by run or by lexicon: the question is
-    whether *this* source value was already adjudicated the same way, so a re-import
-    of the same bytes under another target does not record a second identical decision.
+    Read-only, scoped to the entry this run is about to write and deliberately not to
+    the run: a row an earlier run recorded for *this* entry is a prior decision about
+    it, while a row belonging to any other entry says nothing about this one. That
+    covers the same source value imported into another lexicon, and the entry-less rows
+    a deleted entry leaves behind (``lexicon_entry_id`` is ``ON DELETE SET NULL``).
+
+    Scoping by the source value alone was the bug this narrows. The evidence key covers
+    the file bytes, the locator, the field and the value -- deliberately not the entry
+    -- so "this value was already adjudicated" was being answered from another lexicon's
+    word, and the second import wrote no rows at all. Its entry then had no source
+    record of its own, and the per-field source block answered ``no_evidence`` for
+    content the import really had written.
+
     The revision the row recorded comes back with the decision, because "the same way"
     includes the revision the value was read at -- see :func:`_plan_evidence`.
     """
     prior = session.scalars(
         select(EntrySourceEvidence)
-        .where(EntrySourceEvidence.evidence_sha256 == key)
+        .where(
+            EntrySourceEvidence.evidence_sha256 == key,
+            EntrySourceEvidence.lexicon_entry_id == entry_id,
+        )
         .order_by(EntrySourceEvidence.id.desc())
     ).first()
     if prior is None:
@@ -717,12 +732,15 @@ def _plan_evidence(
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Work out this run's adjudication of each source value, writing nothing.
 
-    One row per field value the run actually considered. An identical row from an
-    earlier run is not duplicated; a *different* decision on the same source position
-    becomes a new row rather than an edit of the old one, so the earlier decision stays
-    readable. Nothing here issues an UPDATE or a DELETE -- and nothing here writes at
-    all: the rows are returned for the caller to insert, which is what lets the run row
-    carry its final counters from the moment it is first inserted.
+    One row per field value the run actually considered, and every row returned belongs
+    to the entry this run writes. "Already recorded" is therefore asked *of that entry*
+    -- see :func:`_latest_evidence_for` -- so the same source value already recorded for
+    another lexicon's word does not stand in for this entry's own row. A row an earlier
+    run recorded for this same entry is not duplicated; a *different* decision on the
+    same source position becomes a new row rather than an edit of the old one, so the
+    earlier decision stays readable. Nothing here issues an UPDATE or a DELETE -- and
+    nothing here writes at all: the rows are returned for the caller to insert, which is
+    what lets the run row carry its final counters from the moment it is first inserted.
 
     "Identical" covers the pinned revision as well as the decision. The evidence key
     does not carry the revision -- it identifies the *value*, and a revision is metadata
@@ -730,6 +748,13 @@ def _plan_evidence(
     "nothing new" while the revision on record had in fact moved, leaving the stored
     evidence claiming a revision this run never read. A moved revision is a
     re-adjudication: it appends a row, exactly as a changed decision does.
+
+    An entry this run creates has no earlier rows, so the comparison cannot match for
+    one and ``skipped_existing``/``readjudicated`` stay 0: every item considered reaches
+    a row of its own. Those two counters state the rule for the case they are about --
+    recording evidence onto an entry that already holds a row for the same key -- which
+    no path does today, because a word already in the target lexicon is reported as a
+    conflict and gets no evidence at all.
     """
     counters = {"written": 0, "skipped_existing": 0, "readjudicated": 0}
     rows: list[dict[str, Any]] = []
@@ -756,7 +781,9 @@ def _plan_evidence(
                 # revision contribute the empty string, which is the column's own way
                 # of saying "no link".
                 revision = str(item.get("source_revision") or "")
-                prior = _latest_evidence_for(session, item["idempotency_key"])
+                prior = _latest_evidence_for(
+                    session, item["idempotency_key"], entry_id=created.id
+                )
                 if prior is not None:
                     unchanged = (
                         prior["decision"] == decision

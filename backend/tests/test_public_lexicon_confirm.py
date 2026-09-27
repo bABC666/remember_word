@@ -314,10 +314,21 @@ def test_confirming_the_same_plan_twice_writes_nothing_the_second_time(
     assert after_second == after_first
 
 
-def test_confirming_into_a_second_lexicon_reuses_evidence(
+def test_confirming_into_a_second_lexicon_records_its_own_evidence(
     admin, tmp_path: Path
 ) -> None:
-    """The same file and mapping cannot be recorded as new evidence twice."""
+    """The same file and the same decision, into a second lexicon: its own rows.
+
+    The evidence key covers the file bytes, the mapping, the locator, the field and the
+    value. It deliberately does not cover the entry, so "this source value is already on
+    record" has to be asked of *the entry this run writes*: asked of the table at large,
+    it is answered by the first lexicon's word, the second import records nothing, and
+    the entry it created has no source record of its own at all.
+
+    The artifact, by contrast, is the same input read the same way, so it *is* reused by
+    fingerprint rather than re-created under a new label.
+    """
+    from app.models import LexiconEntry
     from app.services.public_lexicon_confirm import confirm_plan
 
     root = tmp_path / "sources"
@@ -329,27 +340,38 @@ def test_confirming_into_a_second_lexicon_reuses_evidence(
                               decisions=decisions, rewrite_sources=False)
 
     with admin.session() as session:
+        second_lexicon = _system_lexicon(session, "p29-reuse-b", "p29-test-reuse-b")
         _system_lexicon(session, "p29-reuse-a", "p29-test-reuse-a")
-        _system_lexicon(session, "p29-reuse-b", "p29-test-reuse-b")
         administrator = _administrator(session, admin)
         first = confirm_plan(
             session, plan=first_plan, administrator=administrator, source_root=root
         )
         artifacts_after_first = _counts(session)["source_artifact"]
+        rows_first = _evidence_rows(session, first["import_run_id"])
         second = confirm_plan(
             session, plan=second_plan, administrator=administrator, source_root=root
         )
         rows_second = _evidence_rows(session, second["import_run_id"])
         artifacts_after_second = _counts(session)["source_artifact"]
+        second_entry = session.query(LexiconEntry).filter_by(
+            lexicon_id=second_lexicon.id, normalized_word=_normalized("reuse")
+        ).one()
 
     assert first["plan_sha256"] != second_plan["plan_sha256"]
     assert second["status"] == "applied"
     # The word is new to the second lexicon, so an entry is created ...
     assert second["entries_created"] == 1
-    # ... but its evidence is already on record, so nothing is appended.
-    assert second["evidence"]["written"] == 0
-    assert second["evidence"]["skipped_existing"] > 0
-    assert rows_second == []
+    # ... and it gets the per-field evidence of its own import.
+    assert rows_first, "control: the first lexicon's entry recorded its evidence"
+    assert len(rows_second) == len(rows_first)
+    assert {row["lexicon_entry_id"] for row in rows_second} == {second_entry.id}, (
+        "every row of this run has to be a record of this lexicon's entry"
+    )
+    assert {row["id"] for row in rows_second} & {row["id"] for row in rows_first} == set()
+    assert second["evidence"]["written"] == len(rows_second)
+    assert second["evidence"]["skipped_existing"] == 0, (
+        "nothing was on record *for this entry*, so nothing could be skipped"
+    )
     # The artifact is reused by fingerprint, not re-created under a new label.
     assert artifacts_after_second == artifacts_after_first
 
@@ -815,22 +837,76 @@ def test_a_repeated_confirmation_of_a_revision_declaring_plan_writes_nothing(
     assert _revision_rows(session, first["import_run_id"]) == rows_after_first
 
 
-def test_a_changed_revision_is_not_silently_skipped_as_unchanged(
+def test_a_retry_of_the_same_plan_records_no_evidence_again(
     admin, tmp_path: Path
 ) -> None:
-    """A prior row under the same evidence key must not hide a changed revision.
+    """Scoping the deduplication to the entry must not turn a retry into an append.
 
-    Evidence is deduplicated by key, and "unchanged" decides whether a run appends a row
-    or reports nothing new. The key deliberately does not carry the revision -- a
-    revision is metadata about the row, not part of the value's identity -- so a
-    comparison that ignored it would report "nothing new to record" while the source
-    position's revision had in fact moved, leaving the stored evidence claiming a
-    revision this run did not read.
-
-    The prior row is inserted directly, because that is the state the check has to
-    answer for: it is what any writer that predates this column leaves behind.
+    "A new entry always gets its own rows" is the rule; "every call appends its rows
+    again" is not. The same plan confirmed twice is answered from the recorded run, and
+    the target entry keeps exactly the rows the first call wrote -- the same ids, the
+    same count, the same revisions -- with the table counts unchanged.
     """
-    from app.models import EntrySourceEvidence, PublicImportRunSource, SourceArtifact
+    from app.models import EntrySourceEvidence, LexiconEntry
+    from app.services.public_lexicon_confirm import confirm_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    token = "retryzero"
+    plan = _build_revision_plan(root, token=token, target="p29-retryzero",
+                                decisions=_standard_decisions(token))
+
+    def evidence_ids(session, lexicon_id: int) -> list[int]:
+        entry_ids = [
+            row[0] for row in session.query(LexiconEntry.id).filter_by(
+                lexicon_id=lexicon_id
+            ).all()
+        ]
+        return sorted(
+            row[0] for row in session.query(EntrySourceEvidence.id).filter(
+                EntrySourceEvidence.lexicon_entry_id.in_(entry_ids)
+            ).all()
+        )
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "p29-retryzero", "p29-test-retryzero")
+        administrator = _administrator(session, admin)
+        first = confirm_plan(
+            session, plan=plan, administrator=administrator, source_root=root
+        )
+        before = evidence_ids(session, lexicon.id)
+        counts_before = _counts(session)
+        second = confirm_plan(
+            session, plan=plan, administrator=administrator, source_root=root
+        )
+        after = evidence_ids(session, lexicon.id)
+        counts_after = _counts(session)
+
+    assert first["status"] == "applied" and before, "control: the first call recorded"
+    assert second["status"] == "already_applied"
+    assert second["import_run_id"] == first["import_run_id"]
+    assert after == before, "a retry writes no evidence row at all"
+    assert counts_after == counts_before
+    assert second["evidence_written"] == first["evidence_written"] == len(before)
+
+
+def test_a_stale_revision_under_the_same_key_is_neither_reused_nor_rewritten(
+    admin, tmp_path: Path
+) -> None:
+    """A record under the same evidence key, but not of this entry, decides nothing.
+
+    Evidence is deduplicated by key, and the key deliberately does not carry the entry
+    (or the revision -- a revision is metadata about the row, not part of the value's
+    identity). So the state this has to answer for is a row that shares the key with a
+    value this run would record and yet is not a record of the entry being written: what
+    a writer predating the revision column leaves behind, and what a deleted entry
+    leaves behind, since ``lexicon_entry_id`` is ``ON DELETE SET NULL``.
+
+    Such a row must neither be treated as "already recorded for this entry" nor be
+    rewritten with the revision this run read. The entry gets a row of its own carrying
+    that revision, and the stale row stays exactly as it was.
+    """
+    from app.models import EntrySourceEvidence, LexiconEntry, PublicImportRunSource, SourceArtifact
     from app.services.public_lexicon_confirm import confirm_plan
     from app.services.public_lexicon_plan import evidence_idempotency_key
 
@@ -900,18 +976,23 @@ def test_a_changed_revision_is_not_silently_skipped_as_unchanged(
         revisions = [row.source_revision for row in recorded]
         decisions = [row.decision for row in recorded]
         runs = {first["import_run_id"], second["import_run_id"]}
+        second_entry = session.query(LexiconEntry).filter_by(
+            lexicon_id=second_lexicon.id, normalized_word=word
+        ).one()
+        second_rows = _evidence_rows(session, second["import_run_id"])
 
     assert first["target_lexicon"]["id"] == first_lexicon.id
     assert second["target_lexicon"]["id"] == second_lexicon.id
     assert runs == {first["import_run_id"], second["import_run_id"]}
     assert first["status"] == "applied" and second["status"] == "applied"
-    # The second run did write: "unchanged" must not cover a revision that moved.
-    assert second["evidence"]["written"] == 1
-    assert second["evidence"]["readjudicated"] == 1
-    assert second["evidence"]["skipped_existing"] == 5, (
-        "only the moved revision is a change; the five untouched items stay as they are"
-    )
-    # The revision this run actually read is now on record, beside the other one.
+    # The second run wrote every item it considered, for its own entry: the stale row
+    # belongs to no entry of this lexicon, so it decides nothing about this one.
+    assert second["evidence"]["written"] == len(second_rows) == 6
+    assert second["evidence"]["skipped_existing"] == 0
+    assert second["evidence"]["readjudicated"] == 0
+    assert {row["lexicon_entry_id"] for row in second_rows} == {second_entry.id}
+    # The stale row is still there, unrewritten, beside the row this run recorded: the
+    # revision it read reaches a row of its own rather than being silently dropped.
     assert revisions == ["0000000", "6588944"], (
         f"the run's own revision has to reach a row of its own, got {revisions}"
     )
@@ -1244,10 +1325,17 @@ def test_a_failure_inside_the_write_rolls_everything_back(
 # --- immutable history -------------------------------------------------------
 
 
-def test_re_adjudication_appends_history_and_never_rewrites_it(
+def test_two_lexicons_keep_two_histories_and_neither_is_rewritten(
     admin, tmp_path: Path
 ) -> None:
-    """The same source value decided differently twice: two rows, one history."""
+    """The same source value decided differently for two lexicons: two entries, no edit.
+
+    One source position, adjudicated one way for the first lexicon and another way for
+    the second. Neither adjudication belongs to the other's entry, so the second run
+    records all six of its items against its own entry -- and the first run's rows come
+    out of it byte for byte as they went in. Nothing is rewritten in place, which is what
+    "append-only history" has to mean once the entry is the scope of "already recorded".
+    """
     from app.models import LexiconEntry
     from app.services.public_lexicon_confirm import confirm_plan
 
@@ -1263,7 +1351,7 @@ def test_re_adjudication_appends_history_and_never_rewrites_it(
 
     with admin.session() as session:
         first_lexicon = _system_lexicon(session, "p29-hist-a", "p29-test-hist-a")
-        _system_lexicon(session, "p29-hist-b", "p29-test-hist-b")
+        second_lexicon = _system_lexicon(session, "p29-hist-b", "p29-test-hist-b")
         administrator = _administrator(session, admin)
         first = confirm_plan(
             session, plan=first_plan, administrator=administrator, source_root=root
@@ -1280,20 +1368,27 @@ def test_re_adjudication_appends_history_and_never_rewrites_it(
         first_entry = session.query(LexiconEntry).filter_by(
             lexicon_id=first_lexicon.id, normalized_word=_normalized("hist")
         ).one()
+        second_entry = session.query(LexiconEntry).filter_by(
+            lexicon_id=second_lexicon.id, normalized_word=_normalized("hist")
+        ).one()
 
     assert rows_after_first == rows_after_second
-    # The two meanings were decided differently this time, so both are re-decided;
-    # word, phonetic and part of speech were unchanged and are not duplicated.
-    assert second["evidence"]["written"] == 2
-    assert second["evidence"]["readjudicated"] == 2
-    assert second["evidence"]["skipped_existing"] == 4
-    # The earlier adjudication is still there, with its own decision and timestamp.
+    # The second entry records every item of its own import; the two meanings were
+    # decided differently this time, the rest the same way, for the other entry.
+    assert second["evidence"]["written"] == len(second_rows) == 6
+    assert second["evidence"]["skipped_existing"] == 0
+    assert second["evidence"]["readjudicated"] == 0
+    assert {row["lexicon_entry_id"] for row in second_rows} == {second_entry.id}
     previous_by_key = {row["evidence_sha256"]: row for row in rows_after_second}
     for row in second_rows:
         previous = previous_by_key[row["evidence_sha256"]]
-        assert row["id"] != previous["id"]
-        assert row["decision"] != previous["decision"]
-        assert row["confirmed_at"] != previous["confirmed_at"]
+        assert row["id"] != previous["id"], "a new entry records new rows, never edits"
+        assert previous["lexicon_entry_id"] == first_entry.id
+    changed = {row["evidence_sha256"]: row for row in second_rows
+               if row["field_kind"] == "meaning"}
+    assert all(
+        changed[key]["decision"] != previous_by_key[key]["decision"] for key in changed
+    ), "the differing adjudication is what the second plan decided"
     # Both source texts survive verbatim; neither run replaced the other's values.
     stored = {row["raw_text"] for row in rows_after_second}
     assert {"主词表释义-hist", "补充来源释义-hist"} <= stored
