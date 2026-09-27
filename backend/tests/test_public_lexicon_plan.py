@@ -938,6 +938,36 @@ def test_an_empty_revision_cell_stays_empty_rather_than_being_invented(
     )
 
 
+@pytest.mark.parametrize("bad_revision", ["x" * 65, "has space", "bad\x01"])
+def test_invalid_revision_row_cannot_enter_a_confirmable_plan(
+    tmp_path: Path, bad_revision: str
+) -> None:
+    _write(
+        tmp_path, "primary.csv",
+        f"head,cn,oldid\nApple,苹果；果实,{bad_revision}\nBare,裸露,1234\n",
+    )
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"},
+         "revision": {"column": "oldid", "url_template": PINNED_TEMPLATE}},
+    ])
+
+    plan = _plan(tmp_path, manifest, [])
+
+    assert plan["sources"][0]["unreadable_rows"] == [2]
+    assert plan["confirmation_ready"] is False
+    assert any("unacknowledged_bad_rows" in item for item in plan["confirmation_blockers"])
+    assert all(item["normalized_word"] != "apple" for item in plan["entries"])
+    assert _entry(plan, "bare")["status"] == "ready"
+
+    acknowledged = _plan(tmp_path, manifest, [
+        {"action": "exclude_row", "source_id": "primary", "line": 2,
+         "note": "修订号无效，排除该行"},
+    ])
+    assert acknowledged["confirmation_ready"] is True
+    assert [item["normalized_word"] for item in acknowledged["entries"]] == ["bare"]
+
+
 def test_editing_a_frozen_revision_invalidates_the_plan(tmp_path: Path) -> None:
     """The digest covers the revision, so an edited claim is refused, not confirmed."""
     manifest = _pinned_sources(tmp_path)

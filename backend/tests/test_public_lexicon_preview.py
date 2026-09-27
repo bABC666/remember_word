@@ -281,6 +281,36 @@ def test_a_row_carries_its_own_revision_and_the_declaration_is_frozen(
     ), "changing the declaration must change the digest of the source artifact"
 
 
+@pytest.mark.parametrize("bad_revision", ["x" * 65, "has space", "tab\there", "bad\x7f"])
+def test_invalid_row_revision_is_reported_without_changing_its_source_value(
+    tmp_path: Path, bad_revision: str
+) -> None:
+    from app.services.public_lexicon_preview import (
+        PreviewMapping,
+        RevisionDeclaration,
+        preview_file,
+    )
+
+    source = tmp_path / "invalid-revision.csv"
+    source.write_text(f"head,oldid\nApple,{bad_revision}\n", encoding="utf-8")
+    report = preview_file(
+        source,
+        PreviewMapping(
+            columns={"word": "head"},
+            revision=RevisionDeclaration(column="oldid", url_template=WIKTIONARY_TEMPLATE),
+        ),
+        source_root=tmp_path,
+    )
+
+    row = report["rows"][0]
+    assert row["source_revision"] == bad_revision
+    assert row["line"] == 2
+    assert row["issues"] == [{"code": "invalid_source_revision", "field": "revision"}]
+    assert row["normalized_word"] == ""
+    assert report["summary"]["valid_rows"] == 0
+    assert report["summary"]["error_rows"] == 1
+
+
 def test_the_whole_file_can_carry_one_revision(tmp_path: Path) -> None:
     """The value form: a file pinned as a package or a commit, shared by every row."""
     from app.services.public_lexicon_preview import (

@@ -29,6 +29,13 @@ REVISION_PLACEHOLDER = "{revision}"
 #: being read, not later when a row is written.
 REVISION_MAX_LENGTH = 64
 
+
+def linkable_revision_identifier(text: str) -> bool:
+    """Whether a nonempty revision can identify one fixed page in a URL."""
+    return bool(text) and len(text) <= REVISION_MAX_LENGTH and not any(
+        char.isspace() or ord(char) < 32 or ord(char) == 127 for char in text
+    )
+
 #: The template is frozen into the mapping and becomes the link a reader follows to a
 #: pinned revision. 400 characters matches the longest existing locator column
 #: (``source_artifact.storage_locator``).
@@ -328,12 +335,19 @@ def preview_file(
             # exist upstream has no revision -- and is never replaced by guessing one
             # from the line number.
             row["source_revision"] = cells[revision_position]
+            if cells[revision_position] and not linkable_revision_identifier(
+                cells[revision_position]
+            ):
+                row_issues.append({"code": "invalid_source_revision", "field": "revision"})
         for field in mapping.required_fields:
             if not values[field].strip():
                 row_issues.append({"code": "missing_value", "field": field})
         normalized = values["word"].strip().casefold()
-        row["normalized_word"] = normalized
-        if normalized:
+        invalid_revision = any(
+            issue["code"] == "invalid_source_revision" for issue in row_issues
+        )
+        row["normalized_word"] = "" if invalid_revision else normalized
+        if normalized and not invalid_revision:
             if normalized in seen:
                 row_issues.append({"code": "duplicate_word", "field": "word",
                                    "first_line": seen[normalized]})

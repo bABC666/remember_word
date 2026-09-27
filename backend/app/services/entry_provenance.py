@@ -48,9 +48,9 @@ from sqlalchemy.orm import Session
 from app.models import EntrySourceEvidence, SourceArtifact
 from app.services.public_lexicon_joint_preview import FIELD_ORDER
 from app.services.public_lexicon_preview import (
-    REVISION_MAX_LENGTH,
     REVISION_PLACEHOLDER,
     RevisionDeclaration,
+    linkable_revision_identifier,
 )
 
 #: Reported in ``completeness.missing`` when a degradation reason applies. Named
@@ -116,11 +116,7 @@ def revision_url(template: str, revision: str) -> str:
     ``#``, ``&`` or ``/`` cannot reshape the link into something nobody meant.
     """
     text = revision or ""
-    if not template or not text:
-        return ""
-    if len(text) > REVISION_MAX_LENGTH:
-        return ""
-    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in text):
+    if not template or not linkable_revision_identifier(text):
         return ""
     return template.replace(REVISION_PLACEHOLDER, quote(text, safe=""))
 

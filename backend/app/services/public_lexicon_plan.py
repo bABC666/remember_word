@@ -82,7 +82,7 @@ MULTI_SELECT_FIELDS = frozenset({"meaning"})
 
 #: Row-level issues that make a row unreadable: the row cannot be interpreted at all,
 #: so it can only be acknowledged and excluded, never silently skipped.
-UNREADABLE_ROW_CODES = frozenset({"csv_error", "column_count"})
+UNREADABLE_ROW_CODES = frozenset({"csv_error", "column_count", "invalid_source_revision"})
 
 MAX_DECISIONS_BYTES = 4 * 1024 * 1024
 MAX_PLAN_BYTES = 32 * 1024 * 1024
