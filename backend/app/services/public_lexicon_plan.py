@@ -561,6 +561,10 @@ def build_plan(
     )
     ordered_words, primary_rows = _primary_membership(previews[primary_id], primary_id)
 
+    #: Which revision each source row was read at. Empty for a manifest whose sources
+    #: declare none, which is what keeps this invisible to every older plan.
+    revisions = _row_revisions(previews)
+
     joint_entries = {entry["normalized_word"]: entry for entry in report["entries"]}
     evidence_at: dict[tuple[str, str], set[tuple[str, int]]] = {}
     for word in ordered_words:
@@ -588,6 +592,7 @@ def build_plan(
             primary_row=primary_rows[word],
             joint_entry=joint_entries[word],
             source_meta=source_meta,
+            revisions=revisions,
             book=book,
             required_fields=specs.required_fields,
         )
@@ -711,6 +716,30 @@ def _primary_membership(
     return ordered, meta
 
 
+def _row_revisions(
+    previews: dict[str, dict[str, Any]]
+) -> dict[tuple[str, int], str]:
+    """The pinned revision of every source row that has one, keyed by its locator.
+
+    Read from what the file preview already recorded rather than from the manifest:
+    the preview is where the declaration and the file were combined, so a revision
+    here is one that was actually read out of the bytes this plan froze.
+
+    A source that declares no revision contributes **no keys at all**, and that is what
+    keeps a plan built from an old manifest byte-identical to what it was before this
+    existed. An empty *value* under a declared revision is kept, because "this row has
+    no revision" is a fact the plan has to carry and is not the same fact as "this
+    source has none" -- the first still says which column to trust, the second says
+    there is no column.
+    """
+    return {
+        (source_id, row["line"]): row["source_revision"]
+        for source_id, preview in previews.items()
+        for row in preview["rows"]
+        if "source_revision" in row
+    }
+
+
 def _entry(
     *,
     word: str,
@@ -718,13 +747,16 @@ def _entry(
     primary_row: dict[str, Any],
     joint_entry: dict[str, Any],
     source_meta: dict[str, dict[str, str]],
+    revisions: dict[tuple[str, int], str],
     book: _DecisionBook,
     required_fields: tuple[str, ...],
 ) -> dict[str, Any]:
     """One candidate entry: evidence, the human's decisions, and what is still open."""
-    evidence = {
-        field: [
-            {
+    evidence: dict[str, list[dict[str, Any]]] = {}
+    for field in FIELD_ORDER:
+        items: list[dict[str, Any]] = []
+        for item in joint_entry["fields"][field]:
+            located: dict[str, Any] = {
                 "source_id": item["source_id"],
                 "line": item["line"],
                 "raw_value": item["raw_value"],
@@ -734,10 +766,16 @@ def _entry(
                     line=item["line"], field=field, raw_value=item["raw_value"],
                 ),
             }
-            for item in joint_entry["fields"][field]
-        ]
-        for field in FIELD_ORDER
-    }
+            revision = revisions.get((item["source_id"], item["line"]))
+            if revision is not None:
+                # Frozen beside the value it belongs to, and therefore covered by
+                # ``plan_sha256``: which revision a value came from is part of what this
+                # plan claims, so editing it has to invalidate the plan rather than
+                # change the claim quietly. A declaration-free source adds no key at
+                # all, so an old manifest keeps producing exactly the plan it did.
+                located["source_revision"] = revision
+            items.append(located)
+        evidence[field] = items
     conflicts = [
         {
             "field": field,

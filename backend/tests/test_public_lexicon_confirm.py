@@ -452,6 +452,94 @@ def test_a_deleted_source_file_refuses_the_plan(admin, tmp_path: Path) -> None:
     assert after == before
 
 
+def _revision_manifest(root: Path) -> Path:
+    """The standard two sources, with the primary one declaring a per-row revision."""
+    path = root / "manifest.json"
+    path.write_text(json.dumps({
+        "required_fields": ["meaning"],
+        "sources": [
+            {"id": "primary", "role": "primary", "file": "primary.csv",
+             "columns": {"word": "head", "meaning": "cn"},
+             "revision": {
+                 "column": "oldid",
+                 "url_template": "https://zh.wiktionary.org/w/index.php?oldid={revision}",
+             },
+             "provenance": provenance_block("primary")},
+            {"id": "supplement", "role": "meaning", "file": "supplement.csv",
+             "columns": {"word": "term", "meaning": "translation",
+                         "phonetic": "ipa", "part_of_speech": "pos"},
+             "provenance": provenance_block("supplement")},
+        ],
+    }, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_a_revision_declaring_plan_is_still_refused_by_the_mapping_gate(
+    admin, tmp_path: Path
+) -> None:
+    """Freezing a revision must not open a way past the mapping-match refusal.
+
+    The plan now carries the declaration, but the confirmation path rebuilds the
+    mapping from the plan's own fields and does not read the declaration back yet, so
+    the digest it recomputes no longer matches the one the plan froze. That has to keep
+    refusing and keep writing nothing: a revision the confirmation cannot re-prove is
+    exactly the case the gate exists for, and "the plan knows the revision" is not the
+    same as "the confirmation verified it".
+
+    The control half is the same fixture without the declaration, and it confirms --
+    which is what makes the refusal attributable to the declaration rather than to
+    anything else about this fixture.
+    """
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import build_plan
+
+    root = tmp_path / "sources"
+    root.mkdir()
+
+    control = _build_plan(root, token="revok", target="p29-revok",
+                          decisions=_standard_decisions("revok"))
+    with admin.session() as session:
+        _system_lexicon(session, "p29-revok", "p29-test-revok")
+        applied = confirm_plan(
+            session, plan=control, administrator=_administrator(session, admin),
+            source_root=root,
+        )
+    assert applied["status"] == "applied"
+
+    token = "revmap"
+    _write(root, "primary.csv",
+           f"head,cn,oldid\nWord{token},主词表释义-{token},6588944\nBare{token},,\n")
+    _write(root, "supplement.csv", _supplement_text(token))
+    decisions = _decisions(root, _standard_decisions(token))
+    plan = build_plan(
+        manifest_path=_revision_manifest(root), source_root=root,
+        decisions_path=decisions, target_lexicon="p29-revmap",
+    )
+    entry = next(
+        item for item in plan["entries"]
+        if item["normalized_word"] == _normalized(token)
+    )
+    assert entry["evidence"]["meaning"][0]["source_revision"] == "6588944", (
+        "the plan really does carry the revision; the refusal below is not because "
+        "the declaration went missing"
+    )
+    assert plan["confirmation_ready"] is True, (
+        "a readiness blocker would refuse the plan for a different reason"
+    )
+
+    with admin.session() as session:
+        _system_lexicon(session, "p29-revmap", "p29-test-revmap")
+        before = _counts(session)
+        with pytest.raises(ConfirmRefused, match="字段映射已变化"):
+            confirm_plan(
+                session, plan=plan, administrator=_administrator(session, admin),
+                source_root=root,
+            )
+        after = _counts(session)
+
+    assert after == before, "a refused plan must write nothing at all"
+
+
 # --- what must never be confirmable ------------------------------------------
 
 

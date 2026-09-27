@@ -839,3 +839,152 @@ def test_preview_still_tolerates_a_manifest_without_provenance(tmp_path: Path) -
     report = preview_manifest(manifest, source_root=tmp_path)
 
     assert report["summary"]["candidate_words"] == 2
+
+
+# --- the pinned revision of the row a value came from -------------------------
+#
+# A source may declare where its pinned revision comes from (design 3.4). The plan is
+# the artifact a human reviews before anything is written, so the revision a value was
+# read at has to be visible in it -- and, being part of what the plan claims, covered
+# by its digest.
+
+PINNED_TEMPLATE = "https://zh.wiktionary.org/w/index.php?oldid={revision}"
+COMMIT_TEMPLATE = "https://github.com/exam-data/NETEMVocabulary/tree/{revision}"
+
+
+def _pinned_sources(root: Path) -> Path:
+    """Two sources that carry their own per-row revisions, at different lines.
+
+    The same word appears in both, which is what makes "each evidence item carries the
+    revision of its own source row" a question with a wrong answer available.
+    """
+    _write(root, "primary.csv", "head,cn,oldid\nApple,苹果；果实,1111\nBare,,1112\n")
+    _write(root, "supplement.csv", "term,translation,rev\n apple ,苹果公司,2222\n")
+    return _manifest(root, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"},
+         "revision": {"column": "oldid", "url_template": PINNED_TEMPLATE}},
+        {"id": "supplement", "role": "meaning", "file": "supplement.csv",
+         "columns": {"word": "term", "meaning": "translation"},
+         "revision": {"column": "rev", "url_template": PINNED_TEMPLATE}},
+    ])
+
+
+def _locators(items: list[dict[str, Any]]) -> list[tuple[str, int, str]]:
+    return [
+        (item["source_id"], item["line"], item["source_revision"]) for item in items
+    ]
+
+
+def test_each_evidence_item_carries_the_revision_of_its_own_source_row(
+    tmp_path: Path,
+) -> None:
+    manifest = _pinned_sources(tmp_path)
+
+    plan = _plan(tmp_path, manifest, [SELECT_PRIMARY_MEANING])
+    entry = _entry(plan, "apple")
+
+    assert _locators(entry["evidence"]["meaning"]) == [
+        ("primary", 2, "1111"), ("supplement", 2, "2222"),
+    ], "a value must carry the revision of the row it was read from, not of the source"
+    assert _locators(entry["evidence"]["word"]) == [
+        ("primary", 2, "1111"), ("supplement", 2, "2222"),
+    ]
+    # The same source, a different row: the revision is per row, not per file.
+    assert _locators(_entry(plan, "bare")["evidence"]["word"]) == [("primary", 3, "1112")]
+
+
+def test_a_file_pinned_as_a_whole_gives_every_row_the_same_revision(
+    tmp_path: Path,
+) -> None:
+    commit = "70dc6b68c855f21e666a7a291ff8ead5ca1f7b44"
+    _write(tmp_path, "primary.csv", "head,cn\nApple,苹果；果实\nBare,\n")
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"},
+         "revision": {"value": commit, "url_template": COMMIT_TEMPLATE}},
+    ])
+
+    plan = _plan(tmp_path, manifest, [])
+    entry = _entry(plan, "apple")
+
+    assert _locators(entry["evidence"]["meaning"]) == [("primary", 2, commit)]
+    assert _locators(_entry(plan, "bare")["evidence"]["word"]) == [("primary", 3, commit)]
+
+
+def test_an_empty_revision_cell_stays_empty_rather_than_being_invented(
+    tmp_path: Path,
+) -> None:
+    """A word whose page does not exist upstream has no revision, and the plan says so.
+
+    The row is still evidence -- its meaning is real -- but the revision is empty,
+    which is the honest "no link" answer and never a number derived from the line.
+    """
+    _write(tmp_path, "primary.csv", "head,cn,oldid\nApple,苹果；果实,\n")
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "head", "meaning": "cn"},
+         "revision": {"column": "oldid", "url_template": PINNED_TEMPLATE}},
+    ])
+
+    plan = _plan(tmp_path, manifest, [])
+    entry = _entry(plan, "apple")
+
+    assert entry["evidence"]["meaning"][0]["source_revision"] == ""
+    assert "source_revision" in entry["evidence"]["meaning"][0], (
+        "the key is present with an empty value: this source has a revision column, "
+        "and this row's cell is empty. That is not the same fact as a source that "
+        "declares no revision at all"
+    )
+
+
+def test_editing_a_frozen_revision_invalidates_the_plan(tmp_path: Path) -> None:
+    """The digest covers the revision, so an edited claim is refused, not confirmed."""
+    manifest = _pinned_sources(tmp_path)
+    plan = _plan(tmp_path, manifest, [SELECT_PRIMARY_MEANING])
+    path = write_plan(plan, tmp_path / "plan.json")
+
+    assert load_plan(path)["plan_sha256"] == plan["plan_sha256"], "control: it loads"
+
+    # Rewrite one revision, in the same serialisation the writer used, so the only
+    # difference between the two documents is the claim itself.
+    document = json.loads(path.read_text(encoding="utf-8"))
+    meaning = next(
+        item for item in document["entries"]
+        if item["normalized_word"] == "apple"
+    )["evidence"]["meaning"]
+    assert [item["source_revision"] for item in meaning] == ["1111", "2222"]
+    meaning[0]["source_revision"] = "9999"
+    path.write_text(
+        json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    assert plan_digest(document) != document["plan_sha256"]
+    with pytest.raises(PlanError, match="digest does not match its contents"):
+        load_plan(path)
+
+
+def test_a_manifest_that_declares_no_revision_keeps_the_old_plan_shape(
+    tmp_path: Path,
+) -> None:
+    """Compatibility: nothing is added to a plan whose sources declare no revision.
+
+    The revision key is added only when a source declared one, so the plan an old
+    manifest produces is byte-identical to the one it produced before this existed --
+    which is also what keeps a plan written earlier loadable, since the digest is
+    computed over these very entries.
+    """
+    manifest = _two_sources(tmp_path)
+    plan = _plan(tmp_path, manifest, [SELECT_PRIMARY_MEANING])
+
+    assert "source_revision" not in json.dumps(plan, ensure_ascii=False)
+    for entry in plan["entries"]:
+        for items in entry["evidence"].values():
+            for item in items:
+                assert set(item) == {
+                    "source_id", "line", "raw_value", "idempotency_key"
+                }
+
+    path = write_plan(plan, tmp_path / "old-shape.json")
+    assert load_plan(path)["plan_sha256"] == plan["plan_sha256"]
