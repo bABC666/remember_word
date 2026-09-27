@@ -13,6 +13,7 @@ import type { LibraryPosition } from './pages/wordDetailModel'
 import { LoginPage } from './pages/LoginPage'
 import { ReadingPage } from './pages/ReadingPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SourcesPage } from './pages/SourcesPage'
 import { StudyPage } from './pages/StudyPage'
 import './styles.css'
 
@@ -38,6 +39,10 @@ function AuthenticatedApp() {
         <Route path="/library" element={<LibraryPage positions={libraryPositions.current} />} />
         <Route path="/library/:wordStateId" element={<WordDetailPage positions={libraryPositions.current} />} />
         <Route path="/settings" element={<SettingsPage />} />
+        {/* Read-only provenance page, reached from the settings section rather than
+            from the navigation: the sidebar's six entries are already at the limit
+            F-6 measured on a phone, and a seventh would push the bar past it again. */}
+        <Route path="/sources" element={<SourcesPage />} />
       </Routes>
     </AppShell>
   )

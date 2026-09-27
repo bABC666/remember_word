@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { DatabaseBackup, EyeOff, FolderOpen, KeyRound, Laptop, Save, ScanLine, ShieldCheck } from 'lucide-react'
+import { DatabaseBackup, EyeOff, FolderOpen, KeyRound, Laptop, Save, ScanLine, ScrollText, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { PasswordConfirmDialog } from '../components/PasswordConfirmDialog'
 import { ErrorState, LoadingState } from '../components/States'
@@ -165,6 +166,14 @@ export function SettingsPage() {
           ) : (
             <p className="provider-status">整库备份由管理员执行。</p>
           )}
+        </section>
+        <section className="settings-section">
+          <header><ScrollText size={20} /><div><h2>来源与许可</h2><p>本实例词库使用的来源、许可标识与声明的适用范围，按词库列出。</p></div></header>
+          <p className="settings-entry">
+            {/* Not a navigation destination: the sidebar's six entries are the phone
+                bar's measured limit (F-6), so this page is entered from here. */}
+            <Link className="button secondary" to="/sources">数据来源与许可</Link>
+          </p>
         </section>
       </div>
       <div className="settings-save"><span>{save.isSuccess ? '设置已保存' : save.isError ? save.error.message : '修改仅保存在当前设备'}</span><button className="button primary" disabled={save.isPending} onClick={() => save.mutate()}><Save size={17} />{save.isPending ? '正在保存…' : '保存设置'}</button></div>
