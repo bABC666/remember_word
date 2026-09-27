@@ -480,7 +480,6 @@ def test_the_orm_column_matches_the_migrated_schema(tmp_path: Path) -> None:
     schema nobody runs.
     """
     import app.models  # noqa: F401  (populates Base.metadata)
-
     from app.db import Base
 
     database = migrated(tmp_path, REVISION_0010)
