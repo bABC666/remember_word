@@ -424,10 +424,19 @@ def test_the_concise_meaning_reports_the_evidence_row_it_was_proposed_against(
                     display_order=1, source_locator="meaning:2",
                     derivation_note="来源为补充来源原文，此处仅取常见义项",
                     source_evidence_id=evidence_id,
+                    # The part of speech and the language are stated because
+                    # confirmation refuses a value without them; this test is about
+                    # ``source_evidence_id`` and must not fail for an unrelated reason.
+                    pos_key="noun", pos_label="名词", pos_order=1,
+                    pos_source="reviewer", pos_evidence_locator="meaning:2",
+                    language="en",
                 ),
                 ConciseMeaningProposal(
                     text="自拟补充义项", provenance_kind=KIND_AI_SUPPLEMENT,
                     display_order=2, derivation_note="来源未收录该义项，按常用度补足",
+                    pos_key="noun", pos_label="名词", pos_order=1,
+                    pos_source="reviewer", pos_evidence_locator="meaning:2",
+                    language="en",
                 ),
             ],
             actor=administrator,

@@ -28,6 +28,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import func, select
 
@@ -49,6 +50,9 @@ from app.services.auth import (
 from app.services.concise_meaning import (
     CONCISE_MEANING_KINDS,
     CONCISE_MEANING_MAX_SLOTS,
+    CONCISE_MEANING_POS_KEYS,
+    POS_SOURCE_LABELS,
+    ConciseMeaningCitationProposal,
     ConciseMeaningProposal,
     ConciseMeaningRefused,
 )
@@ -467,8 +471,25 @@ class ConciseMeaningFileError(Exception):
 #: Recognised keys, per level. An unknown key is an error rather than something to
 #: ignore: a typo in ``provenance_kind`` should refuse the file, not silently default
 #: a quoted value to a machine-written supplement.
+#:
+#: ``format_version`` 2 groups an entry's meanings by part of speech. Version 1 had a
+#: flat ``meanings`` list capped at three per **word**, which cannot express ``play``
+#: (three verb senses plus one noun sense), so it is refused rather than reinterpreted:
+#: silently reading a flat list as one unnamed group would file every value under an
+#: undetermined part of speech, and the point of this format is that a person states one.
 _PROPOSAL_FILE_KEYS = frozenset({"format_version", "lexicon", "entries"})
-_PROPOSAL_ENTRY_KEYS = frozenset({"word", "meanings"})
+_PROPOSAL_ENTRY_KEYS = frozenset({"word", "pos_groups"})
+_PROPOSAL_GROUP_KEYS = frozenset(
+    {
+        "pos_key",
+        "pos_label",
+        "pos_order",
+        "pos_source",
+        "pos_evidence_locator",
+        "language",
+        "meanings",
+    }
+)
 _PROPOSAL_MEANING_KEYS = frozenset(
     {
         "text",
@@ -477,9 +498,13 @@ _PROPOSAL_MEANING_KEYS = frozenset(
         "source_locator",
         "derivation_note",
         "source_evidence_id",
+        "citations",
     }
 )
-_PROPOSAL_FORMAT_VERSION = 1
+_PROPOSAL_CITATION_KEYS = frozenset(
+    {"citation_locator", "citation_order", "source_evidence_id"}
+)
+_PROPOSAL_FORMAT_VERSION = 2
 
 
 def _reject_unknown_keys(payload: dict, allowed: frozenset[str], where: str) -> None:
@@ -533,48 +558,140 @@ def load_proposal_file(path: Path, *, lexicon_name: str) -> list[dict]:
         word = str(entry.get("word") or "").strip()
         if not word:
             raise ConciseMeaningFileError(f"{where} 缺少 word。")
-        meanings = entry.get("meanings")
-        if not isinstance(meanings, list) or not meanings:
-            raise ConciseMeaningFileError(f"{where}（{word}）的 meanings 必须是非空数组。")
-        if len(meanings) > CONCISE_MEANING_MAX_SLOTS:
+        groups = entry.get("pos_groups")
+        if not isinstance(groups, list) or not groups:
             raise ConciseMeaningFileError(
-                f"{where}（{word}）提交了 {len(meanings)} 个义项，"
-                f"学习页最多显示 {CONCISE_MEANING_MAX_SLOTS} 个。"
+                f"{where}（{word}）的 pos_groups 必须是非空数组；"
+                "每个词性组至少要有 1 条释义。词性是每组都要写明的字段，"
+                "不能留给程序推断。"
             )
-        proposals: list[ConciseMeaningProposal] = []
-        for position, meaning in enumerate(meanings, start=1):
-            meaning_where = f"{where}.meanings[{position - 1}]"
-            if not isinstance(meaning, dict):
-                raise ConciseMeaningFileError(f"{meaning_where} 必须是对象。")
-            _reject_unknown_keys(meaning, _PROPOSAL_MEANING_KEYS, meaning_where)
-            kind = str(meaning.get("provenance_kind") or "").strip()
-            if not kind:
+        group_orders: list[int] = []
+        proposed: list[ConciseMeaningProposal] = []
+        for group_index, group in enumerate(groups):
+            group_where = f"{where}.pos_groups[{group_index}]"
+            if not isinstance(group, dict):
+                raise ConciseMeaningFileError(f"{group_where} 必须是对象。")
+            _reject_unknown_keys(group, _PROPOSAL_GROUP_KEYS, group_where)
+
+            pos_key = str(group.get("pos_key") or "").strip()
+            pos_source = str(group.get("pos_source") or "").strip()
+            if not pos_key:
                 raise ConciseMeaningFileError(
-                    f"{meaning_where} 缺少 provenance_kind"
-                    f"（{'、'.join(CONCISE_MEANING_KINDS)} 之一）。"
+                    f"{group_where} 缺少 pos_key。词性是必填的闭集键之一"
+                    f"（{'、'.join(CONCISE_MEANING_POS_KEYS)}）；"
+                    "要提交一个尚未确定词性的候选，请显式写 pos_source=\"none\" 并省略 pos_key。"
                 )
-            # Absent means "the position in the list", which is what a reviewer reads
-            # anyway; an explicit value must still be an integer in range.
-            order = meaning.get("display_order", position)
-            if not isinstance(order, int) or isinstance(order, bool):
-                raise ConciseMeaningFileError(f"{meaning_where} 的 display_order 必须是整数。")
-            evidence = meaning.get("source_evidence_id")
-            if evidence is not None and (not isinstance(evidence, int) or isinstance(evidence, bool)):
+            if not pos_source:
                 raise ConciseMeaningFileError(
-                    f"{meaning_where} 的 source_evidence_id 必须是整数或省略。"
+                    f"{group_where} 缺少 pos_source；必须写明词性依据是"
+                    " pos_section（来源小节标题）还是 reviewer（人工试判）。"
+                    "词性不会由程序推断。"
                 )
-            proposals.append(
-                ConciseMeaningProposal(
-                    text=str(meaning.get("text") or ""),
-                    provenance_kind=kind,
-                    display_order=order,
-                    source_locator=str(meaning.get("source_locator") or ""),
-                    derivation_note=str(meaning.get("derivation_note") or ""),
-                    source_evidence_id=evidence,
+            order = group.get("pos_order")
+            if order is None:
+                order = group_index + 1
+            if not isinstance(order, int) or isinstance(order, bool) or order < 1:
+                raise ConciseMeaningFileError(
+                    f"{group_where} 的 pos_order 必须是 ≥1 的整数（可省略，默认按顺序）。"
                 )
+            group_orders.append(order)
+            language = str(group.get("language") or "").strip()
+
+            meanings = group.get("meanings")
+            if not isinstance(meanings, list) or not meanings:
+                raise ConciseMeaningFileError(f"{group_where} 的 meanings 必须是非空数组。")
+            if len(meanings) > CONCISE_MEANING_MAX_SLOTS:
+                raise ConciseMeaningFileError(
+                    f"{group_where} 提交了 {len(meanings)} 个义项，"
+                    f"每个词性组最多显示 {CONCISE_MEANING_MAX_SLOTS} 个。"
+                )
+            for position, meaning in enumerate(meanings, start=1):
+                meaning_where = f"{group_where}.meanings[{position - 1}]"
+                if not isinstance(meaning, dict):
+                    raise ConciseMeaningFileError(f"{meaning_where} 必须是对象。")
+                _reject_unknown_keys(meaning, _PROPOSAL_MEANING_KEYS, meaning_where)
+                kind = str(meaning.get("provenance_kind") or "").strip()
+                if not kind:
+                    raise ConciseMeaningFileError(
+                        f"{meaning_where} 缺少 provenance_kind"
+                        f"（{'、'.join(CONCISE_MEANING_KINDS)} 之一）。"
+                    )
+                # Absent means "the position in the group", which is what a reviewer
+                # reads anyway; an explicit value must still be an integer in range.
+                display_order = meaning.get("display_order", position)
+                if not isinstance(display_order, int) or isinstance(display_order, bool):
+                    raise ConciseMeaningFileError(
+                        f"{meaning_where} 的 display_order 必须是整数。"
+                    )
+                evidence = meaning.get("source_evidence_id")
+                if evidence is not None and (
+                    not isinstance(evidence, int) or isinstance(evidence, bool)
+                ):
+                    raise ConciseMeaningFileError(
+                        f"{meaning_where} 的 source_evidence_id 必须是整数或省略。"
+                    )
+                proposed.append(
+                    ConciseMeaningProposal(
+                        text=str(meaning.get("text") or ""),
+                        provenance_kind=kind,
+                        display_order=display_order,
+                        source_locator=str(meaning.get("source_locator") or ""),
+                        derivation_note=str(meaning.get("derivation_note") or ""),
+                        source_evidence_id=evidence,
+                        pos_key=pos_key,
+                        pos_label=str(group.get("pos_label") or ""),
+                        pos_order=order,
+                        pos_source=pos_source,
+                        pos_evidence_locator=str(group.get("pos_evidence_locator") or ""),
+                        language=language,
+                        citations=_load_citations(
+                            meaning.get("citations"), where=meaning_where
+                        ),
+                    )
+                )
+        if len(set(group_orders)) != len(group_orders):
+            raise ConciseMeaningFileError(
+                f"{where}（{word}）的 pos_order 有重复；同一词条内每个词性组必须各有组序。"
             )
-        prepared.append({"word": word, "proposals": proposals})
+        prepared.append({"word": word, "proposals": proposed})
     return prepared
+
+
+def _load_citations(raw: Any, *, where: str) -> tuple[ConciseMeaningCitationProposal, ...]:
+    """Read the optional ``citations`` list of one meaning."""
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ConciseMeaningFileError(f"{where} 的 citations 必须是数组。")
+    citations: list[ConciseMeaningCitationProposal] = []
+    for index, item in enumerate(raw):
+        citation_where = f"{where}.citations[{index}]"
+        if not isinstance(item, dict):
+            raise ConciseMeaningFileError(f"{citation_where} 必须是对象。")
+        _reject_unknown_keys(item, _PROPOSAL_CITATION_KEYS, citation_where)
+        locator = str(item.get("citation_locator") or "").strip()
+        if not locator:
+            raise ConciseMeaningFileError(f"{citation_where} 缺少 citation_locator。")
+        order = item.get("citation_order", index + 1)
+        if not isinstance(order, int) or isinstance(order, bool):
+            raise ConciseMeaningFileError(
+                f"{citation_where} 的 citation_order 必须是整数。"
+            )
+        evidence = item.get("source_evidence_id")
+        if evidence is not None and (
+            not isinstance(evidence, int) or isinstance(evidence, bool)
+        ):
+            raise ConciseMeaningFileError(
+                f"{citation_where} 的 source_evidence_id 必须是整数或省略。"
+            )
+        citations.append(
+            ConciseMeaningCitationProposal(
+                citation_locator=locator,
+                citation_order=order,
+                source_evidence_id=evidence,
+            )
+        )
+    return tuple(citations)
 
 
 def _resolve_system_lexicon(session, name: str):
@@ -680,8 +797,12 @@ def command_concise_meaning_propose(args: argparse.Namespace) -> int:
                 )
                 written += len(created)
                 for row in created:
-                    print(f"  候选 id={row.id}  {entry.word}  第{row.display_order}位"
-                          f"  {row.text}  [{row.provenance_kind}]")
+                    print(f"  候选 id={row.id}  {entry.word}"
+                          f"  [{row.pos_key or '（词性未定）'} 第{row.display_order}位]"
+                          f"  {row.text}  [{row.provenance_kind}]"
+                          f"  依据={POS_SOURCE_LABELS.get(row.pos_source, row.pos_source)}"
+                          f"  语言={row.language or '（未记录）'}"
+                          + (f"  附加引用={len(row.citations)}" if row.citations else ""))
             if missing:
                 # Refuse the whole file rather than write half of it: a proposal that
                 # silently skipped words would look complete at review time.
@@ -742,8 +863,11 @@ def command_concise_meaning_confirm(args: argparse.Namespace) -> int:
                     )
                 confirm(session, meaning=row, confirmer=administrator, note=args.note)
                 confirmed += 1
-                print(f"  已确认 id={row.id}  {entry.word}  第{row.display_order}位"
-                      f"  {row.text}  [{row.provenance_kind}]")
+                print(f"  已确认 id={row.id}  {entry.word}"
+                      f"  [{row.pos_key} 第{row.display_order}位]"
+                      f"  {row.text}  [{row.provenance_kind}]"
+                      f"  依据={POS_SOURCE_LABELS.get(row.pos_source, row.pos_source)}"
+                      f"@{row.pos_evidence_locator}  语言={row.language}")
             session.commit()
         except ConciseMeaningRefused as error:
             session.rollback()
@@ -794,7 +918,9 @@ def command_concise_meaning_reject(args: argparse.Namespace) -> int:
             return 1
         withdrawn_text = row.text
         withdrawn_order = row.display_order
-    print(f"  已撤回 id={args.id}（原第{withdrawn_order}位「{withdrawn_text}」），该位置已空出。")
+        withdrawn_pos = row.pos_key or "（词性未定）"
+    print(f"  已撤回 id={args.id}（原 {withdrawn_pos} 组第{withdrawn_order}位"
+          f"「{withdrawn_text}」），该组该位置已空出。")
     print(f"数据库: {database}")
     return 0
 

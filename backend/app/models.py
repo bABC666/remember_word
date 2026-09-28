@@ -1064,7 +1064,15 @@ class EntryConciseMeaning(Base):
     )
 
     @property
-    def is_displayable(self) -> bool:
+    def is_confirmed(self) -> bool:
+        """Only the status half of "may this be shown".
+
+        Deliberately **not** called ``is_displayable``: displayability also requires an
+        established part of speech, a stated basis with a position, the target language
+        and -- for a supplement -- no citations. That rule lives in one place,
+        ``app.services.concise_meaning.display_refusal_reason``, so the model cannot
+        hold a second, weaker copy of it that a reader might mistake for the real one.
+        """
         return self.status == "confirmed"
 
 

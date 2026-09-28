@@ -252,13 +252,34 @@ def _proposal(
     order: int = 1,
     locator: str = "primary:2",
     note: str = "",
+    pos: str = "noun",
+    pos_order: int = 1,
+    pos_source: str = "reviewer",
+    pos_evidence: str = "zhwiktionary:9576029:15",
+    language: str = "en",
+    citations=(),
 ) -> ConciseMeaningProposal:
+    """One proposal that satisfies the display rules unless a test says otherwise.
+
+    The part of speech and the language are stated here rather than left undetermined
+    because ``confirm`` refuses an undetermined part of speech and an unrecorded
+    language: a helper that defaulted to "undetermined" would make every test in this
+    module fail for a reason none of them is about. The rules themselves are tested
+    directly -- here and in ``test_concise_meaning_pos.py`` -- by passing the
+    undetermined values explicitly.
+    """
     return ConciseMeaningProposal(
         text=text,
         provenance_kind=kind,
         display_order=order,
         source_locator=locator,
         derivation_note=note,
+        pos_key=pos,
+        pos_order=pos_order,
+        pos_source=pos_source,
+        pos_evidence_locator=pos_evidence,
+        language=language,
+        citations=tuple(citations),
     )
 
 
@@ -477,24 +498,117 @@ def test_the_database_itself_refuses_a_long_or_fourth_value(admin) -> None:
             session.rollback()
 
 
-def test_at_most_three_meanings_per_call(admin) -> None:
+def test_at_most_three_meanings_per_group_and_no_cap_per_word(admin) -> None:
+    """The cap is per part of speech, and a word may carry as many groups as it has.
+
+    ``play`` is the case: three verb senses plus one noun sense is four values for one
+    word, which the old per-word cap of three could not hold. Four in a *single* group
+    is still refused -- and the service refuses it through the position rules (a fourth
+    value either reuses a position or leaves the 1..3 range), which is why the messages
+    below are those two rather than a separate "too many per group" one.
+    """
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-slots", "cm-test-slots")
         entry = _entry(session, lexicon, "maximum")
+        administrator = _user(session, admin)
+
         with pytest.raises(ConciseMeaningRefused) as error:
             propose(
                 session, entry=entry,
-                proposals=[_proposal(f"义项{i}", order=i) for i in range(1, 5)],
+                proposals=[_proposal(f"义项{i}", order=i, kind=KIND_DERIVED, note="改写")
+                           for i in range(1, 5)],
+                actor=administrator,
+            )
+        session.rollback()
+        assert "越界" in str(error.value)
+        assert "每组只允许" in str(error.value)
+
+        with pytest.raises(ConciseMeaningRefused) as error:
+            propose(
+                session, entry=entry,
+                proposals=[
+                    _proposal("甲", order=1, kind=KIND_DERIVED, note="改写"),
+                    _proposal("乙", order=2, kind=KIND_DERIVED, note="改写"),
+                    _proposal("丙", order=3, kind=KIND_DERIVED, note="改写"),
+                    _proposal("丁", order=1, kind=KIND_DERIVED, note="改写"),
+                ],
+                actor=administrator,
+            )
+        session.rollback()
+        assert "同一个词性组内展示位置不能重复" in str(error.value)
+
+        # Two groups, four values in total: accepted, because the cap is per group.
+        created = propose(
+            session, entry=entry,
+            proposals=[
+                _proposal("玩", order=1, pos="verb", pos_order=1, kind=KIND_DERIVED, note="改写"),
+                _proposal("演奏", order=2, pos="verb", pos_order=1, kind=KIND_DERIVED, note="改写"),
+                _proposal("播放", order=3, pos="verb", pos_order=1, kind=KIND_DERIVED, note="改写"),
+                _proposal("剧", order=1, pos="noun", pos_order=2, kind=KIND_DERIVED, note="改写"),
+            ],
+            actor=administrator,
+        )
+        session.commit()
+        assert len(created) == 4
+        assert sorted((row.pos_key, row.display_order) for row in created) == [
+            ("noun", 1), ("verb", 1), ("verb", 2), ("verb", 3),
+        ]
+
+
+def test_two_groups_may_not_share_a_group_order(admin) -> None:
+    """Group order has to be unambiguous, and no constraint can express that.
+
+    ``pos_order`` lives on every row, so two rows could claim the same group key at
+    different positions and the database would not object; "which group shows first"
+    would then depend on insertion order.
+    """
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-group-order", "cm-test-group-order")
+        entry = _entry(session, lexicon, "play")
+        with pytest.raises(ConciseMeaningRefused) as error:
+            propose(
+                session, entry=entry,
+                proposals=[
+                    _proposal("玩", order=1, pos="verb", pos_order=1),
+                    _proposal("剧", order=1, pos="noun", pos_order=1),
+                ],
                 actor=_user(session, admin),
             )
         session.rollback()
-        assert "最多提交 3 个" in str(error.value)
+        assert "组序冲突" in str(error.value)
+
+
+def test_a_later_call_may_not_renumber_an_existing_group(admin) -> None:
+    """A second ``propose`` call has to agree with what is already stored.
+
+    Otherwise the first group's position could be changed by submitting one more value,
+    silently reordering what the study page shows.
+    """
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-group-stable", "cm-test-group-stable")
+        entry = _entry(session, lexicon, "play")
+        administrator = _user(session, admin)
+        propose(session, entry=entry,
+                proposals=[_proposal("玩", order=1, pos="verb", pos_order=1,
+                                     kind=KIND_DERIVED, note="由「遊玩」繁转简")],
+                actor=administrator)
+        session.commit()
 
         with pytest.raises(ConciseMeaningRefused) as error:
-            propose(session, entry=entry, proposals=[_proposal("越界", order=4)],
-                    actor=_user(session, admin))
+            propose(session, entry=entry,
+                    proposals=[_proposal("演奏", order=2, pos="verb", pos_order=9,
+                                         kind=KIND_DERIVED, note="抽义")],
+                    actor=administrator)
         session.rollback()
-        assert "越界" in str(error.value)
+        assert "既有行与本提案不一致" in str(error.value)
+
+        # ...and a value in a *different* group is fine, because it is not that group.
+        propose(session, entry=entry,
+                proposals=[_proposal("剧", order=1, pos="noun", pos_order=2,
+                                     kind=KIND_DERIVED, note="抽义")],
+                actor=administrator)
+        session.commit()
+        assert len(_rows(session, entry.id)) == 2
 
 
 def test_evidence_from_another_entry_is_refused(admin) -> None:
@@ -1041,8 +1155,28 @@ def test_two_users_share_the_short_meaning_and_keep_their_own_state(admin, membe
 # --- the administrator CLI ---------------------------------------------------
 
 
+def _group(meanings: list[dict[str, Any]], **overrides: Any) -> dict[str, Any]:
+    """One part-of-speech group for the v2 proposal file.
+
+    ``format_version`` 2 requires the group, including its ``pos_source``: the format
+    refuses a file that leaves a part of speech for the program to infer, so a test that
+    wants the undetermined case has to say ``pos_source="none"`` explicitly.
+    """
+    group: dict[str, Any] = {
+        "pos_key": "noun",
+        "pos_label": "名词",
+        "pos_order": 1,
+        "pos_source": "reviewer",
+        "pos_evidence_locator": "zhwiktionary:9576029:15",
+        "language": "en",
+        "meanings": meanings,
+    }
+    group.update(overrides)
+    return group
+
+
 def _proposal_file(path: Path, entries: list[dict[str, Any]], **extra: Any) -> Path:
-    payload = {"format_version": 1, "entries": entries, **extra}
+    payload = {"format_version": 2, "entries": entries, **extra}
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return path
 
@@ -1064,10 +1198,10 @@ def test_cli_propose_status_confirm_flow(admin, tmp_path, monkeypatch, capsys) -
 
     file = _proposal_file(tmp_path / "proposals.json", [{
         "word": "awe",
-        "meanings": [{
+        "pos_groups": [_group([{
             "text": "敬畏", "provenance_kind": KIND_SOURCE,
             "source_locator": "zhwiktionary:4",
-        }],
+        }])],
     }])
 
     assert cli.main([
@@ -1120,8 +1254,8 @@ def test_cli_refuses_the_wrong_password_and_writes_nothing(admin, tmp_path, monk
 
     file = _proposal_file(tmp_path / "p.json", [{
         "word": "awe",
-        "meanings": [{"text": "敬畏", "provenance_kind": KIND_SOURCE,
-                      "source_locator": "primary:2"}],
+        "pos_groups": [_group([{"text": "敬畏", "provenance_kind": KIND_SOURCE,
+                                "source_locator": "primary:2"}])],
     }])
     assert cli.main([
         "concise-meaning", "propose", "--file", str(file),
@@ -1146,10 +1280,11 @@ def test_cli_refuses_a_proposal_file_whose_word_is_not_in_the_lexicon(
         entry_id = entry.id
 
     file = _proposal_file(tmp_path / "p.json", [
-        {"word": "awe", "meanings": [{"text": "敬畏", "provenance_kind": KIND_SOURCE,
-                                     "source_locator": "primary:2"}]},
-        {"word": "not-in-this-lexicon", "meanings": [
-            {"text": "无", "provenance_kind": KIND_SOURCE, "source_locator": "primary:3"}]},
+        {"word": "awe", "pos_groups": [_group([
+            {"text": "敬畏", "provenance_kind": KIND_SOURCE, "source_locator": "primary:2"}])]},
+        {"word": "not-in-this-lexicon", "pos_groups": [_group([
+            {"text": "无", "provenance_kind": KIND_SOURCE, "source_locator": "primary:3"}],
+            pos_order=1)]},
     ])
     assert cli.main([
         "concise-meaning", "propose", "--file", str(file),
@@ -1166,13 +1301,29 @@ def test_cli_refuses_a_proposal_file_whose_word_is_not_in_the_lexicon(
 @pytest.mark.parametrize(
     ("payload", "fragment"),
     [
-        ({"format_version": 2, "entries": []}, "format_version"),
-        ({"format_version": 1, "entries": [], "extra": True}, "未知字段"),
-        ({"format_version": 1, "entries": [{"word": "awe", "meanings": [],
+        # The old flat format is refused rather than reinterpreted: reading it as one
+        # unnamed group would file every value under an undetermined part of speech.
+        ({"format_version": 1, "entries": []}, "format_version"),
+        ({"format_version": 3, "entries": []}, "format_version"),
+        ({"format_version": 2, "entries": [], "extra": True}, "未知字段"),
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [],
                                             "note": "x"}]}, "未知字段"),
-        ({"format_version": 1, "entries": [{"word": "awe", "meanings": [
-            {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1",
-             "kind": "source"}]}]}, "未知字段"),
+        # A v1-shaped entry: flat ``meanings`` with no group.
+        ({"format_version": 2, "entries": [{"word": "awe", "meanings": [
+            {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1"}]}]},
+         "未知字段"),
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [
+            {"pos_key": "noun", "pos_source": "reviewer", "meanings": [
+                {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1",
+                 "kind": "source"}]}]}]}, "未知字段"),
+        # A group that leaves the part of speech for the program to infer.
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [
+            {"pos_key": "noun", "meanings": [
+                {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1"}]}]}]},
+         "pos_source"),
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [
+            {"pos_key": "noun", "pos_source": "reviewer", "meanings": []}]}]},
+         "meanings"),
     ],
 )
 def test_cli_rejects_a_malformed_proposal_file(tmp_path, payload, fragment) -> None:
@@ -1190,8 +1341,8 @@ def test_cli_proposal_file_may_not_disagree_about_the_lexicon(tmp_path) -> None:
 
     file = _proposal_file(
         tmp_path / "p.json",
-        [{"word": "awe", "meanings": [
-            {"text": "敬畏", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"}]}],
+        [{"word": "awe", "pos_groups": [_group([
+            {"text": "敬畏", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"}])]}],
         lexicon="some-other-lexicon",
     )
     with pytest.raises(cli.ConciseMeaningFileError) as error:
@@ -1204,13 +1355,61 @@ def test_cli_display_order_defaults_to_the_position_in_the_list(tmp_path) -> Non
 
     file = _proposal_file(tmp_path / "p.json", [{
         "word": "maximum",
-        "meanings": [
+        "pos_groups": [_group([
             {"text": "最大", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"},
             {"text": "最大值", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"},
-        ],
+        ])],
     }])
     prepared = cli.load_proposal_file(file, lexicon_name="cm-cli")
     assert [item.display_order for item in prepared[0]["proposals"]] == [1, 2]
+
+
+def test_cli_reads_two_groups_and_their_citations(tmp_path) -> None:
+    """The file carries the group, its order, its basis, the language and citations.
+
+    ``play`` is the shape being checked: four values for one word, split across two
+    groups that each start at position 1, with a value that rests on a second source.
+    """
+    from app import cli
+
+    file = _proposal_file(tmp_path / "play.json", [{
+        "word": "play",
+        "pos_groups": [
+            _group(
+                [
+                    {"text": "玩", "provenance_kind": KIND_DERIVED,
+                     "source_locator": "zhwiktionary:7993707:13",
+                     "derivation_note": "由「遊玩」繁转简",
+                     "citations": [{"citation_locator": "wikdict:20",
+                                    "citation_order": 1}]},
+                    {"text": "演奏", "provenance_kind": KIND_DERIVED,
+                     "source_locator": "zhwiktionary:7993707:14",
+                     "derivation_note": "由「演奏」抽义"},
+                    {"text": "播放", "provenance_kind": KIND_DERIVED,
+                     "source_locator": "zhwiktionary:7993707:10",
+                     "derivation_note": "由「播放」抽义"},
+                ],
+                pos_key="verb", pos_label="动词", pos_order=1,
+            ),
+            _group(
+                [{"text": "剧", "provenance_kind": KIND_DERIVED,
+                  "source_locator": "zhwiktionary:7993707:9",
+                  "derivation_note": "由「剧」抽义"}],
+                pos_key="noun", pos_label="名词", pos_order=2,
+            ),
+        ],
+    }])
+    prepared = cli.load_proposal_file(file, lexicon_name="cm-cli")
+    proposals = prepared[0]["proposals"]
+
+    assert len(proposals) == 4, "the per-group cap is three, not a per-word cap"
+    assert [(p.pos_key, p.display_order) for p in proposals] == [
+        ("verb", 1), ("verb", 2), ("verb", 3), ("noun", 1),
+    ]
+    assert {p.pos_order for p in proposals if p.pos_key == "verb"} == {1}
+    assert {p.pos_order for p in proposals if p.pos_key == "noun"} == {2}
+    assert proposals[0].citations[0].citation_locator == "wikdict:20"
+    assert proposals[0].citations[0].citation_order == 1
 
 
 def test_describe_entry_reports_what_is_shown_and_what_was_decided(admin) -> None:
