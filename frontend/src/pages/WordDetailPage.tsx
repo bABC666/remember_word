@@ -17,18 +17,22 @@ function exposureTime(value: string | null | undefined) {
 
 export function WordDetailContent({ word }: { word: WordDetail }) {
   const rawIsFallback = word.source_meanings.every((meaning) => !meaning.trim())
+  // With groups, the headings inside the concise list state the part of speech; the
+  // single source-declared `part_of_speech` would be a second claim beside them. With
+  // no groups there is nothing else to read and it stays.
+  const hasGroups = word.concise_meanings.length > 0
   return (
     <>
       <header>
         <div>
           <h2>{word.word}</h2>
-          <p className="phonetic">{word.phonetic || '暂无音标'}{word.part_of_speech && <> · {word.part_of_speech}</>}</p>
+          <p className="phonetic">{word.phonetic || '暂无音标'}{!hasGroups && word.part_of_speech && <> · {word.part_of_speech}</>}</p>
         </div>
         <span className={`status status-${word.status}`}>{statusLabels[word.status]}</span>
       </header>
       {/* The component supplies its own labelled section, so a word with nothing
           confirmed renders no empty "核心释义" block at all. */}
-      <ConciseMeaningList values={word.concise_meanings} />
+      <ConciseMeaningList groups={word.concise_meanings} />
       <section>
         <span>最小语义锚点</span>
         <h3>{word.anchor || '—'}</h3>

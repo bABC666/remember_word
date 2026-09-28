@@ -2,6 +2,23 @@ export type WordStatus = 'new' | 'familiar' | 'learning' | 'known' | 'weak' | 'm
 export type ReviewResult = 'know' | 'fuzzy' | 'fail'
 
 /**
+ * One additional source position a displayed value rests on.
+ *
+ * A value can rest on more than one position and on more than one source: the trial
+ * record's `decrease` merges a zh.wiktionary line with a WikDict value. The primary
+ * citation is the meaning's own `source_locator` / `source_evidence_id`; these are the
+ * **additional** ones, in `citation_order`.
+ */
+export interface ConciseMeaningCitation {
+  /** 1-based position in this value's citation list. */
+  citation_order: number
+  /** `zhwiktionary:7993707:15`-style position in the source. */
+  citation_locator: string
+  /** The evidence row the position resolved to at import time, or null. */
+  source_evidence_id: number | null
+}
+
+/**
  * One short, human-confirmed sense of a word, from
  * `entry_concise_meaning`. Separate from `source_meanings` on purpose: the source
  * default is what the source said, this is what the study page shows, and a
@@ -9,6 +26,7 @@ export type ReviewResult = 'know' | 'fuzzy' | 'fail'
  */
 export interface ConciseMeaning {
   text: string
+  /** Position **within its part-of-speech group**, 1–3. */
   display_order: number
   /** Where the *wording* came from: the source itself, a change to it, or neither. */
   provenance_kind: 'source' | 'derived' | 'ai_supplement'
@@ -17,7 +35,7 @@ export interface ConciseMeaning {
   /** True only when the text is the source's own value; never inferred on the client. */
   is_source_verbatim: boolean
   is_supplement: boolean
-  /** `primary:12`-style position in the source, empty for a supplement. */
+  /** The **primary** `primary:12`-style position in the source, empty for a supplement. */
   source_locator: string
   /**
    * The evidence row this wording was proposed against, or null when it has none: a
@@ -31,10 +49,38 @@ export interface ConciseMeaning {
    * Reading it correctly means checking the row against `sources.fields`.
    */
   source_evidence_id: number | null
+  /** Every **additional** source position, in `citation_order`. Empty for a supplement. */
+  citations: ConciseMeaningCitation[]
   /** What was changed, or why a supplement was added. */
   derivation_note: string
   confirmed_by: string
   confirmed_at: string | null
+}
+
+/**
+ * One part-of-speech group of short display values.
+ *
+ * The server groups by `pos_key`, sorts groups by `pos_order` and returns each group's
+ * values in `display_order`, so a client renders the list as received rather than
+ * re-deriving an order from two numbers. `pos_order` is repeated on the group so the
+ * order survives any client-side re-sorting.
+ *
+ * `pos_source` says how the part of speech was established — `pos_section` from a
+ * heading in the pinned revision, `reviewer` from a person's judgement — and is
+ * therefore also a statement about how much the label is worth. A group whose part of
+ * speech a person judged is marked as such rather than shown like a sourced one.
+ */
+export interface ConciseMeaningGroup {
+  pos_key: string
+  /** Display label, e.g. `动词`. Falls back to `pos_key` server-side when unset. */
+  pos_label: string
+  pos_source: 'none' | 'pos_section' | 'reviewer'
+  /** The server's wording for `pos_source`, so the two cannot drift. */
+  pos_source_label: string
+  /** Which group comes first; the list arrives in this order already. */
+  pos_order: number
+  /** The group's 1–3 values, in `display_order`. */
+  meanings: ConciseMeaning[]
 }
 
 export interface Word {
@@ -57,11 +103,13 @@ export interface Word {
   /** The primary source's own line, verbatim. Still the thing to check a value against. */
   source_raw: string
   /**
-   * The short, confirmed display values, in order. An empty array means nothing has
-   * been confirmed for this word: fall back to `source_meanings`/`source_raw`, and
-   * never fill the gap with an unreviewed candidate.
+   * The short, confirmed display values, grouped by part of speech and ordered by
+   * `pos_order`, with each group's values in `display_order`. An empty array means
+   * nothing is displayable for this word -- no confirmed value, or none that passed the
+   * server's display gate: fall back to `source_meanings`/`source_raw`, and never fill
+   * the gap with an unreviewed candidate.
    */
-  concise_meanings: ConciseMeaning[]
+  concise_meanings: ConciseMeaningGroup[]
   anchor: string
   semantic_note: string
   status: WordStatus

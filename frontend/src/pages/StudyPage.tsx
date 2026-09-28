@@ -13,9 +13,9 @@ export function StudyPage() {
   const query = useQuery({ queryKey: ['study-today'], queryFn: () => api<{ total: number; words: Word[] }>('/api/study/today') })
   const words = query.data?.words ?? []
   const current = words[index]
-  // A word with no confirmed short meaning answers with an empty list, which is the
-  // fallback signal -- never a server-side substitute of something unreviewed.
-  const short = current?.concise_meanings ?? []
+  // A word with nothing displayable answers with an empty list, which is the fallback
+  // signal -- never a server-side substitute of something unreviewed.
+  const groups = current?.concise_meanings ?? []
   const mutation = useMutation({
     // `word_state_id`, not the legacy id: a word added from an article has no
     // `word` row, and the legacy route deliberately does not accept a state id.
@@ -43,17 +43,23 @@ export function StudyPage() {
     <div className="study-page">
       <header className="study-head"><h1>今日学习</h1><div><span>{index + 1} / {words.length}</span><div className="progress"><i style={{ width: `${((index + 1) / words.length) * 100}%` }} /></div></div></header>
       <section className="study-stage">
-        <div className="word-main"><h2>{current.word}</h2><p className="phonetic">{current.phonetic}</p>{current.part_of_speech && <span>{current.part_of_speech}</span>}</div>
+        {/* The part-of-speech chip comes from `lexicon_entry.part_of_speech`, a single
+            source-declared string. When the confirmed values carry their own groups,
+            those headings are the authoritative statement and this chip would be a
+            second, possibly different one -- so it is suppressed rather than shown
+            twice. With no groups there is nothing else to read, and the chip stays. */}
+        <div className="word-main"><h2>{current.word}</h2><p className="phonetic">{current.phonetic}</p>{groups.length === 0 && current.part_of_speech && <span>{current.part_of_speech}</span>}</div>
         {!revealed ? (
           <button className="reveal-button" onClick={() => setRevealed(true)}><BookOpen size={19} />显示答案 <kbd>Space</kbd></button>
         ) : (
           <div className="answer-area">
             {/* The owner's rule for this round: prefer one to three short, common
-                senses. They are shown only when a person confirmed them; otherwise
-                the answer falls back to exactly what it showed before. */}
-            {short.length > 0 ? (
+                senses **per part of speech**. They are shown only when a person
+                confirmed them; otherwise the answer falls back to exactly what it
+                showed before. */}
+            {groups.length > 0 ? (
               <>
-                <ConciseMeaningList values={short} />
+                <ConciseMeaningList groups={groups} />
                 <div className="answer-divider" />
                 <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
                 <details className="source-raw study-source">

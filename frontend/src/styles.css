@@ -88,12 +88,18 @@ h1, h2, h3, p { margin-top: 0; }
 .model-identity { display: block; margin-top: 7px; color: var(--muted); font-weight: 400; line-height: 1.5; }
 .concise-meanings { display: block; }
 .concise-meanings .concise-label { color: var(--green); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.concise-meanings .concise-group + .concise-group { margin-top: 14px; }
+.concise-meanings .concise-pos-head { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.concise-meanings .concise-pos { color: var(--ink); font-size: 13px; font-weight: 700; }
+.concise-meanings .concise-pos-basis { padding: 1px 7px; border-radius: 999px; background: var(--indigo-soft); color: var(--indigo); font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; font-weight: 700; }
 .concise-meaning-list { width: fit-content; max-width: 100%; margin: 12px auto 0; padding-left: 1.65em; text-align: left; line-height: 1.8; font-family: Georgia, "Noto Serif SC", serif; font-size: 18px; }
+.concise-group .concise-meaning-list { margin-top: 6px; }
 .concise-meaning-list li { padding-left: .25em; margin: 6px 0; }
 .concise-meaning-list .concise-text { font-weight: 600; }
 .concise-meaning-list .concise-origin { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #f1eefb; color: var(--indigo); font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; font-weight: 700; vertical-align: middle; }
 .concise-meaning-list .concise-origin-ai_supplement { background: #fdf0e2; color: #9a5b12; }
-.concise-meaning-list .concise-note, .concise-meaning-list .concise-locator { display: block; color: var(--muted); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.5; }
+.concise-meaning-list .concise-note, .concise-meaning-list .concise-locator, .concise-meaning-list .concise-citations { display: block; color: var(--muted); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.5; }
+.concise-meaning-list .concise-citation { display: inline-block; margin-left: 6px; }
 .concise-confirmed-by { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
 .answer-area .concise-meaning-list { margin-inline: auto; }
 .answer-area .concise-confirmed-by { margin-inline: auto; }
