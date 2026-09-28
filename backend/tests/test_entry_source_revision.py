@@ -37,6 +37,7 @@ CHECK_NAME = "ck_entry_source_evidence_revision_trimmed"
 
 REVISION_0009 = "0009_entry_concise_meaning"
 REVISION_0010 = "0010_entry_source_revision"
+REVISION_0011 = "0011_entry_concise_meaning_pos"
 
 NOW = "2026-01-01 00:00:00"
 
@@ -286,9 +287,13 @@ def test_0010_is_the_single_head_and_stacks_on_0009() -> None:
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == [REVISION_0010], (
-        "adding 0010 must keep exactly one head; a second head means the migration "
-        "graph branched"
+    # ``0011`` now follows ``0010``, so this asserts the part that is 0010's own: the
+    # chain has a single head, and 0010 is a step in it rather than a second branch.
+    assert script.get_heads() == [REVISION_0011], (
+        "there must be exactly one head; a second head means the migration graph branched"
+    )
+    assert script.get_revision(REVISION_0011).down_revision == REVISION_0010, (
+        "0011 follows 0010 rather than editing it in place"
     )
     assert script.get_revision(REVISION_0010).down_revision == REVISION_0009, (
         "0010 stacks on 0009 rather than editing an unpublished revision in place"
