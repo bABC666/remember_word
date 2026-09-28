@@ -26,6 +26,8 @@ shared test database, and removed again by this module's teardown. Nothing touch
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 from app.services.concise_meaning import (
@@ -36,7 +38,6 @@ from app.services.concise_meaning import (
     ConciseMeaningCitationProposal,
     ConciseMeaningProposal,
     ConciseMeaningRefused,
-    concise_meaning_dict,
     confirm,
     describe_entry,
     display_refusal_reason,
@@ -665,37 +666,93 @@ def test_history_records_the_grouping_that_was_in_force(admin) -> None:
     assert {item.pos_source for item in history} == {"reviewer"}
 
 
-# --- the response shape is unchanged -----------------------------------------
+# --- the response contract ----------------------------------------------------
 
 
-def test_the_api_dict_shape_is_unchanged() -> None:
-    """This slice is backend-only: the study page's contract must not move.
+def test_the_group_serializer_orders_groups_and_values_and_keeps_citations() -> None:
+    """The grouping rule, on values rather than on a database.
 
-    The part-of-speech fields are exposed through the review output
-    (``concise_meaning_review_dict``), not through the response the study page reads, so
-    that the frontend does not have to change in the same step.
+    Three things at once: groups come out ordered by ``pos_order`` rather than by
+    insertion; values inside a group come out ordered by ``display_order``; and every
+    citation is reported with the position it names. ``meanings`` is a plain list on
+    each row object, so a lightweight stand-in is enough and the test says exactly what
+    it is checking.
     """
+    from app.services.concise_meaning import concise_meaning_groups
+
+    class Citation:
+        def __init__(self, order: int, locator: str) -> None:
+            self.citation_order = order
+            self.citation_locator = locator
+            self.source_evidence_id = None
+
+    class Row:
+        def __init__(self, text, pos_key, pos_label, pos_order, display_order, citations=()):
+            self.text = text
+            self.pos_key = pos_key
+            self.pos_label = pos_label
+            self.pos_order = pos_order
+            self.pos_source = "reviewer"
+            self.display_order = display_order
+            self.provenance_kind = KIND_DERIVED
+            self.source_locator = f"zhwiktionary:7993707:{display_order}"
+            self.source_evidence_id = None
+            self.derivation_note = "由来源行抽义"
+            self.confirmed_by_username = "owner"
+            self.confirmed_at = None
+            self.citations = list(citations)
+            self.id = display_order + (100 if pos_key == "noun" else 0)
+
+    # Deliberately out of order, and the noun group is second by position but given
+    # rows first, so insertion order cannot be mistaken for display order.
+    rows = [
+        Row("剧", "noun", "名词", 2, 1),
+        Row("播放", "verb", "动词", 1, 3),
+        Row("玩", "verb", "动词", 1, 1, citations=[Citation(1, "wikdict:20")]),
+        Row("演奏", "verb", "动词", 1, 2),
+    ]
+
+    groups = concise_meaning_groups(rows)
+
+    assert [group["pos_key"] for group in groups] == ["verb", "noun"]
+    assert [group["pos_order"] for group in groups] == [1, 2]
+    assert [group["pos_label"] for group in groups] == ["动词", "名词"]
+    assert [group["pos_source"] for group in groups] == ["reviewer", "reviewer"]
+    assert [[m["text"] for m in group["meanings"]] for group in groups] == [
+        ["玩", "演奏", "播放"],
+        ["剧"],
+    ]
+    assert [m["display_order"] for m in groups[0]["meanings"]] == [1, 2, 3]
+    assert groups[0]["meanings"][0]["citations"] == [
+        {"citation_order": 1, "citation_locator": "wikdict:20", "source_evidence_id": None}
+    ]
+    assert groups[0]["meanings"][1]["citations"] == []
+
+
+def test_a_group_without_a_recorded_label_falls_back_to_its_key() -> None:
+    """Every group carries a display label, so a client never renders an empty heading.
+
+    The fallback is the group's own key, which is already its identity -- not an
+    inferred part of speech. The gate has refused any row whose part of speech is
+    undetermined before this point.
+    """
+    from app.services.concise_meaning import concise_meaning_groups
 
     class Row:
         text = "玩"
+        pos_key = "verb"
+        pos_label = ""
+        pos_order = 1
+        pos_source = "reviewer"
         display_order = 1
         provenance_kind = KIND_DERIVED
         source_locator = "zhwiktionary:7993707:13"
         source_evidence_id = None
-        derivation_note = "由来源游玩意抽义"
+        derivation_note = "抽义"
         confirmed_by_username = "owner"
         confirmed_at = None
+        citations: ClassVar[list] = []
+        id = 1
 
-    assert set(concise_meaning_dict(Row())) == {
-        "text",
-        "display_order",
-        "provenance_kind",
-        "provenance_label",
-        "is_source_verbatim",
-        "is_supplement",
-        "source_locator",
-        "source_evidence_id",
-        "derivation_note",
-        "confirmed_by",
-        "confirmed_at",
-    }
+    groups = concise_meaning_groups([Row()])
+    assert groups[0]["pos_label"] == "verb"

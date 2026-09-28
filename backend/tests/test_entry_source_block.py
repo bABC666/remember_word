@@ -446,7 +446,14 @@ def test_the_concise_meaning_reports_the_evidence_row_it_was_proposed_against(
         session.commit()
 
     detail = _detail(admin, state_id)
-    by_order = {item["display_order"]: item for item in detail["concise_meanings"]}
+    # The response groups by part of speech, so the two values are read out of their
+    # group; the grouping is not what this test is about.
+    displayed = [
+        meaning
+        for group in detail["concise_meanings"]
+        for meaning in group["meanings"]
+    ]
+    by_order = {item["display_order"]: item for item in displayed}
     assert by_order[1]["source_evidence_id"] == evidence_id
     assert by_order[2]["source_evidence_id"] is None, (
         "a supplement points at no evidence row"

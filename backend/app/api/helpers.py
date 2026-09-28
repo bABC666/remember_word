@@ -32,13 +32,17 @@ def word_dict_from_view(
     meant.
 
     ``concise_meanings`` is the short, human-confirmed display value the study page
-    prefers, passed in already loaded so one response costs one query rather than one
-    per word. It is deliberately a *separate* field from ``source_meanings``: the
-    source default and the source's own raw line are still returned untouched, so a
-    reader who doubts a short value can always go and read the source. An empty list
-    means "no confirmed short meaning" and is the client's signal to fall back; it is
-    never filled in from ``source_meanings`` on the server, because then a client
-    could not tell a reviewed value from an unreviewed one.
+    prefers, as a list of **part-of-speech groups** ordered by ``pos_order``; each group
+    carries the part of speech (``pos_key``, its display label and how it was
+    established) and its values in ``display_order``. It is passed in already loaded so
+    one response costs a fixed number of queries rather than one per word. It is
+    deliberately a *separate* field from ``source_meanings``: the source default and the
+    source's own raw line are still returned untouched, so a reader who doubts a short
+    value can always go and read the source. An empty list means "nothing displayable
+    for this word" -- no confirmed value, or none of the confirmed ones passed the
+    display gate -- and is the client's signal to fall back; it is never filled in from
+    ``source_meanings`` on the server, because then a client could not tell a reviewed
+    value from an unreviewed one.
 
     It has **no default**, and that is the point: a caller that forgets it would emit
     an empty list for a word that does have a confirmed value, which is

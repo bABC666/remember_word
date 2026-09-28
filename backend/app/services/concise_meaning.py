@@ -55,7 +55,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     CONCISE_MEANING_KINDS,
@@ -897,12 +897,19 @@ def load_concise_meanings(
     defined: two groups may each have a first slot, and a client that sorts on
     ``display_order`` alone needs the server's order to already put the first group
     first, or the tie would be resolved by nothing.
+
+    Citations are eager-loaded with ``selectinload`` so this stays a **fixed** number of
+    statements -- two, however many entries the response carries -- rather than one
+    statement per row for its citations. The docstring above said "one query" before
+    citations existed; the property worth keeping is that the cost does not grow with
+    the number of words, and lazy loading would have broken exactly that.
     """
     ids = list(dict.fromkeys(entry_ids))
     if not ids:
         return {}
     rows = session.scalars(
         select(EntryConciseMeaning)
+        .options(selectinload(EntryConciseMeaning.citations))
         .where(
             EntryConciseMeaning.lexicon_entry_id.in_(ids),
             EntryConciseMeaning.status == STATUS_CONFIRMED,
@@ -922,20 +929,34 @@ def load_concise_meanings(
     return grouped
 
 
+def concise_meaning_citation_dict(citation: EntryConciseMeaningCitation) -> dict[str, Any]:
+    """One additional source position, with the position it names.
+
+    ``source_evidence_id`` is the row the position resolved to at import time, or
+    ``None``. It is reported as it was stored rather than resolved again: resolving it
+    is the source block's job, and a second place that did it would be a second place
+    that could pick the wrong row.
+    """
+    return {
+        "citation_order": citation.citation_order,
+        "citation_locator": citation.citation_locator,
+        "source_evidence_id": citation.source_evidence_id,
+    }
+
+
 def concise_meaning_dict(row: EntryConciseMeaning) -> dict[str, Any]:
-    """What a client needs to show the value *and* to judge its provenance.
+    """What a client needs to show one value *and* to judge its provenance.
 
     ``is_source_verbatim`` is the field a client must branch on before presenting the
     text as the source's own words; it is derived from the stored kind rather than
     left for a client to infer from the label.
 
-    ``source_evidence_id`` is the evidence row this wording was proposed against, or
-    ``None`` when it has none -- a supplement is structurally forbidden from carrying
-    one, and a value proposed before an import recorded evidence has only its
-    ``source_locator``. It is the id the entry page uses to look up the source's own
-    text and pinned revision for this slot; it is deliberately *not* a resolved
-    source, because resolving one is the source block's job and a second place that
-    did it would be a second place that could pick the wrong row.
+    ``source_locator`` / ``source_evidence_id`` are the **primary** citation, and
+    ``citations`` carries every additional one in order. A value can rest on more than
+    one position and on more than one source -- ``decrease`` merges a zh.wiktionary line
+    with a WikDict value -- so reporting only the primary would drop a position the
+    reader needs in order to check the value. A self-authored supplement has neither,
+    and that is what ``is_supplement`` tells a client to expect.
     """
     return {
         "text": row.text,
@@ -946,18 +967,68 @@ def concise_meaning_dict(row: EntryConciseMeaning) -> dict[str, Any]:
         "is_supplement": row.provenance_kind == KIND_AI_SUPPLEMENT,
         "source_locator": row.source_locator,
         "source_evidence_id": row.source_evidence_id,
+        "citations": [concise_meaning_citation_dict(item) for item in row.citations],
         "derivation_note": row.derivation_note,
         "confirmed_by": row.confirmed_by_username,
         "confirmed_at": row.confirmed_at,
     }
 
 
+def concise_meaning_group_dict(rows: Sequence[EntryConciseMeaning]) -> dict[str, Any]:
+    """One part-of-speech group, with its values in display order.
+
+    The group is keyed on ``pos_key`` and ordered by ``pos_order``; a later group is a
+    later element of the list rather than a field a client has to sort on.
+
+    ``pos_label`` falls back to ``pos_key`` when nothing was recorded, so the promise
+    "every group carries a display label" holds even for a group proposed without one.
+    That is a presentation fallback for a value that is already the group's identity,
+    not an inferred part of speech: the gate has already refused any row whose part of
+    speech is undetermined.
+
+    If rows of one ``pos_key`` ever disagreed about ``pos_order`` -- impossible through
+    the service, which refuses a second call that would renumber a stored group -- the
+    smallest order wins. The alternative, emitting the same key twice, would let one
+    part of speech appear as two groups in the study page's list.
+    """
+    first = rows[0]
+    pos_order = min(row.pos_order for row in rows)
+    ordered = sorted(rows, key=lambda row: (row.display_order, row.id))
+    return {
+        "pos_key": first.pos_key,
+        "pos_label": first.pos_label or first.pos_key,
+        "pos_source": first.pos_source,
+        "pos_source_label": POS_SOURCE_LABELS.get(first.pos_source, first.pos_source),
+        "pos_order": pos_order,
+        "meanings": [concise_meaning_dict(row) for row in ordered],
+    }
+
+
+def concise_meaning_groups(rows: Iterable[EntryConciseMeaning]) -> list[dict[str, Any]]:
+    """The grouped form one entry's display values take in a response.
+
+    Grouped by ``pos_key`` and sorted by the group's position, so the order is the
+    server's decision rather than something each client has to re-derive.
+    """
+    buckets: dict[str, list[EntryConciseMeaning]] = {}
+    for row in rows:
+        buckets.setdefault(row.pos_key, []).append(row)
+    groups = [concise_meaning_group_dict(group_rows) for group_rows in buckets.values()]
+    groups.sort(key=lambda group: (group["pos_order"], group["pos_key"]))
+    return groups
+
+
 def entry_short_meanings(
     session: Session, entry_ids: Iterable[int]
 ) -> dict[int, list[dict[str, Any]]]:
-    """The serialised form the API returns, keyed by entry id."""
+    """The serialised form the API returns, keyed by entry id.
+
+    Each entry maps to a list of part-of-speech groups; an entry with nothing
+    displayable is simply absent, and every caller turns that into an empty list rather
+    than filling it from ``source_meanings``.
+    """
     return {
-        entry_id: [concise_meaning_dict(row) for row in rows]
+        entry_id: concise_meaning_groups(rows)
         for entry_id, rows in load_concise_meanings(session, entry_ids).items()
     }
 

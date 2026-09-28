@@ -283,6 +283,20 @@ def _proposal(
     )
 
 
+def _meanings(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every value of every part-of-speech group, in the order the server returned them.
+
+    The response groups by part of speech, so a test about *which* values are shown --
+    rather than about the grouping -- reads them through this. The grouping itself is
+    asserted where it is the subject, in ``test_concise_meaning_api_groups.py``.
+    """
+    return [
+        meaning
+        for group in payload["concise_meanings"]
+        for meaning in group["meanings"]
+    ]
+
+
 def _rows(session, entry_id: int):
     from app.models import EntryConciseMeaning
 
@@ -384,8 +398,12 @@ def test_a_simplified_value_displays_simplified_while_the_source_keeps_tradition
 
     with admin.session() as session:
         entry = session.get(LexiconEntry, entry.id)
-        short = entry_short_meanings(session, [entry.id])[entry.id]
+        groups = entry_short_meanings(session, [entry.id])[entry.id]
 
+    # The service answers groups now, so the values are read out of the single group;
+    # this test is about the wording, not the grouping.
+    assert [group["pos_key"] for group in groups] == ["noun"]
+    short = groups[0]["meanings"]
     assert [item["text"] for item in short] == ["农村的"]
     assert short[0]["provenance_kind"] == KIND_DERIVED
     assert short[0]["is_source_verbatim"] is False, (
@@ -987,8 +1005,8 @@ def test_today_queue_returns_the_confirmed_value_beside_the_source(admin) -> Non
     assert response.status_code == 200, response.text
     word = next(item for item in response.json()["words"] if item["lexicon_entry_id"] == entry_id)
 
-    assert [item["text"] for item in word["concise_meanings"]] == ["专门知识"]
-    assert word["concise_meanings"][0]["is_source_verbatim"] is True
+    assert [item["text"] for item in _meanings(word)] == ["专门知识"]
+    assert _meanings(word)[0]["is_source_verbatim"] is True
     # Both source fields survive the short value untouched.
     assert word["source_meanings"] == ["专门知识；专家意见；专门技能"]
     assert word["source_raw"] == "expertise n. 专门知识；专家意见"
@@ -1040,7 +1058,7 @@ def test_word_detail_and_list_include_the_confirmed_value(admin) -> None:
     detail = admin.client.get(f"/api/words/state/{state_id}")
     assert detail.status_code == 200, detail.text
     body = detail.json()
-    assert [item["text"] for item in body["concise_meanings"]] == ["农村的"]
+    assert [item["text"] for item in _meanings(body)] == ["农村的"]
     assert body["source_meanings"] == ["農村的"]
 
     listing = admin.client.get("/api/words")
@@ -1048,7 +1066,7 @@ def test_word_detail_and_list_include_the_confirmed_value(admin) -> None:
     listed = next(
         item for item in listing.json()["words"] if item["lexicon_entry_id"] == entry_id
     )
-    assert [item["text"] for item in listed["concise_meanings"]] == ["农村的"]
+    assert [item["text"] for item in _meanings(listed)] == ["农村的"]
     assert listed["source_raw"] == "rural adj. 農村的"
 
 
@@ -1097,7 +1115,7 @@ def test_every_word_response_reports_the_confirmed_value_or_nothing(admin) -> No
         item for item in article_body.json()["quiz_words"]
         if item["lexicon_entry_id"] == entry_id
     )
-    assert [item["text"] for item in quiz["concise_meanings"]] == ["高度"]
+    assert [item["text"] for item in _meanings(quiz)] == ["高度"]
 
     # And no caller may fall back to the default: a missing argument is not allowed to
     # look like "nothing confirmed".
@@ -1139,7 +1157,7 @@ def test_two_users_share_the_short_meaning_and_keep_their_own_state(admin, membe
         response = world.client.get(f"/api/words/state/{state_id}")
         assert response.status_code == 200, response.text
         body = response.json()
-        assert [item["text"] for item in body["concise_meanings"]] == ["高度", "海拔"], (
+        assert [item["text"] for item in _meanings(body)] == ["高度", "海拔"], (
             "both accounts must see the same confirmed content"
         )
         assert body["lexicon_entry_id"] == entry_id
