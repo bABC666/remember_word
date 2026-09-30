@@ -49,6 +49,9 @@ current row.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -70,6 +73,9 @@ from app.models import (
     EntryConciseMeaningRevision,
     EntrySourceEvidence,
     LexiconEntry,
+    PublicImportRun,
+    PublicImportRunSource,
+    SourceArtifact,
     User,
 )
 
@@ -96,6 +102,13 @@ POS_SOURCE_REVIEWER = "reviewer"
 #: section. The empty string means "not recorded", which is also not a claim that the
 #: sense is English, so confirmation requires the target language outright.
 TARGET_LANGUAGE = "en"
+
+# This frozen English-to-Chinese CSV is the only existing artifact in this slice whose
+# persisted row can be tied to a known target-language source without a wikitext parse.
+# A different file version needs its own reviewed declaration; its name alone is not
+# evidence that it has the same language or columns.
+WIKDICT_CSV_SHA256 = "4dde746b901f7fa41e8137acf1cbd2cad8fd96b33144f5ebc146b8c415fbc894"
+_WIKDICT_POSITION = re.compile(r"wikdict:([1-9][0-9]*)\Z")
 
 #: What the study page calls each kind. Kept here rather than in the frontend so the
 #: label and the stored value cannot drift apart.
@@ -724,6 +737,8 @@ def confirm(
     if reason:
         raise ConciseMeaningRefused(_refusal_advice(meaning, reason))
 
+    _require_confirmable_evidence(session, entry, meaning)
+
     meaning.status = STATUS_CONFIRMED
     meaning.confirmed_by_user_id = actor.id
     meaning.confirmed_by_username = actor.username
@@ -737,6 +752,143 @@ def confirm(
     )
     session.flush()
     return meaning
+
+
+def _require_confirmable_evidence(
+    session: Session, entry: LexiconEntry, meaning: EntryConciseMeaning,
+) -> None:
+    """Refuse a source claim the current persistent evidence cannot establish.
+
+    The zh.wiktionary evidence row describes an aggregate CSV cell. Its row number is
+    *not* a line number in the oldid's wikitext, and it stores neither a heading nor a
+    language path. No value of ``source_revision`` makes it line-level evidence.
+
+    The *wording* claim is graded by kind, and every citation of one value is graded by
+    the same standard as the primary position:
+
+    * ``source`` states the source's own words, so **every** position it cites -- the
+      primary one and each additional citation -- has to carry the wording verbatim. A
+      citation bound to the right entry, source, version and row whose cell does not
+      contain the value proves nothing about that value, so it is refused like any other
+      unsupported claim.
+    * ``derived`` states a documented **rewrite** of a source value (traditional to
+      simplified, one sense extracted, re-worded). Its wording is therefore *supposed*
+      not to appear in the source, and requiring it verbatim would make the kind
+      unusable; the rewrite is the human's statement in ``derivation_note``. What stays
+      mandatory is the whole evidence chain -- entry, source, version, CSV row, stored
+      text fingerprint -- for the primary position and for every citation. A citation
+      that cannot be tied to that chain has no evidence this slice can check, and the
+      refusal names exactly what is missing rather than guessing at the relation.
+    ``ai_supplement`` has no source position at all by construction, so the existing
+    human-review and no-citation rules stay as they are.
+    """
+    if meaning.provenance_kind == KIND_AI_SUPPLEMENT:
+        return  # Existing human-review and no-citation rules apply unchanged.
+
+    if meaning.pos_source == POS_SOURCE_SECTION:
+        raise ConciseMeaningRefused(
+            f"词性标题 {meaning.pos_evidence_locator!r} 缺少持久的逐行标题与语言路径证据；"
+            "CSV 释义行不能证明 pos_section，拒绝确认。"
+        )
+
+    # Only a verbatim claim demands its wording in the cited cell; a rewrite is checked
+    # by its evidence chain and its note, never by looking for text it deliberately changed.
+    verbatim = meaning.provenance_kind == KIND_SOURCE
+    _require_csv_position(
+        session, entry, meaning.source_locator, meaning.source_evidence_id,
+        label="主引用", exact_text=meaning.text if verbatim else None,
+    )
+    for citation in meaning.citations:
+        _require_csv_position(
+            session, entry, citation.citation_locator, citation.source_evidence_id,
+            label=f"附加引用 #{citation.citation_order}",
+            exact_text=meaning.text if verbatim else None,
+        )
+    # A reviewer basis is a human judgement, but its cited gloss and target language
+    # still have to be checkable. It may point to the primary or an additional citation.
+    positions = {meaning.source_locator, *(item.citation_locator for item in meaning.citations)}
+    if meaning.pos_evidence_locator not in positions:
+        raise ConciseMeaningRefused(
+            f"词性试判位置 {meaning.pos_evidence_locator!r} 未绑定到已核实的释义引用，"
+            "拒绝确认。"
+        )
+
+
+def _require_csv_position(
+    session: Session, entry: LexiconEntry, locator: str, evidence_id: int | None,
+    *, label: str, exact_text: str | None,
+) -> None:
+    if locator.startswith("zhwiktionary:"):
+        raise ConciseMeaningRefused(
+            f"{label} {locator!r} 缺少固定 wikitext 逐行原文与语言路径的持久证据；"
+            "现有 entry_source_evidence 只记录转换 CSV 行，拒绝确认。"
+        )
+    match = _WIKDICT_POSITION.fullmatch(locator)
+    if match is None:
+        raise ConciseMeaningRefused(
+            f"{label} {locator!r} 没有可核实的来源/版本/位置契约，拒绝确认。"
+        )
+    if evidence_id is None:
+        raise ConciseMeaningRefused(f"{label} {locator!r} 缺少持久证据 ID，拒绝确认。")
+    evidence = session.get(EntrySourceEvidence, evidence_id)
+    if evidence is None:
+        raise ConciseMeaningRefused(f"{label} {locator!r} 的证据 ID={evidence_id} 不存在。")
+    artifact = session.get(SourceArtifact, evidence.source_artifact_id)
+    run = session.get(PublicImportRun, evidence.import_run_id)
+    run_source = session.scalar(
+        select(PublicImportRunSource.id).where(
+            PublicImportRunSource.import_run_id == evidence.import_run_id,
+            PublicImportRunSource.source_artifact_id == evidence.source_artifact_id,
+        )
+    )
+    try:
+        columns = json.loads(artifact.mapping_json).get("columns", {}) if artifact else {}
+    except (TypeError, ValueError):
+        columns = {}
+    if (
+        evidence.lexicon_entry_id != entry.id
+        or evidence.normalized_word != entry.normalized_word
+        or evidence.raw_word.strip().casefold() != entry.normalized_word
+        or evidence.field_kind != "meaning"
+        or evidence.row_locator != int(match.group(1))
+        or evidence.sense_key != f"meaning@{evidence.row_locator}"
+        or evidence.source_revision != ""
+        or not evidence.raw_text.strip()
+        or artifact is None
+        or artifact.role != "meaning"
+        or artifact.name != "wikdict.csv"
+        or artifact.file_sha256.lower() != WIKDICT_CSV_SHA256
+        or hashlib.sha256(artifact.mapping_json.encode("utf-8")).hexdigest()
+        != artifact.mapping_sha256
+        or columns.get("word") != "word"
+        or columns.get("meaning") != "wikdict_meaning"
+        or run is None
+        or run.status != "applied"
+        or run.target_lexicon_id != entry.lexicon_id
+        or run_source is None
+    ):
+        raise ConciseMeaningRefused(
+            f"{label} {locator!r} 未绑定到该词条、该来源与该版本下 CSV 第 "
+            f"{match.group(1)} 行的持久证据（证据 ID={evidence_id}）：缺少同词条、"
+            "同来源/版本、同行号、field_kind=meaning 且留存原文的释义证据行，拒绝确认。"
+        )
+    from app.services.public_lexicon_plan import evidence_idempotency_key
+
+    expected_key = evidence_idempotency_key(
+        file_sha256=artifact.file_sha256, mapping_sha256=artifact.mapping_sha256,
+        line=evidence.row_locator, field="meaning", raw_value=evidence.raw_text,
+    )
+    if evidence.evidence_sha256 != expected_key:
+        raise ConciseMeaningRefused(
+            f"{label} {locator!r} 的证据 ID={evidence_id} 原文指纹不一致，拒绝确认。"
+            "缺少与该证据行留存的原文相符的指纹，无法证明该行就是被引用的那一行。"
+        )
+    if exact_text is not None and exact_text not in evidence.raw_text:
+        raise ConciseMeaningRefused(
+            f"{label} {locator!r} 引用的 CSV 第 {evidence.row_locator} 行原文不含该释义"
+            f"的逐字来源声明 {exact_text!r}（该行原文为 {evidence.raw_text!r}），"
+            "拒绝确认。来源逐字内容必须出现在它所引用的那一行里。"
+        )
 
 
 def _refusal_advice(row: EntryConciseMeaning, reason: str) -> str:

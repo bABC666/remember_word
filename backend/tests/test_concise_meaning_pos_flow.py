@@ -209,8 +209,8 @@ def _confirm_all(session, entry_id: int, world) -> None:
 # --- play: four values across two groups --------------------------------------
 
 
-def test_play_carries_four_values_across_two_groups(admin) -> None:
-    """The case the old shape could not store, end to end.
+def test_play_stores_four_values_but_cannot_confirm_unproved_wikitext_lines(admin) -> None:
+    """The widened slots store the pilot shape without treating locators as proof.
 
     Three verb senses and one noun sense: four values, two groups, and each group's
     positions start at 1. The read path returns them group by group.
@@ -240,14 +240,13 @@ def test_play_carries_four_values_across_two_groups(admin) -> None:
         # Four rows in the store, and none of them visible yet.
         assert load_concise_meanings(session, [entry.id]) == {}
 
-        _confirm_all(session, entry.id, admin)
-        displayed = load_concise_meanings(session, [entry.id])[entry.id]
-
-        assert [(row.pos_key, row.display_order) for row in displayed] == [
+        assert [(row.pos_key, row.display_order) for row in created] == [
             ("verb", 1), ("verb", 2), ("verb", 3), ("noun", 1),
         ]
-        assert [row.text for row in displayed] == ["玩", "演奏", "播放", "剧"]
-        assert [row.pos_order for row in displayed] == [1, 1, 1, 2]
+        with pytest.raises(ConciseMeaningRefused, match="wikitext"):
+            _confirm_all(session, entry.id, admin)
+        session.rollback()
+        assert load_concise_meanings(session, [entry.id]) == {}
 
 
 def test_the_same_position_in_two_groups_is_two_slots(admin) -> None:
@@ -303,7 +302,8 @@ def test_a_confirmed_value_must_be_withdrawn_before_its_slot_is_reused(admin) ->
         entry = _entry(session, lexicon, "play")
         administrator = _administrator(session, admin)
         row = propose(session, entry=entry,
-                      proposals=[_group("玩", pos="verb", pos_order=1, order=1)],
+                      proposals=[_group("玩", pos="verb", pos_order=1, order=1,
+                                        kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充")],
                       actor=administrator)[0]
         session.commit()
         confirm(session, meaning=row, confirmer=administrator)
@@ -311,7 +311,8 @@ def test_a_confirmed_value_must_be_withdrawn_before_its_slot_is_reused(admin) ->
 
         with pytest.raises(ConciseMeaningRefused) as error:
             propose(session, entry=entry,
-                    proposals=[_group("玩耍", pos="verb", pos_order=1, order=1)],
+                    proposals=[_group("玩耍", pos="verb", pos_order=1, order=1,
+                                      kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充")],
                     actor=administrator)
         session.rollback()
         assert "已经有一条已确认的释义" in str(error.value)
@@ -321,7 +322,8 @@ def test_a_confirmed_value_must_be_withdrawn_before_its_slot_is_reused(admin) ->
         assert load_concise_meanings(session, [entry.id]) == {}
 
         propose(session, entry=entry,
-                proposals=[_group("玩耍", pos="verb", pos_order=1, order=1)],
+                proposals=[_group("玩耍", pos="verb", pos_order=1, order=1,
+                                  kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充")],
                 actor=administrator)
         session.commit()
         assert [r.display_order for r in _rows(session, entry.id) if r.status != "rejected"] == [1]
@@ -363,7 +365,7 @@ def test_performance_records_a_reviewer_basis_because_the_heading_is_not_one(adm
         assert "必须记录位置" in str(error.value)
 
 
-def test_performance_shares_one_source_line_between_two_values(admin) -> None:
+def test_performance_candidates_share_citations_but_cannot_confirm_without_line_evidence(admin) -> None:
     """``表演`` and ``执行`` both come from line 10, and both cite their second source.
 
     A citation is not a unique key on the position: two values extracted from one line
@@ -393,13 +395,14 @@ def test_performance_shares_one_source_line_between_two_values(admin) -> None:
             actor=administrator,
         )
         session.commit()
-        _confirm_all(session, entry.id, admin)
+        with pytest.raises(ConciseMeaningRefused, match="wikitext"):
+            _confirm_all(session, entry.id, admin)
+        session.rollback()
 
         reported = describe_entry(session, entry)
-        shown = load_concise_meanings(session, [entry.id])[entry.id]
+        shown = load_concise_meanings(session, [entry.id])
 
-    assert [row.text for row in shown] == ["表演", "执行"]
-    assert {row.source_locator for row in shown} == {"zhwiktionary:8457333:10"}
+    assert shown == {}
     assert [item["citations"][0]["citation_locator"] for item in reported["proposals"]] == [
         "wikdict:37", "wikdict:37",
     ]
@@ -532,9 +535,8 @@ def test_a_confirmed_row_whose_language_is_not_the_target_is_withheld(admin) -> 
         administrator = _administrator(session, admin)
         row = propose(session, entry=entry,
                       proposals=[_group("嘀咕", pos="noun", pos_order=1,
-                                        locator="zhwiktionary:8436308:14",
-                                        pos_evidence="zhwiktionary:8436308:12",
-                                        pos_source="pos_section")],
+                                        kind=KIND_AI_SUPPLEMENT, locator="",
+                                        note="人工补充", pos_source="reviewer")],
                       actor=administrator)[0]
         session.commit()
         confirm(session, meaning=row, confirmer=administrator)
@@ -668,9 +670,9 @@ def test_a_candidate_from_before_the_rule_is_not_silently_given_a_part_of_speech
             lexicon_entry_id=entry.id,
             display_order=1,
             text="玩",
-            provenance_kind=KIND_DERIVED,
-            source_locator="zhwiktionary:7993707:13",
-            derivation_note="由来源行抽义",
+            provenance_kind=KIND_AI_SUPPLEMENT,
+            source_locator="",
+            derivation_note="人工补充",
             status=STATUS_CANDIDATE,
             proposed_by_username=administrator.username,
         )
@@ -717,7 +719,8 @@ def test_history_records_the_grouping_that_was_in_force(admin) -> None:
         entry = _entry(session, lexicon, "play")
         administrator = _administrator(session, admin)
         row = propose(session, entry=entry,
-                      proposals=[_group("演奏", pos="verb", pos_order=1, order=1)],
+                      proposals=[_group("演奏", pos="verb", pos_order=1, order=1,
+                                        kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充")],
                       actor=administrator)[0]
         session.commit()
         confirm(session, meaning=row, confirmer=administrator)

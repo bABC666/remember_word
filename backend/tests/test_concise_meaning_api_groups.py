@@ -31,6 +31,8 @@ this module's teardown. Nothing touches ``data/``.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
 from app.services.concise_meaning import (
@@ -319,13 +321,17 @@ def _seed_play(session, admin):
         session, entry=entry,
         proposals=[
             _proposal("玩", pos="verb", pos_label="动词", pos_order=1, order=1,
-                      locator="zhwiktionary:7993707:13"),
+                      kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充",
+                      pos_evidence="人工试判 play 动词"),
             _proposal("演奏", pos="verb", pos_label="动词", pos_order=1, order=2,
-                      locator="zhwiktionary:7993707:14"),
+                      kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充",
+                      pos_evidence="人工试判 play 动词"),
             _proposal("播放", pos="verb", pos_label="动词", pos_order=1, order=3,
-                      locator="zhwiktionary:7993707:10"),
+                      kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充",
+                      pos_evidence="人工试判 play 动词"),
             _proposal("剧", pos="noun", pos_label="名词", pos_order=2, order=1,
-                      locator="zhwiktionary:7993707:9"),
+                      kind=KIND_AI_SUPPLEMENT, locator="", note="人工补充",
+                      pos_evidence="人工试判 play 名词"),
         ],
         actor=administrator,
     )
@@ -488,8 +494,13 @@ def test_performance_reports_the_primary_and_every_additional_citation(admin) ->
             ],
             actor=administrator,
         )
+        # This read-path fixture represents legacy confirmed rows; confirmation of
+        # these unproved wikitext citations is refused by the service tests.
         for row in rows:
-            confirm(session, meaning=row, confirmer=administrator)
+            row.status = "confirmed"
+            row.confirmed_by_user_id = administrator.id
+            row.confirmed_by_username = administrator.username
+            row.confirmed_at = datetime.now(UTC)
         session.commit()
         state_id = state.id
         entry_id = entry.id
@@ -586,7 +597,8 @@ def test_an_unconfirmed_value_is_not_leaked_and_the_gap_is_not_filled(admin) -> 
         no_language = propose(
             session, entry=entry,
             proposals=[_proposal("嘀咕", pos="noun", pos_label="名词", pos_order=1,
-                                 order=1, locator="zhwiktionary:8436308:14")],
+                                 order=1, kind=KIND_AI_SUPPLEMENT, locator="",
+                                 note="人工补充", pos_evidence="人工试判 mutter 名词")],
             actor=administrator,
         )[0]
         confirm(session, meaning=no_language, confirmer=administrator)
