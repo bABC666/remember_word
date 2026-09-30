@@ -100,7 +100,7 @@ h1, h2, h3, p { margin-top: 0; }
 .concise-meaning-list .concise-origin-ai_supplement { background: #fdf0e2; color: #9a5b12; }
 .concise-meaning-list .concise-note, .concise-meaning-list .concise-locator, .concise-meaning-list .concise-citations { display: block; color: var(--source-secondary); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.5; }
 .concise-meaning-list .concise-citation { display: inline-block; margin-left: 6px; }
-.concise-confirmed-by { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.concise-confirmed-by { display: block; margin-top: 8px; color: var(--source-secondary); font-size: 12px; }
 .answer-area .concise-meaning-list { margin-inline: auto; }
 .answer-area .concise-confirmed-by { margin-inline: auto; }
 /* The detail page is left-aligned throughout, so the study page's centred block does

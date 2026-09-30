@@ -210,10 +210,18 @@ describe('the concise block’s 12px secondary text reaches 4.5:1 (F1)', () => {
 
   it('leaves --muted and the site-wide text exactly as they were', () => {
     expect(variables()['muted']).toBe('#788196')
-    // The approval line is the same 12px secondary text but was not in scope for F1;
-    // it still uses the site ink, which is recorded here so the difference is visible
-    // rather than accidental.
-    expect(resolve(declared('.concise-confirmed-by', 'color'))).toBe(variables()['muted'])
+  })
+
+  it('uses the concise block ink for the confirmation line', () => {
+    expect(declared('.concise-confirmed-by', 'color')).toBe('var(--source-secondary)')
+    expect(resolve(declared('.concise-confirmed-by', 'color'))).toBe(variables()['source-secondary'])
+  })
+
+  it.each([
+    ['study page', variables()['bg']],
+    ['detail card', '#ffffff'],
+  ])('keeps the confirmation line at 4.5:1 on the %s', (_surface, background) => {
+    expect(contrast(declared('.concise-confirmed-by', 'color'), background)).toBeGreaterThanOrEqual(4.5)
   })
 })
 
