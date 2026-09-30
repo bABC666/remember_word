@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -1206,3 +1207,272 @@ class EntryConciseMeaningCitation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     meaning: Mapped[EntryConciseMeaning] = relationship(back_populates="citations")
+
+
+# --- Phase 2.9 follow-up: the pinned wikitext line behind a citation ---------
+#
+# Two different things are called "the line a value came from", and migration 0012 is
+# what keeps them apart:
+#
+# 1. ``entry_source_evidence.row_locator`` -- the physical line of a *converted* file.
+#    For ``prior`` that is line 139 of ``zhwiktionary-v4en.csv``, and its ``zh_meaning``
+#    cell aggregates several senses into one field.
+# 2. ``source_wikitext_line`` (below) -- a line of the *wikitext* of one pinned page
+#    revision. For the same word those are ``9576029:12`` (the ``===形容詞===`` heading),
+#    ``:15``/``:16`` (glosses under it) and ``:23`` (a gloss under ``===副詞===``).
+#
+# ``139`` and ``15`` are both integers and both mean "the line"; they index different
+# files and neither can stand in for the other. The CSV row was already storable. This
+# table is the missing half: one row per cited line of one page revision, with the
+# page's own fingerprint, the headings that govern the line, and -- when the line is
+# itself a part-of-speech heading -- the heading's text and the key it maps to.
+#
+# What it deliberately does **not** do: it binds no citation and no part of speech. The
+# bindings and the confirmation rules that read them are a later slice; this table only
+# makes the line a thing that can be pointed at.
+
+#: How the two path columns are joined, spelled once so a stored path and the string a
+#: reader compares it with cannot drift apart. It is the same ``' > '`` the extraction
+#: index writes in its ``section`` field.
+SOURCE_WIKITEXT_LINE_PATH_SEPARATOR = " > "
+
+#: ``pos_heading_key`` as a SQL literal list, built from the same tuple migration 0011
+#: uses for the display grouping: one closed vocabulary of parts of speech, so a heading
+#: can never establish a part of speech no group can hold.
+SOURCE_WIKITEXT_LINE_POS_KEY_SQL = ", ".join(
+    repr(key) for key in ("", *CONCISE_MEANING_POS_KEYS)
+)
+
+
+def source_wikitext_line_sha256(
+    *,
+    source_id: str,
+    page_revision: str,
+    page_text_sha256: str,
+    line_number: int,
+    raw_text: str,
+) -> str:
+    """The fingerprint of one recorded line, as stored in ``line_sha256``.
+
+    ``sha256`` over the five fields joined by a newline, in the order above, encoded as
+    UTF-8 and written as lowercase hex. The serialization is unambiguous because no
+    field can contain a newline: ``raw_text`` and ``source_id`` are refused if they do
+    (``ck_source_wikitext_line_text_single_line`` and
+    ``ck_source_wikitext_line_source_id_single_line``), and ``page_revision`` is a run of
+    digits.
+
+    The page's own fingerprint is part of the formula on purpose. A hash over the line
+    text alone would be identical for the same words appearing in two different pages or
+    in two revisions of one page, and would then prove nothing about *this* citation;
+    binding the page digest means a row cannot be moved to another page or another
+    revision and still verify.
+
+    Computed here rather than left to each writer, because the value is only useful if
+    the confirmation step recomputes exactly the same digest: two spellings of the
+    formula would make every stored row look tampered with.
+    """
+    joined = "\n".join(
+        (source_id, page_revision, page_text_sha256, str(line_number), raw_text)
+    )
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+class SourceWikitextLine(Base):
+    """One line of one pinned revision of one source page, stored verbatim.
+
+    Written once and never updated. The row is the answer to "what did line 15 of
+    oldid 9576029 actually say", and it stays that answer after the preserved archive
+    is moved, re-packed or lost -- which is the whole reason the line is copied into
+    the database instead of being read from a file at display time.
+
+    Identity is ``(source_id, page_revision, line_number)``: one revision of one page
+    has exactly one line 15, so a second row for the same triple is refused rather than
+    overwriting or joining the first. ``source_id`` is part of the key because an
+    ``oldid`` is unique only inside the wiki that issued it.
+
+    ``source_artifact_id`` names the preserved bytes this line was read from, and its
+    ``file_sha256``/``mapping_sha256`` are the artifact fingerprint; ``page_text_sha256``
+    is the digest of the whole page text and ``line_sha256`` the digest of this row, so
+    both the page and the line can be re-checked against a re-read of the archive.
+    """
+
+    __tablename__ = "source_wikitext_line"
+    __table_args__ = (
+        # One row per position. Deliberately *not* keyed on the artifact: an oldid names
+        # one immutable revision upstream, so two rows for the same triple would be two
+        # spellings of one fact, and a reader looking the locator up could not tell which
+        # of them a citation meant.
+        Index(
+            "uq_source_wikitext_line_position",
+            "source_id",
+            "page_revision",
+            "line_number",
+            unique=True,
+        ),
+        # --- the declared source ------------------------------------------------
+        CheckConstraint(
+            "length(source_id) > 0",
+            name="ck_source_wikitext_line_source_id_present",
+        ),
+        CheckConstraint(
+            "source_id = trim(source_id)",
+            name="ck_source_wikitext_line_source_id_trimmed",
+        ),
+        # A locator is ``source_id:revision:line``, so an id containing ``:`` would make
+        # the string ambiguous -- and the decision record's rule is that a source is
+        # resolved through a declared alias, never by reading a prefix off the string.
+        CheckConstraint(
+            "instr(source_id, ':') = 0",
+            name="ck_source_wikitext_line_source_id_unambiguous",
+        ),
+        # Unambiguous *and* one line: the id is one of the fields joined into
+        # ``line_sha256``, and that serialization is only unambiguous while no field can
+        # contain a line break.
+        CheckConstraint(
+            "instr(source_id, char(10)) = 0 AND instr(source_id, char(13)) = 0",
+            name="ck_source_wikitext_line_source_id_single_line",
+        ),
+        # --- the page revision and the line -------------------------------------
+        CheckConstraint(
+            "length(page_revision) > 0",
+            name="ck_source_wikitext_line_revision_present",
+        ),
+        CheckConstraint(
+            "page_revision = trim(page_revision)",
+            name="ck_source_wikitext_line_revision_trimmed",
+        ),
+        # An oldid is a run of digits, which is also what stops a CSV row number, a
+        # commit hash or a free-form version string from being stored as a page
+        # revision: a line here is a line of a *page*, or it is not storable at all.
+        CheckConstraint(
+            "page_revision NOT GLOB '*[^0-9]*'",
+            name="ck_source_wikitext_line_revision_digits",
+        ),
+        CheckConstraint(
+            "line_number >= 1",
+            name="ck_source_wikitext_line_number_positive",
+        ),
+        # --- the line's own text ------------------------------------------------
+        # A cited line with nothing in it proves nothing. Not trimmed: wikitext
+        # indentation and list markers are content, not noise.
+        CheckConstraint(
+            "length(trim(raw_text)) > 0",
+            name="ck_source_wikitext_line_text_present",
+        ),
+        # One line, literally. A CR or LF would make the stored text a block, and the
+        # line number would then no longer say which text a citation means.
+        CheckConstraint(
+            "instr(raw_text, char(10)) = 0 AND instr(raw_text, char(13)) = 0",
+            name="ck_source_wikitext_line_text_single_line",
+        ),
+        # --- the paths ----------------------------------------------------------
+        CheckConstraint(
+            "language_path = trim(language_path) AND heading_path = trim(heading_path)",
+            name="ck_source_wikitext_line_paths_trimmed",
+        ),
+        CheckConstraint(
+            "instr(language_path, char(10)) = 0 AND instr(language_path, char(13)) = 0"
+            " AND instr(heading_path, char(10)) = 0 AND instr(heading_path, char(13)) = 0",
+            name="ck_source_wikitext_line_paths_single_line",
+        ),
+        # When a language is recorded, the heading path is that language itself or a
+        # sub-path under it. ``substr`` rather than ``LIKE``: a path may contain ``%``
+        # or ``_``, and a pattern match would treat those as wildcards and accept a
+        # heading path that is not under the recorded language at all.
+        CheckConstraint(
+            "length(language_path) = 0"
+            " OR heading_path = language_path"
+            " OR substr(heading_path, 1, length(language_path) + 3)"
+            f" = language_path || '{SOURCE_WIKITEXT_LINE_PATH_SEPARATOR}'",
+            name="ck_source_wikitext_line_heading_path_under_language",
+        ),
+        # --- the part-of-speech heading basis -----------------------------------
+        CheckConstraint(
+            f"pos_heading_key in ({SOURCE_WIKITEXT_LINE_POS_KEY_SQL})",
+            name="ck_source_wikitext_line_pos_heading_key",
+        ),
+        CheckConstraint(
+            "pos_heading_key = trim(pos_heading_key)",
+            name="ck_source_wikitext_line_pos_heading_key_trimmed",
+        ),
+        CheckConstraint(
+            "pos_heading_text = trim(pos_heading_text)",
+            name="ck_source_wikitext_line_pos_heading_text_trimmed",
+        ),
+        # The key and the heading it was read from stand or fall together, in both
+        # directions: no key without its heading text, and no heading text that claims
+        # no part of speech. A part of speech is therefore never a bare assertion here.
+        CheckConstraint(
+            "(pos_heading_key = '' AND length(pos_heading_text) = 0)"
+            " OR (pos_heading_key <> '' AND length(pos_heading_text) > 0)",
+            name="ck_source_wikitext_line_pos_heading_agrees",
+        ),
+        CheckConstraint(
+            "instr(pos_heading_text, char(10)) = 0"
+            " AND instr(pos_heading_text, char(13)) = 0",
+            name="ck_source_wikitext_line_pos_heading_text_single_line",
+        ),
+        # --- the fingerprints ---------------------------------------------------
+        # Lowercase hex, exactly 64 characters: a truncated digest, or one in another
+        # alphabet, cannot be compared byte-for-byte with a digest recomputed from the
+        # preserved page, and a fingerprint that cannot be compared is not one.
+        CheckConstraint(
+            "length(page_text_sha256) = 64"
+            " AND page_text_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="ck_source_wikitext_line_page_text_fingerprint",
+        ),
+        CheckConstraint(
+            "length(line_sha256) = 64 AND line_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="ck_source_wikitext_line_line_fingerprint",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    #: The preserved file the line was read from. ``RESTRICT``, matching
+    #: ``entry_source_evidence``: the bytes a line was read from cannot be removed out
+    #: from under the record of that read.
+    source_artifact_id: Mapped[int] = mapped_column(
+        ForeignKey("source_artifact.id", ondelete="RESTRICT"), index=True
+    )
+    #: The **declared** source id, e.g. ``zhwiktionary-pinned-oldid`` -- not the short
+    #: name a locator string uses. Resolving that alias is the confirmation entry's job;
+    #: storing the resolved id is what keeps the row readable without it.
+    source_id: Mapped[str] = mapped_column(String(64))
+    #: The pinned revision of the page (zh.wiktionary's ``oldid``). The same fact
+    #: migration 0010 records as ``entry_source_evidence.source_revision`` for a CSV
+    #: row; named for what it is here, because this row's line number indexes *this*
+    #: revision's text and nothing else.
+    page_revision: Mapped[str] = mapped_column(String(64))
+    #: 1-based line number in that revision's wikitext.
+    line_number: Mapped[int] = mapped_column(Integer)
+    #: The line, byte for byte. Never trimmed, never truncated, and never rewritten
+    #: into simplified characters: it is what the source said, and the confirmation
+    #: step's verbatim test reads *this* column.
+    raw_text: Mapped[str] = mapped_column(Text)
+    #: The language section the line sits in, e.g. ``英語``. ``''`` means the language
+    #: was not determined -- the honest answer for a page lead -- and never "some other
+    #: language". A row whose heading path says another language cannot be stored.
+    language_path: Mapped[str] = mapped_column(String(160), default="", server_default="")
+    #: The headings that govern the line, joined by ``' > '``, e.g. ``英語 > 形容詞``.
+    #: The line's own heading is included when it has one; a line that is itself a
+    #: heading is described by ``pos_heading_*`` below.
+    heading_path: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    #: The part of speech this line *is the heading for*, from the closed vocabulary
+    #: ``CONCISE_MEANING_POS_KEYS``. Empty when the line is not a part-of-speech
+    #: heading -- which is also what makes a non-heading (``發音``, ``詞源``) unable to
+    #: pass as a basis for one.
+    pos_heading_key: Mapped[str] = mapped_column(String(24), default="", server_default="")
+    #: The heading as written, e.g. ``形容詞``. Kept beside the key for the same reason
+    #: ``pos_label`` is kept beside ``pos_key``: the heading is the *evidence*, the key
+    #: is the *mapping*, and Wiktionary spells one category ``形容詞`` on one page and
+    #: ``形容词`` on another.
+    pos_heading_text: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    #: SHA-256 of the whole pinned page text, lowercase hex. This is what makes the
+    #: version a *content* fact rather than a number: a re-fetch of ``page_revision``
+    #: that does not hash to this value is not the page these lines came from.
+    page_text_sha256: Mapped[str] = mapped_column(String(64))
+    #: SHA-256 of this row, from :func:`source_wikitext_line_sha256`. Recomputed by the
+    #: confirmation step, so a row whose text was edited in place is detectable without
+    #: the archive being present.
+    line_sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

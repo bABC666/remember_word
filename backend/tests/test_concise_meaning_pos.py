@@ -43,6 +43,7 @@ from tests.conftest import BACKEND_ROOT, run_alembic
 
 REVISION_0010 = "0010_entry_source_revision"
 REVISION_0011 = "0011_entry_concise_meaning_pos"
+REVISION_0012 = "0012_source_wikitext_line"
 
 MEANING = "entry_concise_meaning"
 HISTORY = "entry_concise_meaning_revision"
@@ -399,13 +400,14 @@ def refused(database: Path, action) -> str:
 # --- the chain ----------------------------------------------------------------
 
 
-def test_0011_is_the_single_head_and_stacks_on_0010() -> None:
+def test_0011_stacks_on_0010_and_the_graph_has_one_head() -> None:
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == [REVISION_0011], (
-        "adding 0011 must keep exactly one head; a second head means the graph branched"
+    assert script.get_heads() == [REVISION_0012], (
+        "0012 stacks on 0011, so 0011 is no longer the head -- but there must still be "
+        "exactly one head; a second head means the graph branched"
     )
     assert script.get_revision(REVISION_0011).down_revision == REVISION_0010, (
         "0011 follows 0010 rather than editing it in place"
@@ -512,7 +514,11 @@ def test_0011_appends_columns_and_keeps_every_inherited_constraint(tmp_path: Pat
 
 
 def test_the_downgrade_restores_the_pre_0011_shape(tmp_path: Path) -> None:
-    database = migrated(tmp_path)
+    # Started at 0011 rather than at head: the claim is about *this* step, and a
+    # multi-step downgrade from a later revision would perform that revision's own
+    # downgrade first (harmlessly, but then it would not be this step's shape that the
+    # assertions below measure).
+    database = migrated(tmp_path, REVISION_0011)
     assert foreign_key_count(database) == 42, (
         "0011 adds exactly one table carrying two foreign keys, and changes no other "
         "table's own count"
@@ -532,7 +538,12 @@ def test_the_downgrade_restores_the_pre_0011_shape(tmp_path: Path) -> None:
 
 
 def assert_refused_without_changes(tmp_path: Path, database: Path, *reasons: str) -> None:
-    """A refusal must happen before SQLite sees any destructive DDL."""
+    """A refusal must happen before SQLite sees any destructive DDL.
+
+    The database has to be sitting at ``0011``: a downgrade command from a later
+    revision runs that revision's own downgrade first, so a "nothing moved" claim about
+    the 0011 step can only be made against a database whose head *is* 0011.
+    """
     before_bytes = sha256(database.read_bytes()).hexdigest()
     with connect(database) as connection:
         before_schema = connection.execute(
@@ -559,7 +570,7 @@ def assert_refused_without_changes(tmp_path: Path, database: Path, *reasons: str
 
 
 def test_downgrade_refuses_play_with_citations_and_reused_group_slots(tmp_path: Path) -> None:
-    database = migrated(tmp_path)
+    database = migrated(tmp_path, REVISION_0011)
     _lexicon_id, entry_id = seed_lexicon_and_entry(database, "play")
     first = None
     for pos_key, order, text in (
@@ -581,7 +592,7 @@ def test_downgrade_refuses_play_with_citations_and_reused_group_slots(tmp_path: 
 def test_downgrade_refuses_citation_even_when_meaning_uses_0010_defaults(
     tmp_path: Path,
 ) -> None:
-    database = migrated(tmp_path)
+    database = migrated(tmp_path, REVISION_0011)
     _lexicon_id, entry_id = seed_lexicon_and_entry(database)
     meaning_id = insert_meaning(database, entry_id)
     insert_citation(database, meaning_id)
@@ -590,7 +601,7 @@ def test_downgrade_refuses_citation_even_when_meaning_uses_0010_defaults(
 
 
 def test_downgrade_refuses_pos_information_even_without_slot_collision(tmp_path: Path) -> None:
-    database = migrated(tmp_path)
+    database = migrated(tmp_path, REVISION_0011)
     _lexicon_id, entry_id = seed_lexicon_and_entry(database)
     insert_meaning(
         database, entry_id, pos_key="verb", pos_source="reviewer",
@@ -601,7 +612,7 @@ def test_downgrade_refuses_pos_information_even_without_slot_collision(tmp_path:
 
 
 def test_downgrade_names_a_nondefault_language_as_a_blocker(tmp_path: Path) -> None:
-    database = migrated(tmp_path)
+    database = migrated(tmp_path, REVISION_0011)
     _lexicon_id, entry_id = seed_lexicon_and_entry(database)
     insert_meaning(database, entry_id, language="en")
 
@@ -609,7 +620,7 @@ def test_downgrade_names_a_nondefault_language_as_a_blocker(tmp_path: Path) -> N
 
 
 def test_downgrade_refuses_pos_information_kept_only_in_history(tmp_path: Path) -> None:
-    database = migrated(tmp_path)
+    database = migrated(tmp_path, REVISION_0011)
     connection = connect(database)
     try:
         connection.execute(
@@ -627,7 +638,7 @@ def test_downgrade_refuses_pos_information_kept_only_in_history(tmp_path: Path) 
 
 
 def test_downgrade_keeps_0010_representable_meaning_and_history(tmp_path: Path) -> None:
-    database = migrated(tmp_path)
+    database = migrated(tmp_path, REVISION_0011)
     _lexicon_id, entry_id = seed_lexicon_and_entry(database)
     meaning_id = insert_meaning(database, entry_id, text="先前的")
     connection = connect(database)
