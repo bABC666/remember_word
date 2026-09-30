@@ -31,6 +31,7 @@ Nothing in this module touches ``data/``.
 from __future__ import annotations
 
 import sqlite3
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -528,6 +529,128 @@ def test_the_downgrade_restores_the_pre_0011_shape(tmp_path: Path) -> None:
     assert foreign_key_count(database) == 40
     assert integrity(database) == ("ok", [])
     assert alembic_revision(database) == REVISION_0010
+
+
+def assert_refused_without_changes(tmp_path: Path, database: Path, *reasons: str) -> None:
+    """A refusal must happen before SQLite sees any destructive DDL."""
+    before_bytes = sha256(database.read_bytes()).hexdigest()
+    with connect(database) as connection:
+        before_schema = connection.execute(
+            "select type, name, tbl_name, sql from sqlite_master order by type, name"
+        ).fetchall()
+        before_rows = {
+            table: connection.execute(f'select * from "{table}" order by id').fetchall()
+            for table in (MEANING, HISTORY, CITATION)
+        }
+
+    result = step(tmp_path, database, "downgrade", REVISION_0010)
+    combined = f"{result.stdout}\n{result.stderr}"
+    assert result.returncode != 0, "lossy downgrade must be refused"
+    for reason in reasons:
+        assert reason in combined, combined
+    assert sha256(database.read_bytes()).hexdigest() == before_bytes
+    with connect(database) as connection:
+        assert connection.execute(
+            "select type, name, tbl_name, sql from sqlite_master order by type, name"
+        ).fetchall() == before_schema
+        for table, rows in before_rows.items():
+            assert connection.execute(f'select * from "{table}" order by id').fetchall() == rows
+    assert alembic_revision(database) == REVISION_0011
+
+
+def test_downgrade_refuses_play_with_citations_and_reused_group_slots(tmp_path: Path) -> None:
+    database = migrated(tmp_path)
+    _lexicon_id, entry_id = seed_lexicon_and_entry(database, "play")
+    first = None
+    for pos_key, order, text in (
+        ("verb", 1, "玩"), ("verb", 2, "演奏"), ("verb", 3, "播放"), ("noun", 1, "剧"),
+    ):
+        meaning_id = insert_meaning(
+            database, entry_id, order=order, text=text, pos_key=pos_key,
+            pos_source="reviewer", pos_evidence="zhwiktionary:play:1",
+        )
+        if first is None:
+            first = meaning_id
+    insert_citation(database, first, locator="wikdict:play:1")
+
+    assert_refused_without_changes(
+        tmp_path, database, "附加引用", "词性", "位次冲突",
+    )
+
+
+def test_downgrade_refuses_citation_even_when_meaning_uses_0010_defaults(
+    tmp_path: Path,
+) -> None:
+    database = migrated(tmp_path)
+    _lexicon_id, entry_id = seed_lexicon_and_entry(database)
+    meaning_id = insert_meaning(database, entry_id)
+    insert_citation(database, meaning_id)
+
+    assert_refused_without_changes(tmp_path, database, "附加引用")
+
+
+def test_downgrade_refuses_pos_information_even_without_slot_collision(tmp_path: Path) -> None:
+    database = migrated(tmp_path)
+    _lexicon_id, entry_id = seed_lexicon_and_entry(database)
+    insert_meaning(
+        database, entry_id, pos_key="verb", pos_source="reviewer",
+        pos_evidence="zhwiktionary:prior:1",
+    )
+
+    assert_refused_without_changes(tmp_path, database, "词性")
+
+
+def test_downgrade_names_a_nondefault_language_as_a_blocker(tmp_path: Path) -> None:
+    database = migrated(tmp_path)
+    _lexicon_id, entry_id = seed_lexicon_and_entry(database)
+    insert_meaning(database, entry_id, language="en")
+
+    assert_refused_without_changes(tmp_path, database, "language='en'")
+
+
+def test_downgrade_refuses_pos_information_kept_only_in_history(tmp_path: Path) -> None:
+    database = migrated(tmp_path)
+    connection = connect(database)
+    try:
+        connection.execute(
+            "insert into entry_concise_meaning_revision "
+            "(normalized_word, action, display_order, text, created_at, "
+            "pos_key, pos_order, pos_source) "
+            "values ('play', 'reject', 1, '玩', ?, 'verb', 1, 'reviewer')",
+            (NOW,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    assert_refused_without_changes(tmp_path, database, "历史", "词性")
+
+
+def test_downgrade_keeps_0010_representable_meaning_and_history(tmp_path: Path) -> None:
+    database = migrated(tmp_path)
+    _lexicon_id, entry_id = seed_lexicon_and_entry(database)
+    meaning_id = insert_meaning(database, entry_id, text="先前的")
+    connection = connect(database)
+    try:
+        connection.execute(
+            "insert into entry_concise_meaning_revision "
+            "(lexicon_entry_id, normalized_word, concise_meaning_id, action, "
+            "display_order, text, created_at) values (?, 'prior', ?, 'propose', 1, ?, ?)",
+            (entry_id, meaning_id, "先前的", NOW),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    result = step(tmp_path, database, "downgrade", REVISION_0010)
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    assert alembic_revision(database) == REVISION_0010
+    assert read_meaning(database, entry_id)[0] == "先前的"
+    connection = connect(database)
+    try:
+        assert connection.execute(f"select text from {HISTORY}").fetchone()[0] == "先前的"
+    finally:
+        connection.close()
 
 
 def read_meaning(database: Path, entry_id: int) -> tuple:

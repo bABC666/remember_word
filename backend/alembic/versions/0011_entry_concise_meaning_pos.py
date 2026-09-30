@@ -491,14 +491,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Restore the pre-0011 shape: one slot list per word, and no citation table.
-
-    The columns are dropped, so the grouping is lost -- including which group a value
-    belonged to. That is inherent: the old shape has nowhere to put it. Only ever run
-    this against a throwaway copy; the production rules forbid a downgrade.
-    """
+    """Restore 0010 only when every existing value fits its smaller schema."""
     connection = op.get_bind()
     _require_enforcement_off(connection, direction="downgrade")
+    _refuse_lossy_downgrade(connection)
 
     op.drop_index(CITATION_ORDER_INDEX, table_name=CITATION_TABLE)
     op.drop_index(
@@ -531,6 +527,72 @@ def downgrade() -> None:
     # here rather than by the same call the upgrade makes.
     _verify_after_downgrade(connection)
     _require_enforcement_off(connection, direction="downgrade")
+
+
+def _refuse_lossy_downgrade(connection) -> None:
+    """Collect every known 0011-only fact before dropping any table, column or index."""
+    reasons = []
+
+    citations = connection.exec_driver_sql(
+        f"select id, concise_meaning_id from {CITATION_TABLE} order by id limit 10"
+    ).fetchall()
+    if citations:
+        listed = ", ".join(f"id={row[0]}(释义={row[1]})" for row in citations)
+        reasons.append(f"附加引用无法存入 0010：{listed}")
+
+    changed_meanings = connection.exec_driver_sql(
+        f"select id, pos_key, pos_label, pos_order, pos_source, "
+        f"pos_evidence_locator, language from {MEANING_TABLE} "
+        "where pos_key <> '' or pos_label <> '' or pos_order <> 1 "
+        "or pos_source <> 'none' or pos_evidence_locator <> '' or language <> '' "
+        "order by id limit 10"
+    ).fetchall()
+    if changed_meanings:
+        names = ("pos_key", "pos_label", "pos_order", "pos_source",
+                 "pos_evidence_locator", "language")
+        defaults = ("", "", 1, "none", "", "")
+        listed = ", ".join(
+            f"id={row[0]}(" + ", ".join(
+                f"{name}={value!r}" for name, value, default in zip(
+                    names, row[1:], defaults
+                ) if value != default
+            ) + ")"
+            for row in changed_meanings
+        )
+        reasons.append(f"短释义的词性／语言等 0011 专有字段无法存入 0010：{listed}")
+
+    changed_history = connection.exec_driver_sql(
+        f"select id, pos_key, pos_order, pos_source from {REVISION_TABLE} "
+        "where pos_key <> '' or pos_order <> 1 or pos_source <> 'none' "
+        "order by id limit 10"
+    ).fetchall()
+    if changed_history:
+        names = ("pos_key", "pos_order", "pos_source")
+        defaults = ("", 1, "none")
+        listed = ", ".join(
+            f"id={row[0]}(" + ", ".join(
+                f"{name}={value!r}" for name, value, default in zip(
+                    names, row[1:], defaults
+                ) if value != default
+            ) + ")"
+            for row in changed_history
+        )
+        reasons.append(f"历史快照的词性字段无法存入 0010：{listed}")
+
+    conflicts = connection.exec_driver_sql(
+        f"select lexicon_entry_id, display_order, count(*) from {MEANING_TABLE} "
+        "where status <> 'rejected' group by lexicon_entry_id, display_order "
+        "having count(*) > 1 order by lexicon_entry_id, display_order limit 10"
+    ).fetchall()
+    if conflicts:
+        listed = ", ".join(
+            f"词条={row[0]} 第{row[1]}位({row[2]}条)" for row in conflicts
+        )
+        reasons.append(f"0010 的词条内位次冲突：{listed}")
+
+    if reasons:
+        raise RuntimeError("0011 downgrade 拒绝执行：无法无损表示为 0010。阻断原因：\n- "
+                           + "\n- ".join(reasons))
 
 
 def _verify_after_downgrade(connection) -> None:
