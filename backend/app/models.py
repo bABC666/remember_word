@@ -1294,6 +1294,16 @@ class SourceWikitextLine(Base):
     ``file_sha256``/``mapping_sha256`` are the artifact fingerprint; ``page_text_sha256``
     is the digest of the whole page text and ``line_sha256`` the digest of this row, so
     both the page and the line can be re-checked against a re-read of the archive.
+
+    Three of the rules that make it evidence are **triggers**, and they exist only in the
+    database the migrations build: SQLAlchemy has no construct for them, so a table made
+    by ``create_all`` would enforce the columns and the CHECKs and none of this. The rows
+    are append-only -- no UPDATE and no DELETE, because a recorded line is what the page
+    said and a silent rewrite of it would be a source reading that nobody took -- and one
+    ``(source_id, page_revision)`` may carry only one ``page_text_sha256``, because an
+    ``oldid`` names one immutable revision and a second digest for it is one of the two
+    being wrong. ``backend/tests/test_source_wikitext_line.py`` asserts both the presence
+    of the triggers and their effect, and the migration asserts them on the way in.
     """
 
     __tablename__ = "source_wikitext_line"
@@ -1351,6 +1361,13 @@ class SourceWikitextLine(Base):
         CheckConstraint(
             "line_number >= 1",
             name="ck_source_wikitext_line_number_positive",
+        ),
+        # ...and a *number*. SQLite keeps text that does not look numeric in an INTEGER
+        # column and sorts every INTEGER before every TEXT, so a stored ``'abc'`` would
+        # compare as "after line 15" while every reader treats the column as a position.
+        CheckConstraint(
+            "typeof(line_number) = 'integer'",
+            name="ck_source_wikitext_line_number_integer",
         ),
         # --- the line's own text ------------------------------------------------
         # A cited line with nothing in it proves nothing. Not trimmed: wikitext
@@ -1443,7 +1460,9 @@ class SourceWikitextLine(Base):
     #: row; named for what it is here, because this row's line number indexes *this*
     #: revision's text and nothing else.
     page_revision: Mapped[str] = mapped_column(String(64))
-    #: 1-based line number in that revision's wikitext.
+    #: 1-based line number in that revision's wikitext. The database also requires
+    #: ``typeof(line_number) = 'integer'``: SQLite's INTEGER affinity keeps text that
+    #: does not look numeric as text, and would then order it after every real line.
     line_number: Mapped[int] = mapped_column(Integer)
     #: The line, byte for byte. Never trimmed, never truncated, and never rewritten
     #: into simplified characters: it is what the source said, and the confirmation

@@ -53,6 +53,16 @@ CSV_EVIDENCE = "entry_source_evidence"
 POSITION_INDEX = "uq_source_wikitext_line_position"
 ARTIFACT_INDEX = "ix_source_wikitext_line_source_artifact_id"
 
+#: The triggers 0012 creates. Spelled out here rather than imported from the migration:
+#: a test that reads the list it is checking cannot notice that the list changed.
+EXPECTED_TRIGGERS = frozenset(
+    {
+        "trg_source_wikitext_line_no_update",
+        "trg_source_wikitext_line_no_delete",
+        "trg_source_wikitext_line_one_page_fingerprint",
+    }
+)
+
 #: The declared source id a frozen manifest uses for zh.wiktionary pinned pages. The
 #: stored column carries the declared id, never the short ``zhwiktionary`` an alias
 #: maps from -- resolving that alias is the confirmation entry's job.
@@ -371,6 +381,20 @@ def check_constraints(database: Path, table: str = TABLE) -> dict[str, str]:
         engine.dispose()
 
 
+def trigger_names(database: Path, table: str = TABLE) -> set[str]:
+    connection = connect(database)
+    try:
+        return {
+            row[0]
+            for row in connection.execute(
+                "select name from sqlite_master where type='trigger' and tbl_name=?",
+                (table,),
+            )
+        }
+    finally:
+        connection.close()
+
+
 def table_names(database: Path) -> set[str]:
     connection = connect(database)
     try:
@@ -529,6 +553,30 @@ def seed_csv_evidence(database: Path, *, row_locator: int = 139) -> int:
         connection.close()
 
 
+def seed_dangling_evidence(database: Path, *, row_locator: int = 1) -> None:
+    """One evidence row whose parents do not exist, written with enforcement off.
+
+    This is the only way such a row can exist: ``alembic/env.py`` runs migrations with
+    foreign-key enforcement *off*, which is exactly why a migration has to ask whether
+    the database it is about to change is consistent instead of assuming it.
+    """
+    connection = sqlite3.connect(str(database))
+    try:
+        connection.execute("pragma foreign_keys=OFF")
+        connection.execute(
+            "insert into entry_source_evidence (lexicon_entry_id, source_artifact_id, "
+            "import_run_id, normalized_word, row_locator, field_kind, sense_key, raw_word, "
+            "raw_text, evidence_sha256, decision, selected_for_default, "
+            "confirmed_by_username, confirmed_at, source_revision) values "
+            "(null, 999999, 999999, 'dangling', ?, 'meaning', ?, 'dangling', "
+            "'合成悬挂行', ?, 'selected', 1, 'owner', ?, '')",
+            (row_locator, f"meaning@{row_locator}", fingerprint("dangling"), NOW),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def read_evidence(database: Path, evidence_id: int) -> tuple:
     connection = connect(database)
     try:
@@ -570,6 +618,16 @@ def find_line(database: Path, *, source_id: str, oldid: str, line_number: int) -
                 (source_id, oldid, line_number),
             )
         ]
+    finally:
+        connection.close()
+
+
+def write_raw(database: Path, sql: str, parameters: tuple = ()) -> None:
+    """Run one statement that is expected to succeed."""
+    connection = connect(database)
+    try:
+        connection.execute(sql, parameters)
+        connection.commit()
     finally:
         connection.close()
 
@@ -719,6 +777,10 @@ def test_the_new_table_has_the_shape_its_columns_claim(tmp_path: Path) -> None:
         "line_number",
     )
     assert index_columns(database, ARTIFACT_INDEX) == ("source_artifact_id",)
+    assert trigger_names(database) == EXPECTED_TRIGGERS, (
+        "the append-only and one-page-fingerprint rules exist only as triggers; "
+        "a table without them reads exactly like a table with them"
+    )
     assert alembic_revision(database) == REVISION_0012
 
 
@@ -729,6 +791,13 @@ def test_the_model_builds_the_same_table_as_the_migration(tmp_path: Path) -> Non
     of every CHECK are compared. Comparing the conditions rather than only their names
     is deliberate: a model whose rule says ``>= 1`` while the migration says ``>= 0``
     would pass a name-only check and then hold a database that enforces the weaker one.
+
+    The triggers are the one part that deliberately does **not** match, and the
+    difference is asserted rather than left implicit: SQLAlchemy has no construct for
+    them, so the append-only and one-page-fingerprint rules live only in the schema the
+    migrations build. ``create_all`` is never how the application builds a schema -- it
+    appears here so the model's own table can be compared -- but a reader should not have
+    to discover that by trying to update a row on the wrong database.
     """
     from app.db import Base
 
@@ -749,6 +818,11 @@ def test_the_model_builds_the_same_table_as_the_migration(tmp_path: Path) -> Non
     assert set(check_constraints(migrated_database)) == {
         constraint.name for constraint in model_table.constraints if constraint.name
     }
+    assert trigger_names(migrated_database) == EXPECTED_TRIGGERS
+    assert trigger_names(built) == set(), (
+        "SQLAlchemy cannot express a trigger, so the model's own table has none -- which "
+        "is why the migrations are the schema users get"
+    )
 
 
 # --- one line, several lines, the same position -------------------------------
@@ -952,6 +1026,158 @@ def test_the_stored_fingerprint_is_the_one_the_row_actually_has(tmp_path: Path) 
     # confirmation step can recompute it. This is stated rather than implied, because a
     # reader who believed the CHECK verified the text would trust a row nobody verified.
     insert_line(database, artifact_id, row_for(FRENCH_GLOSS), line_sha256="0" * 64)
+
+
+# --- what the database makes impossible in place ------------------------------
+
+
+def test_a_recorded_line_cannot_be_updated_or_deleted(tmp_path: Path) -> None:
+    """Evidence is append-only in the database, not by convention.
+
+    ``entry_concise_meaning_revision`` has the same rule held by a statement hook in the
+    service; a recorded line is held by the database itself, because a rewritten row is
+    indistinguishable from an honestly recorded one -- it still claims to be the source's
+    own line, and only a reader who recomputed ``line_sha256`` would see otherwise. Both
+    statements are refused, and the row is untouched afterwards.
+    """
+    database = migrated(tmp_path)
+    artifact_id = seed_artifact(database)
+    line_id = insert_line(database, artifact_id, row_for(GLOSS_UNDER_ADJECTIVE))
+    before = tuple(read_line(database, line_id))
+
+    message = refused(
+        database,
+        lambda: write_raw(
+            database, f"update {TABLE} set raw_text = '改写' where id = ?", (line_id,)
+        ),
+    )
+    assert "trg_source_wikitext_line_no_update" in message
+    assert "只追加" in message
+
+    message = refused(
+        database,
+        lambda: write_raw(database, f"delete from {TABLE} where id = ?", (line_id,)),
+    )
+    assert "trg_source_wikitext_line_no_delete" in message
+
+    assert tuple(read_line(database, line_id)) == before, (
+        "a refused write must leave the row exactly as it was"
+    )
+
+
+def test_a_line_number_is_a_number_and_not_a_bit_of_text(tmp_path: Path) -> None:
+    """SQLite keeps non-numeric text in an INTEGER column, and orders it after every line.
+
+    So the column is checked for what a value *is*, not only for how large it is: a
+    stored ``'abc'`` satisfies ``line_number >= 1`` -- SQLite sorts every INTEGER before
+    every TEXT -- and would sit where a line number belongs. Text that affinity converts
+    to a number is a number, which is the correct answer: what matters is what is stored.
+    """
+    database = migrated(tmp_path)
+    artifact_id = seed_artifact(database)
+
+    for label, value in (("文本", "abc"), ("小数", 15.5)):
+        message = refused(
+            database,
+            lambda value=value: insert_line(
+                database, artifact_id, row_for(GLOSS_UNDER_ADJECTIVE), line_number=value
+            ),
+        )
+        assert "ck_source_wikitext_line_number_integer" in message, label
+
+    stored = read_line(
+        database,
+        insert_line(
+            database, artifact_id, row_for(GLOSS_UNDER_ADJECTIVE), line_number="15"
+        ),
+    )
+    assert stored["line_number"] == 15, (
+        "INTEGER affinity turns the text '15' into the number 15, and the row records "
+        "the number"
+    )
+
+
+def test_one_page_revision_cannot_carry_two_page_fingerprints(tmp_path: Path) -> None:
+    """An oldid names one immutable revision, so it names one page text.
+
+    Two lines of one page are two rows, and they must agree about the page they came
+    from: a row that disagrees makes it impossible to say which text a citation of that
+    revision was checked against. The second value is refused rather than written over
+    the first, because the disagreement is the thing a person has to look at.
+    """
+    database = migrated(tmp_path)
+    artifact_id = seed_artifact(database)
+    first = insert_line(database, artifact_id, row_for(GLOSS_UNDER_ADJECTIVE))
+    insert_line(database, artifact_id, row_for(INDENTED_GLOSS))
+
+    other = fingerprint("another page text")
+    message = refused(
+        database,
+        lambda: insert_line(
+            database, artifact_id, row_for(ADJECTIVE_HEADING), page_text_sha256=other
+        ),
+    )
+    assert "trg_source_wikitext_line_one_page_fingerprint" in message
+
+    # The same digest under another revision, or under another declared source, is a
+    # different page and stays storable.
+    insert_line(
+        database, artifact_id, row_for(ADJECTIVE_HEADING),
+        page_revision=OTHER_OLDID, page_text_sha256=other,
+    )
+    insert_line(
+        database, artifact_id, row_for(ADJECTIVE_HEADING),
+        source_id="other-source", page_text_sha256=other,
+    )
+
+    assert read_line(database, first)["page_text_sha256"] == fingerprint(SYNTHETIC_PAGE), (
+        "the recorded page fingerprint is the one that was there first"
+    )
+    assert len(find_line(
+        database, source_id=SOURCE_ID, oldid=SYNTHETIC_OLDID, line_number=GLOSS_UNDER_ADJECTIVE
+    )) == 1
+
+
+def test_the_upgrade_refuses_an_inconsistent_database_before_any_ddl(
+    tmp_path: Path,
+) -> None:
+    """A pre-existing foreign-key violation stops the revision before it creates anything.
+
+    SQLite has no transactional DDL, so a revision that creates its table and only then
+    notices the violation leaves that table behind under a version number that still
+    reads the previous revision -- a half-applied migration that looks like a successful
+    one to anyone who does not inspect the schema. The check runs first instead, and the
+    database is left exactly as it was found.
+    """
+    database = migrated(tmp_path, REVISION_0011)
+    seed_dangling_evidence(database)
+    assert integrity(database)[1], "control: the database really is inconsistent"
+
+    result = step(tmp_path, database, "upgrade", REVISION_0012)
+
+    assert result.returncode != 0, "an inconsistent database must not be migrated"
+    combined = f"{result.stdout}\n{result.stderr}"
+    assert "外键违规" in combined
+    assert CSV_EVIDENCE in combined, "the message names the rows at fault"
+    assert alembic_revision(database) == REVISION_0011
+    assert TABLE not in table_names(database), (
+        "the check has to run before the DDL, or the table stays behind on a database "
+        "whose migration aborted"
+    )
+    assert integrity(database)[1], "and the violation is still there to be dealt with"
+
+
+def test_the_downgrade_also_refuses_an_inconsistent_database(tmp_path: Path) -> None:
+    """Dropping a table does not repair a violation, so the same check runs first."""
+    database = migrated(tmp_path)
+    seed_dangling_evidence(database)
+
+    result = step(tmp_path, database, "downgrade", REVISION_0011)
+
+    assert result.returncode != 0
+    assert "外键违规" in f"{result.stdout}\n{result.stderr}"
+    assert TABLE in table_names(database), "nothing was dropped"
+    assert alembic_revision(database) == REVISION_0012
 
 
 # --- the frame around an invalid row ------------------------------------------
@@ -1175,18 +1401,14 @@ def test_the_downgrade_refuses_rather_than_drop_recorded_line_evidence(
     assert integrity(database) == ("ok", [])
 
 
-def test_the_downgrade_runs_once_the_recorded_lines_are_gone(tmp_path: Path) -> None:
-    """The refusal is about losing evidence, not about the schema being irreversible."""
-    database = migrated(tmp_path)
-    artifact_id = seed_artifact(database)
-    insert_line(database, artifact_id, row_for(GLOSS_UNDER_ADJECTIVE))
+def test_the_downgrade_runs_when_nothing_was_recorded(tmp_path: Path) -> None:
+    """The refusal is about losing evidence, not about the schema being irreversible.
 
-    connection = connect(database)
-    try:
-        connection.execute(f"delete from {TABLE}")
-        connection.commit()
-    finally:
-        connection.close()
+    The rows cannot be removed to get past it -- 0012 refuses ``DELETE`` as well -- so
+    the case that runs is a database where nothing was ever recorded.
+    """
+    database = migrated(tmp_path)
+    assert TABLE in table_names(database)
 
     step(tmp_path, database, "downgrade", REVISION_0011)
 

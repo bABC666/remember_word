@@ -75,19 +75,74 @@ Boundary of the constraints
 ---------------------------
 SQLite cannot check one table against another, so the database cannot prove that
 ``source_artifact_id`` points at a preserved *wikitext* artifact rather than at a
-converted CSV, nor that ``page_revision`` names a revision that upstream really had.
-What it does prove is the shape: a declared source id, a page revision of digits, a
-positive line number, one single-line body, paths that agree with each other, a part of
-speech from the closed vocabulary, and two 64-character lowercase-hex fingerprints.
-Matching the artifact to the declared source, resolving the locator's short name to a
-declared source id, and refusing a citation whose wording is not in the cited line at
-the confirmation entry are the next slice's rules, and they need this row to exist
-first.
+converted CSV, nor that ``page_revision`` names a revision that upstream really had,
+nor that ``page_text_sha256``/``line_sha256`` are the digests a re-read of the archive
+would produce -- a fingerprint is stored, compared and recomputed, never verified by
+SQLite. What it does prove is the shape: a declared source id, a page revision of
+digits, an **integer** line number, one single-line body, paths that agree with each
+other, a part of speech from the closed vocabulary, two 64-character lowercase-hex
+fingerprints, and the three row-level rules the triggers below enforce. Matching the
+artifact to the declared source, resolving the locator's short name to a declared source
+id, and refusing a citation whose wording is not in the cited line at the confirmation
+entry are the next slice's rules, and they need this row to exist first.
+
+Only the ``line_number`` column carries a ``typeof`` check, and the reason is narrow:
+SQLite enforces a column's declared type by *affinity*, not by rejection. An INTEGER
+column keeps text that does not look like a number as text, so ``'abc'`` would sit in a
+column every reader treats as a line number and compare above every real line (SQLite
+orders INTEGER before TEXT); a REAL is kept too when it is not a whole number. The text
+columns need no equivalent: TEXT affinity already converts a stored number to its text
+form, so what a reader compares is what is stored.
 
 ``raw_text`` is deliberately **not** trimmed and carries no length cap. Leading
 whitespace and list markers are meaningful in wikitext (``#`` numbered glosses, ``:``
 indentation), so trimming it would rewrite the evidence into something the source never
 said; and a "line" that must stay verbatim cannot be truncated.
+
+The four row-level rules this revision enforces in the database
+--------------------------------------------------------------
+Only one of the four is a shape a ``CHECK`` can state. A ``CHECK`` sees just the row it
+is given: it cannot compare an incoming row with the rows already stored, and "this row
+may never be updated or deleted" is not a shape of a row at all. The other three are
+therefore triggers -- the first in this schema -- and each one is named, asserted present
+by the verification below, and covered by a test that attempts the write it must refuse.
+
+* ``line_number`` must be an **integer**: ``typeof(line_number) = 'integer'``. See
+  above -- without it a stored line number may be text, and the position stops meaning
+  what every reader assumes it means.
+* **No UPDATE and no DELETE.** A recorded line is evidence, not a cache: it is what the
+  page said at that revision, and the whole point of copying it into the database is
+  that the answer survives the archive being moved, re-packed or lost. An in-place edit
+  would leave a row that claims to be a source reading while holding a rewriting of it,
+  and ``line_sha256`` would then disagree with the row's own fields -- but only for a
+  reader who thinks to recompute it. Both statements are refused outright, so the
+  correction of a wrong line has to be a new row plus a withdrawn citation, which is a
+  recorded decision rather than a silent edit. Each refusal names its trigger, because
+  SQLite reports only the message a ``RAISE`` was given.
+* **One page revision, one page fingerprint.** ``oldid`` names an immutable revision
+  upstream, so two lines of the same ``(source_id, page_revision)`` cannot have been
+  read from two different texts: one of the two ``page_text_sha256`` values must be
+  wrong, and a citation resolved against the page would be checked against the wrong
+  one. The trigger refuses the *second* value when it disagrees with the one already
+  recorded for that revision, whatever line it arrives on. It does not merge or
+  overwrite: disagreement is the thing being surfaced.
+
+Checking an inconsistent database *before* touching it
+------------------------------------------------------
+The upgrade first asks ``PRAGMA foreign_key_check`` whether the database it is about to
+change is consistent, and stops if it is not. This is deliberately *before* the DDL
+rather than after it: SQLite has no transactional DDL, so a revision that creates a
+table and only then discovers a pre-existing violation leaves that table behind -- a
+half-applied revision whose aborted run is indistinguishable from a completed one, and
+whose violation was not even this revision's doing. Refusing first means an inconsistent
+database is left exactly as it was found, with the violating rows named in the message.
+The check refuses nothing in practice: every database in this repository is consistent,
+and the migration's own connection runs with foreign-key *enforcement* off
+(``alembic/env.py``), which is why the violation is possible in the first place and why
+it has to be asked about explicitly.
+
+``PRAGMA integrity_check`` stays where it was, as a post-condition of the DDL this
+revision runs; the foreign-key check is the one that had to move.
 
 Delete semantics
 ----------------
@@ -172,6 +227,15 @@ CHECKS: tuple[tuple[str, str], ...] = (
         "page_revision NOT GLOB '*[^0-9]*'",
     ),
     ("ck_source_wikitext_line_number_positive", "line_number >= 1"),
+    # ...and a *number*. SQLite keeps text that does not look numeric in an INTEGER
+    # column, and it sorts every INTEGER before every TEXT, so a stored ``'abc'`` would
+    # compare as "after line 15" while ``length``, ordering and every reader treat the
+    # column as a position. ``'15'`` is stored as the integer 15 by affinity and passes,
+    # which is the correct answer: what is stored is a number.
+    (
+        "ck_source_wikitext_line_number_integer",
+        "typeof(line_number) = 'integer'",
+    ),
     # --- the line's own text ------------------------------------------------
     # A cited line with nothing in it proves nothing, so the empty row is not
     # representable. Deliberately not trimmed: wikitext indentation is content.
@@ -257,6 +321,66 @@ CHECKS: tuple[tuple[str, str], ...] = (
 #: Every named index the table must carry, verified after creation.
 EXPECTED_INDEXES = frozenset({POSITION_INDEX, ARTIFACT_INDEX})
 
+#: The triggers this revision creates, as ``(name, SQL)``. SQLite has no other way to
+#: state these three rules: a CHECK sees only its own row, and "this row may never be
+#: updated or deleted" is not a shape of a row at all. Written out rather than generated,
+#: so a reader of this revision can see the exact statement the database runs.
+#:
+#: Each refusal message begins with its own trigger name. SQLite reports a failed CHECK
+#: as ``CHECK constraint failed: <name>`` but a ``RAISE`` reports only the text it was
+#: given, so the name is written into the message: an operator who sees the refusal has
+#: to learn which rule refused it, not only that one did.
+TRIGGERS: tuple[tuple[str, str], ...] = (
+    (
+        "trg_source_wikitext_line_no_update",
+        (
+            f"CREATE TRIGGER trg_source_wikitext_line_no_update\n"
+            f"BEFORE UPDATE ON {TABLE}\n"
+            "BEGIN\n"
+            "    SELECT RAISE(ABORT, 'trg_source_wikitext_line_no_update: "
+            "source_wikitext_line 是只追加的逐行证据，不允许 UPDATE。"
+            "改写一行会让它继续声称是来源原文；要更正请另写一行证据，"
+            "并撤回引用它的结论。');\n"
+            "END"
+        ),
+    ),
+    (
+        "trg_source_wikitext_line_no_delete",
+        (
+            f"CREATE TRIGGER trg_source_wikitext_line_no_delete\n"
+            f"BEFORE DELETE ON {TABLE}\n"
+            "BEGIN\n"
+            "    SELECT RAISE(ABORT, 'trg_source_wikitext_line_no_delete: "
+            "source_wikitext_line 是只追加的逐行证据，不允许 DELETE。"
+            "这一行是「某页某一行当时是什么」的唯一在库记录，"
+            "删掉它无法从任何地方重新推导出来。');\n"
+            "END"
+        ),
+    ),
+    (
+        "trg_source_wikitext_line_one_page_fingerprint",
+        (
+            f"CREATE TRIGGER trg_source_wikitext_line_one_page_fingerprint\n"
+            f"BEFORE INSERT ON {TABLE}\n"
+            "WHEN EXISTS (\n"
+            f"    SELECT 1 FROM {TABLE}\n"
+            "    WHERE source_id = NEW.source_id\n"
+            "      AND page_revision = NEW.page_revision\n"
+            "      AND page_text_sha256 <> NEW.page_text_sha256\n"
+            ")\n"
+            "BEGIN\n"
+            "    SELECT RAISE(ABORT, 'trg_source_wikitext_line_one_page_fingerprint: "
+            "同一来源、同一固定修订只能有一个页面原文指纹：该 oldid 已记录了另一个 "
+            "page_text_sha256。同一个 oldid 不可能有两个版本的原文，其中一个必错；"
+            "请先确认哪一份才是该修订的原文。');\n"
+            "END"
+        ),
+    ),
+)
+
+#: The trigger names the verification below requires to be present.
+EXPECTED_TRIGGERS = frozenset(name for name, _sql in TRIGGERS)
+
 #: column -> (parent table, ON DELETE rule) the table must declare.
 EXPECTED_FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     ("source_artifact_id", ARTIFACT_TABLE, "RESTRICT"),
@@ -318,8 +442,38 @@ def _index_columns(connection, index: str) -> tuple[str, ...]:
     )
 
 
+def _trigger_names(connection) -> set[str]:
+    return {
+        row[0]
+        for row in connection.exec_driver_sql(
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=?", (TABLE,)
+        )
+    }
+
+
+def _require_consistent_database(connection, *, direction: str) -> None:
+    """Refuse to touch a database that already violates a foreign key.
+
+    Called *before* the DDL, not after it. SQLite has no transactional DDL, so a
+    revision that creates first and checks later leaves its table behind when the check
+    fails -- a half-applied revision that looks the same as a completed one to anyone
+    reading ``alembic_version``. Asking first means an inconsistent database is left
+    exactly as it was found, and the rows at fault are named so the operator can look at
+    them instead of guessing which revision was responsible.
+    """
+    violations = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+    _require(
+        not violations,
+        f"0012 {direction} 拒绝执行：数据库当前已存在外键违规，本修订不会在它之上建表。\n"
+        f"违规（表, rowid, 父表, 约束序号）：{violations[:10]}\n"
+        "SQLite 没有事务性 DDL：先建表再检查会让这张表在失败后留下来，"
+        "版本号却仍停在上一版，事后无法与「迁移成功」区分。\n"
+        "请先修复或明确处置这些行，再执行本迁移。",
+    )
+
+
 def _verify(connection, *, direction: str) -> None:
-    """Prove the table, its constraints and its indexes are physically there."""
+    """Prove the table, its constraints, its triggers and its indexes are there."""
     _require(_table_exists(connection), f"0012 {direction} 后 {TABLE} 不存在。")
 
     found = _foreign_keys(connection)
@@ -362,16 +516,25 @@ def _verify(connection, *, direction: str) -> None:
         "不再由数据库保证。",
     )
 
-    violations = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+    missing_triggers = EXPECTED_TRIGGERS - _trigger_names(connection)
     _require(
-        not violations,
-        f"0012 {direction} 后外键校验失败，迁移数据可能不一致：{violations[:10]}",
+        not missing_triggers,
+        f"0012 {direction} 后 {TABLE} 的触发器丢失：{sorted(missing_triggers)}。"
+        "只追加与「同一修订一个页面指纹」这三条规则只能由触发器表达，"
+        "丢掉它们不会有任何 pragma 报告：一张可以随便改写和删除的证据表，"
+        "读起来与一张不可改写的证据表完全一样。",
     )
+
     integrity = connection.exec_driver_sql("PRAGMA integrity_check").scalar()
     _require(integrity == "ok", f"0012 {direction} 后完整性校验失败：{integrity}")
 
 
 def upgrade() -> None:
+    connection = op.get_bind()
+    # Before the first statement, so a database that is already inconsistent is left
+    # exactly as it was found. See ``_require_consistent_database``.
+    _require_consistent_database(connection, direction="upgrade")
+
     op.create_table(
         TABLE,
         sa.Column("id", sa.Integer(), nullable=False),
@@ -397,6 +560,12 @@ def upgrade() -> None:
     )
     op.create_index(ARTIFACT_INDEX, TABLE, ["source_artifact_id"])
     op.create_index(POSITION_INDEX, TABLE, list(POSITION_COLUMNS), unique=True)
+
+    # After the table and its indexes: a trigger cannot name a column of a table that
+    # does not exist yet. Unlike the foreign-key check above, these statements cannot
+    # fail on data -- they add rules rather than test rows.
+    for _name, statement in TRIGGERS:
+        op.execute(statement)
 
     _verify(op.get_bind(), direction="upgrade")
 
@@ -432,9 +601,15 @@ def downgrade() -> None:
 
     Exact in the other direction because nothing existing was altered: no column was
     added to another table, so there is no rebuild and no inherited constraint that
-    could be lost.
+    could be lost. The table's triggers go with it -- SQLite drops a table's triggers
+    with the table, which is also why nothing here drops them by name.
+
+    The same foreign-key pre-flight runs as in the upgrade: dropping a table does not
+    repair a database that was already inconsistent, and this revision should not be the
+    one that appears to have changed it.
     """
     connection = op.get_bind()
+    _require_consistent_database(connection, direction="downgrade")
     _refuse_lossy_downgrade(connection)
 
     op.drop_index(POSITION_INDEX, table_name=TABLE)
@@ -445,8 +620,10 @@ def downgrade() -> None:
         not _table_exists(connection),
         f"0012 downgrade 后 {TABLE} 仍然存在。",
     )
-    violations = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
-    _require(not violations, f"0012 downgrade 后外键校验失败：{violations[:10]}")
+    _require(
+        not _trigger_names(connection),
+        f"0012 downgrade 后 {TABLE} 的触发器仍然存在：{sorted(_trigger_names(connection))}。",
+    )
     integrity = connection.exec_driver_sql("PRAGMA integrity_check").scalar()
     _require(integrity == "ok", f"0012 downgrade 后完整性校验失败：{integrity}")
 
@@ -454,10 +631,12 @@ def downgrade() -> None:
 __all__ = [
     "ARTIFACT_INDEX",
     "CHECKS",
+    "EXPECTED_TRIGGERS",
     "POSITION_COLUMNS",
     "POSITION_INDEX",
     "POS_KEYS",
     "TABLE",
+    "TRIGGERS",
     "down_revision",
     "downgrade",
     "revision",
