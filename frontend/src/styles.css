@@ -98,11 +98,18 @@ h1, h2, h3, p { margin-top: 0; }
 .concise-meaning-list .concise-text { font-weight: 600; }
 .concise-meaning-list .concise-origin { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #f1eefb; color: var(--indigo); font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; font-weight: 700; vertical-align: middle; }
 .concise-meaning-list .concise-origin-ai_supplement { background: #fdf0e2; color: #9a5b12; }
-.concise-meaning-list .concise-note, .concise-meaning-list .concise-locator, .concise-meaning-list .concise-citations { display: block; color: var(--muted); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.5; }
+.concise-meaning-list .concise-note, .concise-meaning-list .concise-locator, .concise-meaning-list .concise-citations { display: block; color: var(--source-secondary); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.5; }
 .concise-meaning-list .concise-citation { display: inline-block; margin-left: 6px; }
 .concise-confirmed-by { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
 .answer-area .concise-meaning-list { margin-inline: auto; }
 .answer-area .concise-confirmed-by { margin-inline: auto; }
+/* The detail page is left-aligned throughout, so the study page's centred block does
+   not belong there: with `width: fit-content` plus `margin-inline: auto` each group's
+   list was centred under a heading that sits flush left, and the heading looked
+   detached from the values it labels. Filling the container instead puts the heading
+   and its list on the same left edge, at every width. The study page keeps the centred
+   rule above, which is the only place that centres. */
+.word-detail .concise-meaning-list { width: auto; margin-inline: 0; }
 .word-detail .concise-meanings { margin-bottom: 4px; }
 .study-source { margin-top: 18px; text-align: left; }
 .study-source summary { cursor: pointer; color: var(--muted); font-size: 13px; }
@@ -331,8 +338,15 @@ h1, h2, h3, p { margin-top: 0; }
    4.5:1 on every surface these blocks put text on; `--muted` itself and every
    existing site-wide control are left exactly as they were. The adopted and
    unadopted states keep their wording, their colour pair and their border
-   style, so nothing here is carried by colour alone. */
-.sources-page, .entry-sources { --source-secondary: #5f6880; }
+   style, so nothing here is carried by colour alone.
+
+   **Follow-up (browser acceptance F1).** The concise block's own 12px secondary
+   lines -- the primary position, the additional citations and the rewrite note --
+   were measured in a real browser at 3.71:1 on `--bg`, the same shortfall on the
+   same ink. They now share the same local ink, which is why `.concise-meanings`
+   is in the scope list above rather than a second hex being introduced: one
+   variable, one place to change, and the contrast assertion below covers them. */
+.sources-page, .entry-sources, .concise-meanings { --source-secondary: #5f6880; }
 .source-row-link,
 .source-row-card,
 .source-meta a { display: inline-flex; align-items: center; min-width: 24px; min-height: 24px; }

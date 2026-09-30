@@ -165,3 +165,78 @@ describe('the two decision badges stay readable and distinguishable (P3)', () =>
     expect(blocks('.source-row.unadopted').join(';')).toContain('border-style: dashed')
   })
 })
+
+describe('the concise block’s 12px secondary text reaches 4.5:1 (F1)', () => {
+  /**
+   * A real-browser acceptance run measured these three at 3.71:1 on `--bg`: the same
+   * `--muted` shortfall the source surfaces had, on the same 12px text. The ink is
+   * therefore the same local one, and the floor is asserted here so a later edit cannot
+   * quietly put `--muted` back.
+   *
+   * Selectors are written as the stylesheet writes them, because that is what the
+   * helpers above match on.
+   */
+  const SECONDARY = [
+    '.concise-meaning-list .concise-note', // the rewrite note
+    '.concise-meaning-list .concise-locator', // the primary source position
+    '.concise-meaning-list .concise-citations', // the additional source positions
+  ]
+
+  it('defines that ink on the concise block rather than on the page root', () => {
+    expect(declared('.concise-meanings', '--source-secondary')).toBe('#5f6880')
+  })
+
+  it.each(SECONDARY)('%s uses it rather than --muted', (selector) => {
+    expect(resolve(declared(selector, 'color')), selector).toBe(variables()['source-secondary'])
+  })
+
+  // Both surfaces the block puts text on: the study answer area sits on the page
+  // background, the detail page inside a card.
+  it.each(SECONDARY.flatMap((selector) => [
+    [selector, 'bg', variables()['bg']] as const,
+    [selector, 'card', '#ffffff'] as const,
+  ]))('%s clears 4.5:1 on the %s', (selector, _surface, background) => {
+    expect(
+      contrast(declared(selector, 'color'), background),
+      `${selector} on ${background}`,
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('lets the individual citation inherit that ink rather than set its own', () => {
+    // `.concise-citation` is the span around each position; a colour of its own here
+    // would be a second place to keep above the floor.
+    expect(declared('.concise-meaning-list .concise-citation', 'color')).toBe('')
+  })
+
+  it('leaves --muted and the site-wide text exactly as they were', () => {
+    expect(variables()['muted']).toBe('#788196')
+    // The approval line is the same 12px secondary text but was not in scope for F1;
+    // it still uses the site ink, which is recorded here so the difference is visible
+    // rather than accidental.
+    expect(resolve(declared('.concise-confirmed-by', 'color'))).toBe(variables()['muted'])
+  })
+})
+
+describe('a shown group’s heading and its values share a left edge (F2)', () => {
+  /**
+   * The detail page is left-aligned throughout, but each group's list was a
+   * shrink-to-fit centred block: the heading sat flush left while the values floated
+   * ~50px (phone) / ~260px (desktop) to its right, so the heading looked detached from
+   * the group it labels. The list fills the container there instead.
+   *
+   * The study page is the one place that centres, and it keeps doing so -- this asserts
+   * both halves, because a fix that left-aligned everywhere would trade one defect for
+   * another.
+   */
+  it('has the detail page fill the container instead of centring', () => {
+    expect(declared('.word-detail .concise-meaning-list', 'width')).toBe('auto')
+    expect(declared('.word-detail .concise-meaning-list', 'margin-inline')).toBe('0')
+  })
+
+  it('keeps the study page centring, which is the only centring left', () => {
+    expect(declared('.answer-area .concise-meaning-list', 'margin-inline')).toBe('auto')
+    // The base rule still centres by default, so the detail override is what makes the
+    // difference -- removing it would silently restore the misalignment.
+    expect(declared('.concise-meaning-list', 'margin')).toContain('auto')
+  })
+})
