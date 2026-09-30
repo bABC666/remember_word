@@ -633,15 +633,28 @@ def _require_group_agrees(
     against both the other proposals in the call and the rows already stored for the
     entry -- otherwise a second ``propose`` call could silently renumber a group.
     """
-    stated: dict[str, tuple[int, str, str, str]] = {
-        item.pos_key: (
+    stated: dict[str, tuple[int, str, str, str]] = {}
+    group_fields = ("pos_order", "pos_source", "pos_evidence_locator", "language")
+    for item in checked:
+        group = (
             item.pos_order,
             item.pos_source,
             item.pos_evidence_locator,
             item.language,
         )
-        for item in checked
-    }
+        prior = stated.get(item.pos_key)
+        if prior is not None and prior != group:
+            field, old, new = next(
+                (name, old, new)
+                for name, old, new in zip(group_fields, prior, group)
+                if old != new
+            )
+            raise ConciseMeaningRefused(
+                f"词性组 {item.pos_key or '（词性未定）'} 本次提案内部不一致："
+                f"{field} 前一条为 {old!r}，当前为 {new!r}。"
+            )
+        if prior is None:
+            stated[item.pos_key] = group
     for pos_key, group in stated.items():
         if not pos_key:
             continue

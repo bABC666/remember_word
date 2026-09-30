@@ -406,6 +406,73 @@ def test_performance_shares_one_source_line_between_two_values(admin) -> None:
     assert len(created) == 2
 
 
+@pytest.mark.parametrize(
+    ("changed", "field"),
+    [
+        ({"pos_order": 2}, "pos_order"),
+        ({"pos_source": "pos_section"}, "pos_source"),
+        ({"pos_evidence": "zhwiktionary:7993707:14"}, "pos_evidence_locator"),
+        ({"language": ""}, "language"),
+    ],
+)
+def test_one_propose_call_refuses_inconsistent_group_before_any_write(
+    admin, changed: dict, field: str,
+) -> None:
+    from sqlalchemy import select
+
+    from app.models import EntryConciseMeaning, EntryConciseMeaningCitation
+
+    with admin.session() as session:
+        lexicon = _lexicon(session, f"pos-flow-conflict-{field}", f"pos-flow-{field}")
+        entry = _entry(session, lexicon, "play")
+        administrator = _administrator(session, admin)
+        propose(
+            session, entry=entry,
+            proposals=[_group(
+                "已有候选", pos="adj", pos_order=3, order=1,
+                citations=[ConciseMeaningCitationProposal(
+                    citation_locator="wikdict:baseline", citation_order=1,
+                )],
+            )],
+            actor=administrator,
+        )
+        session.commit()
+
+        def snapshot() -> tuple[list[tuple], list[int], list[tuple]]:
+            candidates = [
+                (row.id, row.text, row.status, row.pos_key) for row in _rows(session, entry.id)
+            ]
+            citations = list(session.scalars(
+                select(EntryConciseMeaningCitation.id)
+                .join(EntryConciseMeaning)
+                .where(EntryConciseMeaning.lexicon_entry_id == entry.id)
+                .order_by(EntryConciseMeaningCitation.id)
+            ))
+            history = [
+                (row.id, row.action, row.text) for row in _revisions(session, entry.id)
+            ]
+            return candidates, citations, history
+
+        before = snapshot()
+        with pytest.raises(ConciseMeaningRefused) as error:
+            propose(
+                session, entry=entry,
+                proposals=[
+                    _group(
+                        "玩", pos="verb", pos_order=1, order=1,
+                        citations=[ConciseMeaningCitationProposal(
+                            citation_locator="wikdict:new", citation_order=1,
+                        )],
+                    ),
+                    _group("演奏", pos="verb", order=2, **({"pos_order": 1} | changed)),
+                ],
+                actor=administrator,
+            )
+        assert field in str(error.value)
+        session.flush()
+        assert snapshot() == before, "refusal must not add candidates, citations or history"
+
+
 # --- mutter: the page carries other languages ---------------------------------
 
 
