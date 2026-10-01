@@ -1055,6 +1055,17 @@ class EntryConciseMeaning(Base):
     #: The language this sense belongs to; ``''`` means "not recorded".
     language: Mapped[str] = mapped_column(String(16), default="", server_default="")
 
+    #: Optional persistent bindings to the pinned source's individual lines. Kept
+    #: separate: a gloss line is not its part-of-speech heading. Existing candidates
+    #: have NULL here until their source lines are explicitly verified; locators and
+    #: CSV ``source_evidence_id`` retain their original meaning.
+    primary_wikitext_line_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_wikitext_line.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    pos_wikitext_line_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_wikitext_line.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+
     entry: Mapped[LexiconEntry] = relationship()
     #: Additional source positions this one display value rests on, beyond the primary
     #: ``source_locator`` above. Deleting the value deletes them: they describe it.
@@ -1205,6 +1216,12 @@ class EntryConciseMeaningCitation(Base):
         ForeignKey("entry_source_evidence.id", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    #: Optional pinned wikitext line for this *additional* citation. A WikDict CSV
+    #: citation continues to use ``source_evidence_id`` and can leave this NULL.
+    wikitext_line_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_wikitext_line.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
 
     meaning: Mapped[EntryConciseMeaning] = relationship(back_populates="citations")
 

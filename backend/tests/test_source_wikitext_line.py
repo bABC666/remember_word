@@ -249,7 +249,7 @@ def staging(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     return scratch / "clone.db", {"VOCAB_REAL_DATA_DIR": str(elsewhere)}
 
 
-def migrated(tmp_path: Path, revision: str = "head") -> Path:
+def migrated(tmp_path: Path, revision: str = REVISION_0012) -> Path:
     database, env = staging(tmp_path)
     result = run_alembic(database, "upgrade", revision, extra_env=env)
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
@@ -642,14 +642,12 @@ def refused(database: Path, action) -> str:
 # --- the chain and the shared vocabulary --------------------------------------
 
 
-def test_0012_is_the_single_head_and_stacks_on_0011() -> None:
+def test_0012_stacks_on_0011_in_a_single_chain() -> None:
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == [REVISION_0012], (
-        "adding 0012 must keep exactly one head; a second head means the graph branched"
-    )
+    assert len(script.get_heads()) == 1, "the migration graph must have one head"
     assert script.get_revision(REVISION_0012).down_revision == REVISION_0011, (
         "0012 follows 0011 rather than editing it in place"
     )

@@ -405,10 +405,7 @@ def test_0011_stacks_on_0010_and_the_graph_has_one_head() -> None:
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == [REVISION_0012], (
-        "0012 stacks on 0011, so 0011 is no longer the head -- but there must still be "
-        "exactly one head; a second head means the graph branched"
-    )
+    assert len(script.get_heads()) == 1, "the migration graph must have one head"
     assert script.get_revision(REVISION_0011).down_revision == REVISION_0010, (
         "0011 follows 0010 rather than editing it in place"
     )
@@ -997,7 +994,7 @@ def test_two_values_may_share_one_source_position(tmp_path: Path) -> None:
 
 
 def test_a_citation_needs_a_position_and_a_unique_order(tmp_path: Path) -> None:
-    database = migrated(tmp_path)
+    database = migrated(tmp_path, REVISION_0011)
     _lexicon_id, entry_id = seed_lexicon_and_entry(database)
     meaning_id = insert_meaning(database, entry_id)
 
