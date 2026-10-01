@@ -486,6 +486,7 @@ _PROPOSAL_GROUP_KEYS = frozenset(
         "pos_order",
         "pos_source",
         "pos_evidence_locator",
+        "pos_wikitext_line_id",
         "language",
         "meanings",
     }
@@ -498,11 +499,12 @@ _PROPOSAL_MEANING_KEYS = frozenset(
         "source_locator",
         "derivation_note",
         "source_evidence_id",
+        "primary_wikitext_line_id",
         "citations",
     }
 )
 _PROPOSAL_CITATION_KEYS = frozenset(
-    {"citation_locator", "citation_order", "source_evidence_id"}
+    {"citation_locator", "citation_order", "source_evidence_id", "wikitext_line_id"}
 )
 _PROPOSAL_FORMAT_VERSION = 2
 
@@ -596,6 +598,9 @@ def load_proposal_file(path: Path, *, lexicon_name: str) -> list[dict]:
                 )
             group_orders.append(order)
             language = str(group.get("language") or "").strip()
+            pos_line_id = group.get("pos_wikitext_line_id")
+            if pos_line_id is not None and (type(pos_line_id) is not int or pos_line_id < 1):
+                raise ConciseMeaningFileError(f"{group_where} 的 pos_wikitext_line_id 必须是正整数。")
 
             meanings = group.get("meanings")
             if not isinstance(meanings, list) or not meanings:
@@ -624,6 +629,9 @@ def load_proposal_file(path: Path, *, lexicon_name: str) -> list[dict]:
                         f"{meaning_where} 的 display_order 必须是整数。"
                     )
                 evidence = meaning.get("source_evidence_id")
+                primary_line_id = meaning.get("primary_wikitext_line_id")
+                if primary_line_id is not None and (type(primary_line_id) is not int or primary_line_id < 1):
+                    raise ConciseMeaningFileError(f"{meaning_where} 的 primary_wikitext_line_id 必须是正整数。")
                 if evidence is not None and (
                     not isinstance(evidence, int) or isinstance(evidence, bool)
                 ):
@@ -638,6 +646,8 @@ def load_proposal_file(path: Path, *, lexicon_name: str) -> list[dict]:
                         source_locator=str(meaning.get("source_locator") or ""),
                         derivation_note=str(meaning.get("derivation_note") or ""),
                         source_evidence_id=evidence,
+                        primary_wikitext_line_id=primary_line_id,
+                        pos_wikitext_line_id=pos_line_id,
                         pos_key=pos_key,
                         pos_label=str(group.get("pos_label") or ""),
                         pos_order=order,
@@ -678,6 +688,9 @@ def _load_citations(raw: Any, *, where: str) -> tuple[ConciseMeaningCitationProp
                 f"{citation_where} 的 citation_order 必须是整数。"
             )
         evidence = item.get("source_evidence_id")
+        line_id = item.get("wikitext_line_id")
+        if line_id is not None and (type(line_id) is not int or line_id < 1):
+            raise ConciseMeaningFileError(f"{citation_where} 的 wikitext_line_id 必须是正整数。")
         if evidence is not None and (
             not isinstance(evidence, int) or isinstance(evidence, bool)
         ):
@@ -689,6 +702,7 @@ def _load_citations(raw: Any, *, where: str) -> tuple[ConciseMeaningCitationProp
                 citation_locator=locator,
                 citation_order=order,
                 source_evidence_id=evidence,
+                wikitext_line_id=line_id,
             )
         )
     return tuple(citations)

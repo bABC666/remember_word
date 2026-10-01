@@ -1861,9 +1861,9 @@ def test_0009_follows_the_unpublished_0008_and_keeps_one_head() -> None:
     config.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    # 0010, 0011 and then 0012 stack on 0009, so 0009 is no longer the head -- but there
+    # 0010 through 0013 stack on 0009, so 0009 is no longer the head -- but there
     # is still exactly one head, which is what this assertion is for.
-    assert script.get_heads() == ["0012_source_wikitext_line"]
+    assert script.get_heads() == ["0013_concise_meaning_wikitext_binding"]
     revision = script.get_revision("0009_entry_concise_meaning")
     assert revision.down_revision == "0008_public_lexicon_import", (
         "0009 stacks on the unpublished 0008 rather than editing it in place"

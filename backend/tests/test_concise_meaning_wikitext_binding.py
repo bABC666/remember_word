@@ -185,3 +185,83 @@ def test_lossy_downgrade_refuses_before_ddl_but_unbound_history_survives(tmp_pat
         assert tuple(conn.execute("select citation_locator,source_evidence_id "
                                   "from entry_concise_meaning_citation where id=?", (citation,)).fetchone()) == ("wikdict:37", None)
     assert integrity(db) == ("ok", [])
+
+
+def test_pinned_line_proposal_confirms_only_with_matching_english_heading(tmp_path: Path) -> None:
+    from sqlalchemy.orm import Session
+
+    from app.db import make_engine
+    from app.models import Lexicon, LexiconEntry, User
+    from app.services.concise_meaning import (
+        ConciseMeaningProposal,
+        ConciseMeaningRefused,
+        confirm,
+        entry_short_meanings,
+        propose,
+    )
+    from tests.test_concise_meaning import _persist_csv_evidence
+
+    db = migrated(tmp_path)
+    archive_id = seed_archive(db)
+    write_page(db, archive_id, "9576029", (12, 15, 16, 19, 23))
+    engine = make_engine(f"sqlite:///{db.as_posix()}")
+    with Session(engine) as session:
+        admin = User(username="reviewer", role="admin", is_active=True)
+        lexicon = Lexicon(name="isolated", visibility="public", source_type="test")
+        session.add_all((admin, lexicon))
+        session.flush()
+        entry = LexiconEntry(lexicon_id=lexicon.id, word="prior", normalized_word="prior")
+        session.add(entry)
+        session.commit()
+        evidence_id = _persist_csv_evidence(
+            session, lexicon, entry, row=2, raw="先的；更重要的；事先",
+            source="zhwiktionary-v4en.csv", revision="9576029",
+        )
+        gloss = line_id(db, "9576029", 15)
+        heading = line_id(db, "9576029", 12)
+        row = propose(session, entry=entry, actor=admin, proposals=[ConciseMeaningProposal(
+            text="先前的", provenance_kind="derived", derivation_note="由先的改写",
+            display_order=1, source_locator="zhwiktionary:9576029:15",
+            source_evidence_id=evidence_id, primary_wikitext_line_id=gloss,
+            pos_key="adj", pos_source="pos_section",
+            pos_evidence_locator="zhwiktionary:9576029:12",
+            pos_wikitext_line_id=heading, language="en",
+        )])[0]
+        confirm(session, meaning=row, confirmer=admin)
+        assert entry_short_meanings(session, [entry.id])[entry.id][0]["meanings"][0]["text"] == "先前的"
+        with pytest.raises(ConciseMeaningRefused):
+            propose(session, entry=entry, actor=admin, proposals=[ConciseMeaningProposal(
+                text="更重要的", provenance_kind="derived", derivation_note="抽义",
+                display_order=2, source_locator="zhwiktionary:9576029:16",
+                source_evidence_id=evidence_id, primary_wikitext_line_id=gloss,
+                pos_key="adj", pos_source="pos_section",
+                pos_evidence_locator="zhwiktionary:9576029:12",
+                pos_wikitext_line_id=heading, language="en",
+            )])
+
+
+def test_proposal_file_keeps_all_three_line_bindings(tmp_path: Path) -> None:
+    import json
+
+    from app.cli import load_proposal_file
+
+    file = tmp_path / "proposal.json"
+    file.write_text(json.dumps({
+        "format_version": 2, "lexicon": "isolated", "entries": [{
+            "word": "prior", "pos_groups": [{
+                "pos_key": "adj", "pos_source": "pos_section",
+                "pos_evidence_locator": "zhwiktionary:9576029:12",
+                "pos_wikitext_line_id": 1, "language": "en", "meanings": [{
+                    "text": "先前的", "provenance_kind": "derived",
+                    "source_locator": "zhwiktionary:9576029:15",
+                    "primary_wikitext_line_id": 2, "derivation_note": "改写",
+                    "citations": [{"citation_locator": "zhwiktionary:9576029:16",
+                                   "wikitext_line_id": 3}],
+                }],
+            }],
+        }],
+    }, ensure_ascii=False), encoding="utf-8")
+    proposal = load_proposal_file(file, lexicon_name="isolated")[0]["proposals"][0]
+    assert proposal.primary_wikitext_line_id == 2
+    assert proposal.pos_wikitext_line_id == 1
+    assert proposal.citations[0].wikitext_line_id == 3

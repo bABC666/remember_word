@@ -76,7 +76,9 @@ from app.models import (
     PublicImportRun,
     PublicImportRunSource,
     SourceArtifact,
+    SourceWikitextLine,
     User,
+    source_wikitext_line_sha256,
 )
 
 KIND_SOURCE = "source"
@@ -151,6 +153,7 @@ class ConciseMeaningCitationProposal:
     citation_locator: str
     citation_order: int = 1
     source_evidence_id: int | None = None
+    wikitext_line_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -174,6 +177,8 @@ class ConciseMeaningProposal:
     source_locator: str = ""
     derivation_note: str = ""
     source_evidence_id: int | None = None
+    primary_wikitext_line_id: int | None = None
+    pos_wikitext_line_id: int | None = None
     pos_key: str = CONCISE_MEANING_POS_UNDETERMINED
     pos_label: str = ""
     pos_order: int = 1
@@ -319,6 +324,7 @@ def _validate_citations(
             citation_locator=citation.citation_locator.strip(),
             citation_order=citation.citation_order,
             source_evidence_id=citation.source_evidence_id,
+            wikitext_line_id=citation.wikitext_line_id,
         )
         for citation in citations
     )
@@ -357,7 +363,8 @@ def _validate(proposal: ConciseMeaningProposal) -> _Checked:
             + "。其它语言的释义不得存为这个英文词的义项。"
         )
     if kind == KIND_AI_SUPPLEMENT:
-        if locator or proposal.source_evidence_id is not None:
+        if (locator or proposal.source_evidence_id is not None
+                or proposal.primary_wikitext_line_id is not None):
             raise ConciseMeaningRefused(
                 "自拟补充不得指向任何来源位置：它没有来源原文，不能写成引文。"
                 "请去掉 source_locator 与 source_evidence_id。"
@@ -562,6 +569,19 @@ def propose(
                 )
         for citation in item.citations:
             _require_evidence_belongs_to_entry(session, entry, citation.source_evidence_id)
+        if proposal.primary_wikitext_line_id is not None:
+            _require_wikitext_position(session, entry, item.locator,
+                                      proposal.primary_wikitext_line_id,
+                                      proposal.source_evidence_id, label="主引用")
+        if proposal.pos_wikitext_line_id is not None:
+            _require_wikitext_position(session, entry, item.pos_evidence_locator,
+                                      proposal.pos_wikitext_line_id,
+                                      proposal.source_evidence_id, label="词性依据")
+        for citation in item.citations:
+            if citation.wikitext_line_id is not None:
+                _require_wikitext_position(session, entry, citation.citation_locator,
+                                          citation.wikitext_line_id,
+                                          citation.source_evidence_id, label="附加引用")
         existing = occupied.get((item.pos_key, proposal.display_order))
         if existing is not None and existing.status == STATUS_CONFIRMED:
             label = item.pos_key or "（词性未定）"
@@ -589,6 +609,8 @@ def propose(
             text=item.text,
             provenance_kind=proposal.provenance_kind,
             source_evidence_id=proposal.source_evidence_id,
+            primary_wikitext_line_id=proposal.primary_wikitext_line_id,
+            pos_wikitext_line_id=proposal.pos_wikitext_line_id,
             source_locator=item.locator,
             derivation_note=item.note,
             status=STATUS_CANDIDATE,
@@ -612,6 +634,7 @@ def propose(
                     citation_order=citation.citation_order,
                     citation_locator=citation.citation_locator,
                     source_evidence_id=citation.source_evidence_id,
+                    wikitext_line_id=citation.wikitext_line_id,
                     created_at=at,
                 )
             )
@@ -785,33 +808,122 @@ def _require_confirmable_evidence(
     if meaning.provenance_kind == KIND_AI_SUPPLEMENT:
         return  # Existing human-review and no-citation rules apply unchanged.
 
-    if meaning.pos_source == POS_SOURCE_SECTION:
+    if meaning.pos_source == POS_SOURCE_SECTION and meaning.pos_wikitext_line_id is None:
         raise ConciseMeaningRefused(
             f"词性标题 {meaning.pos_evidence_locator!r} 缺少持久的逐行标题与语言路径证据；"
             "CSV 释义行不能证明 pos_section，拒绝确认。"
         )
 
-    # Only a verbatim claim demands its wording in the cited cell; a rewrite is checked
-    # by its evidence chain and its note, never by looking for text it deliberately changed.
     verbatim = meaning.provenance_kind == KIND_SOURCE
-    _require_csv_position(
-        session, entry, meaning.source_locator, meaning.source_evidence_id,
-        label="主引用", exact_text=meaning.text if verbatim else None,
-    )
-    for citation in meaning.citations:
-        _require_csv_position(
-            session, entry, citation.citation_locator, citation.source_evidence_id,
-            label=f"附加引用 #{citation.citation_order}",
+    if meaning.primary_wikitext_line_id is not None:
+        primary = _require_wikitext_position(
+            session, entry, meaning.source_locator, meaning.primary_wikitext_line_id,
+            meaning.source_evidence_id, label="主引用",
             exact_text=meaning.text if verbatim else None,
         )
+    else:
+        primary = None
+        _require_csv_position(
+            session, entry, meaning.source_locator, meaning.source_evidence_id,
+            label="主引用", exact_text=meaning.text if verbatim else None,
+        )
+    for citation in meaning.citations:
+        if citation.wikitext_line_id is not None:
+            _require_wikitext_position(
+                session, entry, citation.citation_locator, citation.wikitext_line_id,
+                citation.source_evidence_id, label=f"附加引用 #{citation.citation_order}",
+                exact_text=meaning.text if verbatim else None,
+            )
+        else:
+            _require_csv_position(
+                session, entry, citation.citation_locator, citation.source_evidence_id,
+                label=f"附加引用 #{citation.citation_order}",
+                exact_text=meaning.text if verbatim else None,
+            )
+    if meaning.pos_source == POS_SOURCE_SECTION:
+        if meaning.pos_wikitext_line_id is None or primary is None:
+            raise ConciseMeaningRefused("词性标题缺少持久的逐行标题与语言路径证据，拒绝确认。")
+        heading = _require_wikitext_position(
+            session, entry, meaning.pos_evidence_locator, meaning.pos_wikitext_line_id,
+            meaning.source_evidence_id, label="词性标题",
+        )
+        path = f"{heading.heading_path} > {heading.pos_heading_text}"
+        if (heading.pos_heading_key != meaning.pos_key
+                or heading.page_revision != primary.page_revision
+                or heading.page_text_sha256 != primary.page_text_sha256
+                or not (primary.heading_path == path
+                        or primary.heading_path.startswith(path + " > "))):
+            raise ConciseMeaningRefused("词性标题与释义行不在同一词性小节，拒绝确认。")
+    elif meaning.pos_wikitext_line_id is not None:
+        basis = _require_wikitext_position(
+            session, entry, meaning.pos_evidence_locator, meaning.pos_wikitext_line_id,
+            meaning.source_evidence_id, label="词性试判位置",
+        )
+        if basis.id not in {meaning.primary_wikitext_line_id,
+                           *(item.wikitext_line_id for item in meaning.citations)}:
+            raise ConciseMeaningRefused("词性试判位置未绑定到已核实的释义引用，拒绝确认。")
+    elif primary is not None and meaning.pos_source == POS_SOURCE_REVIEWER:
+        raise ConciseMeaningRefused("词性试判缺少固定原文行绑定，拒绝确认。")
     # A reviewer basis is a human judgement, but its cited gloss and target language
     # still have to be checkable. It may point to the primary or an additional citation.
     positions = {meaning.source_locator, *(item.citation_locator for item in meaning.citations)}
     if meaning.pos_evidence_locator not in positions:
+        if meaning.pos_source == POS_SOURCE_SECTION:
+            return
         raise ConciseMeaningRefused(
             f"词性试判位置 {meaning.pos_evidence_locator!r} 未绑定到已核实的释义引用，"
             "拒绝确认。"
         )
+
+
+_WIKITEXT_POSITION = re.compile(r"zhwiktionary:([0-9]+):([1-9][0-9]*)\Z")
+
+
+def _require_wikitext_position(
+    session: Session, entry: LexiconEntry, locator: str, line_id: int,
+    evidence_id: int | None, *, label: str, exact_text: str | None = None,
+) -> SourceWikitextLine:
+    match = _WIKITEXT_POSITION.fullmatch(locator)
+    line = session.get(SourceWikitextLine, line_id)
+    evidence = session.get(EntrySourceEvidence, evidence_id) if evidence_id else None
+    artifact = session.get(SourceArtifact, evidence.source_artifact_id) if evidence else None
+    run = session.get(PublicImportRun, evidence.import_run_id) if evidence else None
+    run_source = session.scalar(select(PublicImportRunSource.id).where(
+        PublicImportRunSource.import_run_id == evidence.import_run_id,
+        PublicImportRunSource.source_artifact_id == evidence.source_artifact_id,
+    )) if evidence else None
+    from app.services.public_lexicon_plan import evidence_idempotency_key
+
+    evidence_key = evidence_idempotency_key(
+        file_sha256=artifact.file_sha256, mapping_sha256=artifact.mapping_sha256,
+        line=evidence.row_locator, field="meaning", raw_value=evidence.raw_text,
+    ) if evidence is not None and artifact is not None else None
+    if (match is None or line is None or evidence is None
+            or line.source_id != "zhwiktionary-pinned-oldid"
+            or line.page_revision != match.group(1)
+            or line.line_number != int(match.group(2))
+            or line.language_path not in ("英語", "英语")
+            or evidence.lexicon_entry_id != entry.id
+            or evidence.normalized_word != entry.normalized_word
+            or evidence.source_revision != line.page_revision
+            or evidence.field_kind != "meaning"
+            or evidence.raw_word.strip().casefold() != entry.normalized_word
+            or artifact is None or artifact.role != "meaning"
+            or artifact.name not in ("zhwiktionary-v4en.csv", "zhwiktionary.csv")
+            or hashlib.sha256(artifact.mapping_json.encode("utf-8")).hexdigest()
+            != artifact.mapping_sha256
+            or evidence.evidence_sha256 != evidence_key
+            or run is None or run.status != "applied"
+            or run.target_lexicon_id != entry.lexicon_id or run_source is None
+            or source_wikitext_line_sha256(
+                source_id=line.source_id, page_revision=line.page_revision,
+                page_text_sha256=line.page_text_sha256,
+                line_number=line.line_number, raw_text=line.raw_text,
+            ) != line.line_sha256):
+        raise ConciseMeaningRefused(f"{label} {locator!r} 缺少同词、同修订的英语逐行原文证据，拒绝确认。")
+    if exact_text is not None and exact_text not in line.raw_text:
+        raise ConciseMeaningRefused(f"{label} {locator!r} 的原文不含逐字释义 {exact_text!r}，拒绝确认。")
+    return line
 
 
 def _require_csv_position(
@@ -1106,6 +1218,7 @@ def concise_meaning_citation_dict(citation: EntryConciseMeaningCitation) -> dict
         "citation_order": citation.citation_order,
         "citation_locator": citation.citation_locator,
         "source_evidence_id": citation.source_evidence_id,
+        "wikitext_line_id": citation.wikitext_line_id,
     }
 
 
@@ -1132,6 +1245,8 @@ def concise_meaning_dict(row: EntryConciseMeaning) -> dict[str, Any]:
         "is_supplement": row.provenance_kind == KIND_AI_SUPPLEMENT,
         "source_locator": row.source_locator,
         "source_evidence_id": row.source_evidence_id,
+        "primary_wikitext_line_id": row.primary_wikitext_line_id,
+        "pos_wikitext_line_id": row.pos_wikitext_line_id,
         "citations": [concise_meaning_citation_dict(item) for item in row.citations],
         "derivation_note": row.derivation_note,
         "confirmed_by": row.confirmed_by_username,
@@ -1226,12 +1341,15 @@ def concise_meaning_review_dict(row: EntryConciseMeaning) -> dict[str, Any]:
         "provenance_label": KIND_LABELS.get(row.provenance_kind, row.provenance_kind),
         "source_locator": row.source_locator,
         "source_evidence_id": row.source_evidence_id,
+        "primary_wikitext_line_id": row.primary_wikitext_line_id,
+        "pos_wikitext_line_id": row.pos_wikitext_line_id,
         "derivation_note": row.derivation_note,
         "citations": [
             {
                 "citation_order": citation.citation_order,
                 "citation_locator": citation.citation_locator,
                 "source_evidence_id": citation.source_evidence_id,
+                "wikitext_line_id": citation.wikitext_line_id,
             }
             for citation in row.citations
         ],
