@@ -46,6 +46,8 @@ def _paths(lines: list[str]) -> list[tuple[str, str, str, str]]:
         match = HEADING.fullmatch(line)
         if match:
             level, title = len(match.group(1)), match.group(2).strip()
+            if level == 2 and title in ("[[英語]]", "[[英语]]"):
+                title = title[2:-2]
             if not title or (level > 2 and not stack):
                 raise ValueError("cannot determine heading path")
             stack = [(depth, text) for depth, text in stack if depth < level]

@@ -121,7 +121,7 @@ describe('the study page and short confirmed meanings', () => {
     expect(block).toHaveTextContent('农村的')
     expect(block).toHaveTextContent('据来源改写')
     expect(block).toHaveTextContent('来源为「農村的」，此处为简体转换')
-    expect(block).toHaveTextContent('已由 owner 人工确认')
+    expect(block).toHaveTextContent('释义裁定：owner')
 
     // The source is not gone: it is one click away, and it still says 農村的.
     const source = document.querySelector<HTMLDetailsElement>('.study-source')!
@@ -129,6 +129,15 @@ describe('the study page and short confirmed meanings', () => {
     expect(source.textContent).toContain('農村的')
     expect(source.textContent).toContain('原书完整释义')
     expect(source.open).toBe(false)  // collapsed, not removed: "可回查", not "always shown"
+  })
+
+  it('does not describe an AI adjudication as human confirmation', async () => {
+    mockApi([word({ concise_meanings: [group({ meanings: [short({ confirmed_by: 'phase29-ai' })] })] })])
+    await reveal()
+
+    const block = await screen.findByRole('region', { name: '核心释义' })
+    expect(block).toHaveTextContent('释义裁定：phase29-ai')
+    expect(block).not.toHaveTextContent('人工确认')
   })
 
   it('falls back to the anchor and the source when nothing is confirmed', async () => {

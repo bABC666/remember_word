@@ -59,13 +59,16 @@ MEANING_KEYS = frozenset(
         "is_supplement",
         "source_locator",
         "source_evidence_id",
+        "primary_wikitext_line_id",
+        "pos_wikitext_line_id",
         "citations",
         "derivation_note",
         "confirmed_by",
         "confirmed_at",
     }
 )
-CITATION_KEYS = frozenset({"citation_order", "citation_locator", "source_evidence_id"})
+CITATION_KEYS = frozenset({"citation_order", "citation_locator", "source_evidence_id",
+                           "wikitext_line_id"})
 
 _created_lexicon_ids: list[int] = []
 _created_word_ids: list[int] = []
@@ -374,7 +377,7 @@ def test_play_reports_three_verb_senses_before_one_noun_sense(admin) -> None:
     groups = body["concise_meanings"]
     assert set(groups[0]) == GROUP_KEYS
     assert set(groups[0]["meanings"][0]) == MEANING_KEYS
-    assert groups[0]["pos_source_label"] == "人工试判"
+    assert groups[0]["pos_source_label"] == "裁定者试判"
 
 
 def test_every_shared_word_read_path_answers_the_same_grouped_shape(admin) -> None:

@@ -96,7 +96,7 @@ describe('ConciseMeaningList', () => {
             pos_key: 'noun',
             pos_label: '名词',
             pos_source: 'reviewer',
-            pos_source_label: '人工试判',
+            pos_source_label: '裁定者试判',
             pos_order: 1,
             meanings: [derived('表演', 1)],
           }),
@@ -118,7 +118,7 @@ describe('ConciseMeaningList', () => {
     expect(bases).toHaveLength(1)
     expect(bases[0].textContent).toBe('词性试判')
     // The server's own wording stays reachable rather than being re-derived here.
-    expect(bases[0].getAttribute('title')).toBe('人工试判')
+    expect(bases[0].getAttribute('title')).toBe('裁定者试判')
   })
 
   it('shows the primary position and every additional citation, in citation order', () => {
@@ -160,7 +160,7 @@ describe('ConciseMeaningList', () => {
   it('does not label a value the source itself contains', () => {
     render(<ConciseMeaningList groups={[group()]} />)
     expect(screen.queryByText('来源原文')).toBeNull()
-    expect(screen.getByText('已由 owner 人工确认')).toBeTruthy()
+    expect(screen.getByText('释义裁定：owner')).toBeTruthy()
   })
 
   it('labels a converted value and shows what was changed', () => {
@@ -267,7 +267,7 @@ describe('ConciseMeaningList', () => {
     // Attributing a value to another value's approver would credit someone who never
     // saw it.
     expect(
-      screen.getByText('已由 owner、second-admin、third-admin 人工确认'),
+      screen.getByText('释义裁定：owner、second-admin、third-admin'),
     ).toBeTruthy()
   })
 })

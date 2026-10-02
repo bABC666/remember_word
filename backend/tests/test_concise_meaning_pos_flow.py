@@ -206,6 +206,21 @@ def _confirm_all(session, entry_id: int, world) -> None:
     session.commit()
 
 
+def test_reviewer_group_accepts_distinct_cited_lines_for_distinct_senses(admin) -> None:
+    """A reviewer judges each sense's POS from its own cited gloss position."""
+    with admin.session() as session:
+        lexicon = _lexicon(session, "reviewer-lines", "reviewer-lines")
+        entry = _entry(session, lexicon, "release")
+        actor = _administrator(session, admin)
+        rows = propose(session, entry=entry, actor=actor, proposals=[
+            _group("释放", pos="verb", pos_order=1,
+                   locator="zhwiktionary:1:4", pos_evidence="zhwiktionary:1:4"),
+            _group("发布", pos="verb", pos_order=1, order=2,
+                   locator="zhwiktionary:1:5", pos_evidence="zhwiktionary:1:5"),
+        ])
+        assert [row.text for row in rows] == ["释放", "发布"]
+
+
 # --- play: four values across two groups --------------------------------------
 
 
@@ -414,7 +429,6 @@ def test_performance_candidates_share_citations_but_cannot_confirm_without_line_
     [
         ({"pos_order": 2}, "pos_order"),
         ({"pos_source": "pos_section"}, "pos_source"),
-        ({"pos_evidence": "zhwiktionary:7993707:14"}, "pos_evidence_locator"),
         ({"language": ""}, "language"),
     ],
 )
@@ -755,6 +769,7 @@ def test_the_group_serializer_orders_groups_and_values_and_keeps_citations() -> 
             self.citation_order = order
             self.citation_locator = locator
             self.source_evidence_id = None
+            self.wikitext_line_id = None
 
     class Row:
         def __init__(self, text, pos_key, pos_label, pos_order, display_order, citations=()):
@@ -767,6 +782,8 @@ def test_the_group_serializer_orders_groups_and_values_and_keeps_citations() -> 
             self.provenance_kind = KIND_DERIVED
             self.source_locator = f"zhwiktionary:7993707:{display_order}"
             self.source_evidence_id = None
+            self.primary_wikitext_line_id = None
+            self.pos_wikitext_line_id = None
             self.derivation_note = "由来源行抽义"
             self.confirmed_by_username = "owner"
             self.confirmed_at = None
@@ -794,7 +811,8 @@ def test_the_group_serializer_orders_groups_and_values_and_keeps_citations() -> 
     ]
     assert [m["display_order"] for m in groups[0]["meanings"]] == [1, 2, 3]
     assert groups[0]["meanings"][0]["citations"] == [
-        {"citation_order": 1, "citation_locator": "wikdict:20", "source_evidence_id": None}
+        {"citation_order": 1, "citation_locator": "wikdict:20", "source_evidence_id": None,
+         "wikitext_line_id": None}
     ]
     assert groups[0]["meanings"][1]["citations"] == []
 
@@ -818,6 +836,8 @@ def test_a_group_without_a_recorded_label_falls_back_to_its_key() -> None:
         provenance_kind = KIND_DERIVED
         source_locator = "zhwiktionary:7993707:13"
         source_evidence_id = None
+        primary_wikitext_line_id = None
+        pos_wikitext_line_id = None
         derivation_note = "抽义"
         confirmed_by_username = "owner"
         confirmed_at = None

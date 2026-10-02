@@ -124,7 +124,7 @@ KIND_LABELS: dict[str, str] = {
 POS_SOURCE_LABELS: dict[str, str] = {
     POS_SOURCE_NONE: "未定",
     POS_SOURCE_SECTION: "来源小节标题",
-    POS_SOURCE_REVIEWER: "人工试判",
+    POS_SOURCE_REVIEWER: "裁定者试判",
 }
 
 #: Recorded on a candidate that a newer proposal replaced at the same slot.
@@ -660,7 +660,10 @@ def _require_group_agrees(
     proposals: Sequence[ConciseMeaningProposal],
     checked: Sequence[_Checked],
 ) -> None:
-    """One part-of-speech group has one order, one stated basis and one language.
+    """One part-of-speech group has one order, basis type and language.
+
+    A source heading is shared by its group. A reviewer basis points at each sense's
+    own cited line, so distinct reviewer locators in one group are valid.
 
     ``pos_order`` lives on every row rather than in a group table, so this consistency
     is not something the database can express: two rows could claim the same
@@ -675,7 +678,7 @@ def _require_group_agrees(
         group = (
             item.pos_order,
             item.pos_source,
-            item.pos_evidence_locator,
+            item.pos_evidence_locator if item.pos_source == POS_SOURCE_SECTION else "",
             item.language,
         )
         prior = stated.get(item.pos_key)
@@ -713,7 +716,12 @@ def _require_group_agrees(
         group = stated.get(row.pos_key)
         if group is None or not row.pos_key:
             continue
-        if (row.pos_order, row.pos_source, row.pos_evidence_locator, row.language) != group:
+        stored_group = (
+            row.pos_order, row.pos_source,
+            row.pos_evidence_locator if row.pos_source == POS_SOURCE_SECTION else "",
+            row.language,
+        )
+        if stored_group != group:
             raise ConciseMeaningRefused(
                 f"词性组 {row.pos_key} 的既有行与本提案不一致："
                 f"已存组序 {row.pos_order}／依据 {row.pos_source}／语言 {row.language!r}，"

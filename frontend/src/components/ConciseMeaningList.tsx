@@ -8,7 +8,7 @@ import type { ConciseMeaningGroup } from '../types'
  * that contract rather than the source of the order, so a group is never rendered in
  * whatever order the JSON happened to arrive in.
  *
- * Every value here has been confirmed by a person, but confirmed does **not** mean
+ * Every value here has been confirmed in the review workflow, but confirmed does **not** mean
  * "the source said this". `is_source_verbatim` is the only field that says so, and
  * anything else is labelled with where its wording came from: `据来源改写` for a
  * documented change to a source value, `自拟补充` for text no source contains. The
@@ -41,8 +41,7 @@ export function ConciseMeaningList({
   // be depending on JSON member order for something the contract actually promises.
   const ordered = [...groups].sort((left, right) => left.pos_order - right.pos_order)
   // Every value carries its own confirmer, and different values may have been approved
-  // by different people -- across groups as much as within one. Naming only the first
-  // one would attribute the rest to someone who never saw them.
+  // by different actors across groups. Naming only the first would misattribute the rest.
   const confirmers = [
     ...new Set(
       ordered
@@ -109,7 +108,7 @@ export function ConciseMeaningList({
         </div>
       ))}
       <small className="concise-confirmed-by">
-        已由 {confirmers.join('、') || '管理员'} 人工确认
+        释义裁定：{confirmers.join('、') || '管理员'}
       </small>
     </section>
   )

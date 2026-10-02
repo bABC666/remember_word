@@ -8,13 +8,19 @@ from pathlib import Path
 
 import pytest
 
-from app.services.pinned_wikitext_writer import write_pinned_lines
+from app.services.pinned_wikitext_writer import _paths, write_pinned_lines
 from tests.test_source_wikitext_line import connect, migrated
 
 ARCHIVE = (Path(__file__).resolve().parents[2] / "test-artifacts" /
            "phase29-provenance-evidence/kaoyan-vocab-research/rehearsal/pilot/zh-pinned-wikitext-300.json")
 FILE_HASH = "09650bf2143440c5810b992a35a24ab8171094c6055aca111c02fe2a73a82a46"
 SOURCE = "zhwiktionary-pinned-oldid"
+
+
+def test_linked_english_heading_keeps_target_language_identity() -> None:
+    language, path, _, _ = _paths(["==[[英语]]==", "===發音===", "#玩"])[2]
+    assert language == "英语"
+    assert path == "英语 > 發音"
 PAGES = {
     "9576029": ("8b4e7331f2fe3cd59d3786cfdc0f85950243d4374b231febcd74ebc918768b68", (12, 15, 16, 19, 23)),
     "8457333": ("8f937bc8d81ea6f1a513efb17b45e357587dfac4610aec23b53d098cefe72d56", (3, 10, 12)),
