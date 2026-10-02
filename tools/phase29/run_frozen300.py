@@ -13,9 +13,11 @@ import csv
 import hashlib
 import json
 import os
+import shlex
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -49,6 +51,32 @@ from app.services.public_lexicon_plan import evidence_idempotency_key
 LABEL = {"noun": "名词", "verb": "动词", "adj": "形容词", "adv": "副词",
          "pron": "代词", "det": "限定词", "prep": "介词", "conj": "连词"}
 SOURCE_ID = "zhwiktionary-pinned-oldid"
+
+
+def _configured_pytest_temp_root(root: Path) -> Path | None:
+    """Allow pytest's relocated base only during a test, within the system temp tree."""
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        return None
+    try:
+        options = shlex.split(os.environ.get("PYTEST_ADDOPTS", ""))
+    except ValueError:
+        return None
+    raw = None
+    for index, option in enumerate(options):
+        if option.startswith("--basetemp="):
+            raw = option.partition("=")[2]
+        elif option == "--basetemp" and index + 1 < len(options):
+            raw = options[index + 1]
+    if not raw:
+        return None
+    configured = Path(raw)
+    if not configured.is_absolute():
+        configured = root / "backend" / configured
+    configured = configured.resolve()
+    system_temp = Path(tempfile.gettempdir()).resolve()
+    if configured == system_temp or not configured.is_relative_to(system_temp):
+        return None
+    return configured
 
 
 def _sha(data: bytes) -> str:
@@ -105,7 +133,10 @@ def _migrate(root: Path, db: Path) -> None:
 def run(root: Path, output: Path, *, words: list[str] | None = None) -> dict:
     root, output = root.resolve(), output.resolve()
     archive_root = (root / EVIDENCE).resolve()
-    allowed = (root / "test-artifacts", root / ".pytest-tmp")
+    allowed = [root / "test-artifacts", root / ".pytest-tmp"]
+    pytest_temp = _configured_pytest_temp_root(root)
+    if pytest_temp is not None:
+        allowed.append(pytest_temp)
     if (not archive_root.is_dir() or
             not any(output.is_relative_to(directory) for directory in allowed) or
             (words is None and not output.name.startswith("phase29-frozen300-"))):

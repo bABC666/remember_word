@@ -234,14 +234,16 @@ def test_staging_clone_downgrade_runs_and_keeps_the_data(tmp_path: Path) -> None
     has to rebuild the same nine tables to remove the foreign keys, and proves the
     rebuild preserves rows.
 
-    The head foreign-key count moved 26 -> 33 -> 40 -> 42 -> 43: migration ``0008`` adds
+    The head foreign-key count moved 26 -> 33 -> 40 -> 42 -> 43 -> 46 -> 47:
+    migration ``0008`` adds
     four tables carrying seven foreign keys (``public_import_run`` 2,
     ``public_import_run_source`` 2, ``entry_source_evidence`` 3), ``0009`` adds
     two more carrying seven (``entry_concise_meaning`` 3,
     ``entry_concise_meaning_revision`` 4), ``0011`` adds one carrying two
     (``entry_concise_meaning_citation`` 2) and ``0012`` one carrying one
     (``source_wikitext_line`` 1, the preserved artifact its lines were read from),
-    without changing any existing table's own count. The
+    ``0013`` adds three pinned-line bindings and ``0014`` adds one selected-lexicon
+    reference. The
     assertion is on the physical count, so
     it has to move with the schema; 17 after the downgrade to ``0006`` is unchanged,
     which is the part that proves the rebuild is exact.
@@ -255,7 +257,7 @@ def test_staging_clone_downgrade_runs_and_keeps_the_data(tmp_path: Path) -> None
 
     result = run_alembic(database, "upgrade", "head", extra_env=env)
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
-    assert foreign_key_count(database) == 43
+    assert foreign_key_count(database) == 47
     connection = sqlite3.connect(str(database))
     try:
         connection.execute(

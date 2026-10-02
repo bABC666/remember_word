@@ -147,7 +147,8 @@ IGNORED_COLUMNS: dict[str, frozenset[str]] = {
     ),
     "user_session": frozenset({"last_seen_at", "revoked_at"}),
     "user_settings": frozenset(
-        {"daily_new_words", "article_length", "onboarding_seen", "theme", "updated_at"}
+        {"daily_new_words", "article_length", "onboarding_seen",
+         "selected_lexicon_id", "theme", "updated_at"}
     ),
     "user_lexicon": frozenset({"enabled", "daily_new_words"}),
     "user_word_state": frozenset(

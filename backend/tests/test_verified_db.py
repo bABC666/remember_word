@@ -585,11 +585,13 @@ def test_legitimate_study_and_settings_saves_verify(runtime_database: Path) -> N
         "第一次在阅读里遇到",
         "2026-09-23 00:00:00",
     )
-    # ... and what PUT /api/settings writes for one preference change
+    # ... and what settings and lexicon selection write for preference changes
     write_sql(
         runtime_database,
-        'update "user_settings" set daily_new_words = ?, updated_at = ? where user_id = 1',
+        'update "user_settings" set daily_new_words = ?, selected_lexicon_id = ?, '
+        'updated_at = ? where user_id = 1',
         30,
+        7,
         "2026-09-23 00:00:00",
     )
 

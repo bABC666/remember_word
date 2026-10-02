@@ -64,7 +64,11 @@ def test_source_needle_resolver_does_not_cross_language_sections():
     assert module.find_english_candidate(candidates, "施肥")["line_no"] == 5
 
 
-def test_isolated_proposal_and_confirmation_keeps_unsupported_candidate_hidden(tmp_path):
+def test_isolated_proposal_and_confirmation_keeps_unsupported_candidate_hidden(
+    tmp_path, monkeypatch,
+):
+    # Point the runner at pytest's actual base when the gate relocates it.
+    monkeypatch.setenv("PYTEST_ADDOPTS", f"--basetemp={tmp_path.parent.as_posix()}")
     spec = importlib.util.spec_from_file_location(
         "run_frozen300", ROOT / "tools/phase29/run_frozen300.py"
     )
@@ -101,7 +105,8 @@ def test_key_evidence_separates_supported_key_from_unproved_crucial_sense():
     assert evidence["senses"]["钥匙"]["stardict_entries"]
 
 
-def test_isolated_runner_refuses_application_data_directory():
+def test_isolated_runner_refuses_application_data_directory(monkeypatch):
+    monkeypatch.setenv("PYTEST_ADDOPTS", f"--basetemp={(ROOT / 'data').as_posix()}")
     spec = importlib.util.spec_from_file_location(
         "run_frozen300", ROOT / "tools/phase29/run_frozen300.py"
     )
@@ -109,3 +114,15 @@ def test_isolated_runner_refuses_application_data_directory():
     spec.loader.exec_module(module)
     with pytest.raises(ValueError, match="isolated"):
         module.run(ROOT, ROOT / "data/phase29-frozen300-oops", words=["prior"])
+
+
+def test_isolated_runner_refuses_sibling_of_configured_pytest_temp(tmp_path, monkeypatch):
+    monkeypatch.setenv("PYTEST_ADDOPTS", f"--basetemp={tmp_path.parent.as_posix()}")
+    spec = importlib.util.spec_from_file_location(
+        "run_frozen300", ROOT / "tools/phase29/run_frozen300.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sibling = tmp_path.parent.with_name(tmp_path.parent.name + "-unrelated")
+    with pytest.raises(ValueError, match="isolated"):
+        module.run(ROOT, sibling / "phase29-frozen300-oops", words=["prior"])
