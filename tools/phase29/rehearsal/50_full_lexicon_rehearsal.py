@@ -428,7 +428,8 @@ def _check_representative_api(engine, db: Path) -> dict:
             "key_short_meaning_confirmed": bool(key_confirmed)}
 
 
-def main(db: Path, *, full_wikdict: bool = False) -> None:
+def main(db: Path, *, full_wikdict: bool = False,
+         skip_representative_meanings: bool = False) -> None:
     db = db.resolve()
     allowed = (ROOT / "test-artifacts").resolve()
     if not db.is_relative_to(allowed) or db.exists() or db.suffix != ".db":
@@ -575,7 +576,8 @@ def main(db: Path, *, full_wikdict: bool = False) -> None:
                     EntrySourceEvidence.selected_for_default.is_(True),
                     EntrySourceEvidence.source_artifact_id == artifact_id,
                 ))
-    representative = _check_representative_api(engine, db)
+    representative = ({"skipped": True} if skip_representative_meanings
+                      else _check_representative_api(engine, db))
     with sqlite3.connect(db) as connection:
         integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
         foreign_key_violations = connection.execute("PRAGMA foreign_key_check").fetchall()
@@ -624,6 +626,9 @@ def main(db: Path, *, full_wikdict: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "--full-wikdict"):
-        raise SystemExit("Usage: 50_full_lexicon_rehearsal.py NEW_DB_PATH [--full-wikdict]")
-    main(Path(sys.argv[1]), full_wikdict=len(sys.argv) == 3)
+    flags = set(sys.argv[2:])
+    if len(sys.argv) < 2 or flags - {"--full-wikdict", "--skip-representative-meanings"}:
+        raise SystemExit("Usage: 50_full_lexicon_rehearsal.py NEW_DB_PATH "
+                         "[--full-wikdict] [--skip-representative-meanings]")
+    main(Path(sys.argv[1]), full_wikdict="--full-wikdict" in flags,
+         skip_representative_meanings="--skip-representative-meanings" in flags)

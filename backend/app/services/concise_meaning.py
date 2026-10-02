@@ -4,11 +4,11 @@ The study page prefers one to three short, common, simplified senses **per part 
 speech** over the full source text. Those senses are a **display value**, and this
 module is the only place that writes them. Four rules shape everything below.
 
-**Nothing is shown until a human confirms it.** A proposal is stored as a
+**Nothing is shown until a named administrator confirms it.** A proposal is stored as a
 ``candidate``; the read path filters on ``confirmed``. So "an unconfirmed candidate
 cannot reach a page" is not a habit any caller has to remember -- there is no code
 path from a candidate to a response, and the database refuses to store a confirmed
-row without a named person and a timestamp behind it.
+row without a named actor and a timestamp behind it.
 
 **A position is a pair, not a number.** ``display_order`` is 1..3 *within a part of
 speech*, so a slot is ``(pos_key, display_order)``. ``play`` is the case that forced
@@ -19,7 +19,7 @@ rather than a conflict.
 
 **A part of speech is never inferred.** ``pos_source`` says where one came from: a
 heading in the pinned revision (``pos_section``, with the heading's position recorded)
-or a named human's judgement (``reviewer``, with the gloss line recorded). The
+or a named adjudicator's judgement (``reviewer``, with the gloss line recorded). The
 undetermined state is ``''``/``none``, and this module never fills it in from anything
 else -- not from the text, not from the other proposals in the same call, and not from
 a guess. ``confirm`` refuses an undetermined part of speech outright, so a candidate
@@ -105,11 +105,14 @@ POS_SOURCE_REVIEWER = "reviewer"
 #: sense is English, so confirmation requires the target language outright.
 TARGET_LANGUAGE = "en"
 
-# This frozen English-to-Chinese CSV is the only existing artifact in this slice whose
-# persisted row can be tied to a known target-language source without a wikitext parse.
-# A different file version needs its own reviewed declaration; its name alone is not
-# evidence that it has the same language or columns.
+# These two pinned English-to-Chinese CSV exports have reviewable target-language
+# rows without a wikitext parse. A different file version needs its own reviewed
+# declaration; its name alone does not establish language or columns.
 WIKDICT_CSV_SHA256 = "4dde746b901f7fa41e8137acf1cbd2cad8fd96b33144f5ebc146b8c415fbc894"
+# Deterministic full-lexicon export from the pinned StarDict ZIP. The isolated
+# importer verifies the ZIP hash and reconstructs this exact CSV before import;
+# a different export must be separately reviewed, not inferred from its name.
+WIKDICT_FULL_CSV_SHA256 = "49b06b69461056a653c05540349819f6cea15a1a5d7fd8c63c8ea161b0e969bf"
 _WIKDICT_POSITION = re.compile(r"wikdict:([1-9][0-9]*)\Z")
 
 #: What the study page calls each kind. Kept here rather than in the frontend so the
@@ -977,7 +980,8 @@ def _require_csv_position(
         or artifact is None
         or artifact.role != "meaning"
         or artifact.name != "wikdict.csv"
-        or artifact.file_sha256.lower() != WIKDICT_CSV_SHA256
+        or artifact.file_sha256.lower() not in (WIKDICT_CSV_SHA256,
+                                                WIKDICT_FULL_CSV_SHA256)
         or hashlib.sha256(artifact.mapping_json.encode("utf-8")).hexdigest()
         != artifact.mapping_sha256
         or columns.get("word") != "word"
