@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -14,6 +14,7 @@ from app.models import (
     UserWordState,
 )
 from app.schemas import LexiconCreateRequest, LexiconUpdateRequest
+from app.services.file_lexicons import parse_file
 from app.services.public_lexicon_target_preflight import explicitly_unapproved
 from app.services.userdata import (
     load_readable_lexicon,
@@ -98,6 +99,58 @@ def list_lexicons(user: CurrentUser, session: SessionDep) -> list[dict[str, obje
             )
         )
     return items
+
+
+async def _parse_upload(file: UploadFile):
+    content = await file.read(1024 * 1024 + 1)
+    try:
+        return parse_file(file.filename or "", content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/file-preview")
+async def preview_file_lexicon(user: CurrentUser, file: UploadFile = File(...)):
+    """Read and classify a list; create no lexicon or word rows."""
+    rows = await _parse_upload(file)
+    return {
+        "rows": [row.as_dict() for row in rows],
+        "counts": {status: sum(row.status == status for row in rows)
+                   for status in ("valid", "duplicate", "error")},
+    }
+
+
+@router.post("/file-import", status_code=201)
+async def import_file_lexicon(
+    user: CurrentUser, session: SessionDep,
+    file: UploadFile = File(...), name: str = Form(...),
+):
+    rows = await _parse_upload(file)
+    valid = [row for row in rows if row.status == "valid"]
+    title = name.strip()
+    if not title or len(title) > 200 or not valid:
+        raise HTTPException(status_code=400, detail="词库名称不能为空，且文件须含有效单词")
+    lexicon = Lexicon(owner_user_id=user.id, name=title,
+                      description="用户上传的词库；释义由用户提供，未经平台核实",
+                      visibility="private", source_type="user_file", entry_count=len(valid))
+    session.add(lexicon)
+    session.flush()
+    session.add(UserLexicon(user_id=user.id, lexicon_id=lexicon.id, enabled=True))
+    entries = []
+    for sequence, row in enumerate(valid, 1):
+        entry = LexiconEntry(
+            lexicon_id=lexicon.id, word=row.word, normalized_word=row.word.casefold(),
+            part_of_speech=row.part_of_speech,
+            source_meanings=[row.meaning] if row.meaning else [],
+            source_raw="", sequence=sequence,
+        )
+        entries.append(entry)
+    session.add_all(entries)
+    session.flush()
+    session.add_all(UserWordState(user_id=user.id, lexicon_entry_id=entry.id)
+                    for entry in entries)
+    session.commit()
+    return {**lexicon_dict(lexicon, enabled=True), "imported_count": len(valid)}
 
 
 @router.post("", status_code=201)

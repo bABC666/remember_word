@@ -97,6 +97,7 @@ export function LibraryPage({ positions }: { positions: Map<string, LibraryPosit
       <header className="page-head">
         <h1 ref={titleRef} tabIndex={-1}>我的词库</h1>
         <p>查看每个词的原始资料、学习状态与完整历史。</p>
+        <Link to="/lexicons">选择或导入自定义词库</Link>
       </header>
       <div className="library-toolbar">
         <label>

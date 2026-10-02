@@ -20,6 +20,7 @@ def today_queue(
     user: CurrentUser,
     session: SessionDep,
     limit: int = Query(default=50, ge=1, le=200),
+    lexicon_id: int | None = Query(default=None, ge=1),
 ) -> dict[str, object]:
     """Words to study now, **for this user only**.
 
@@ -36,7 +37,7 @@ def today_queue(
     numbers behind it are reported as ``daily_new_words``; the rules and their
     boundaries are in ``docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md``.
     """
-    queue = build_today_queue(session, user, limit=limit)
+    queue = build_today_queue(session, user, limit=limit, lexicon_id=lexicon_id)
     # One query for the whole response. ``entry_short_meanings`` returns only
     # human-confirmed values, so a word with an unconfirmed proposal answers with an
     # empty list and the client falls back to the source meanings.

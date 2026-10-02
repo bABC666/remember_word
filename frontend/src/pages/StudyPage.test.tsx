@@ -151,6 +151,14 @@ describe('the study page and short confirmed meanings', () => {
     expect(document.querySelector('.study-source')).toBeNull()
   })
 
+  it('marks uploaded meanings as user supplied and unverified', async () => {
+    mockApi([word({ meaning_origin: 'user_provided', source_meanings: ['用户写的释义'], source_raw: '' })])
+    await reveal()
+    expect(screen.getByText('用户提供的释义 · 未核实')).toBeInTheDocument()
+    expect(screen.getByText('用户写的释义')).toBeInTheDocument()
+    expect(screen.queryByText('原书完整释义')).toBeNull()
+  })
+
   it('never invents a displayed value for an unconfirmed draft', async () => {
     // The server answers [] while a candidate exists -- which is what an
     // unconfirmed proposal looks like from the client's side.

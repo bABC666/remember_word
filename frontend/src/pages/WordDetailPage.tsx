@@ -38,8 +38,8 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
         <h3>{word.anchor || '—'}</h3>
         {word.semantic_note && <p>{word.semantic_note}</p>}
       </section>
-      <section aria-label="原书完整释义">
-        <span>原书完整释义</span>
+      <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : '原书完整释义'}>
+        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '原书完整释义'}</span>
         <MeaningList values={word.source_meanings} fallback={word.source_raw} />
         {word.source_raw && !rawIsFallback && (
           <details className="source-raw"><summary>查看原书原文</summary><pre>{word.source_raw}</pre></details>

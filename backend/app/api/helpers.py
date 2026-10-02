@@ -62,6 +62,7 @@ def word_dict_from_view(
         "part_of_speech": entry.part_of_speech,
         "source_meanings": entry.source_meanings,
         "source_raw": entry.source_raw,
+        "meaning_origin": "user_provided" if entry.lexicon.source_type == "user_file" else "platform",
         "concise_meanings": list(concise_meanings or []),
         # The user's override wins; the reviewed lexicon anchor is the fallback.
         "anchor": view.anchor,

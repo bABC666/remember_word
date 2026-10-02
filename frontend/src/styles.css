@@ -356,3 +356,12 @@ h1, h2, h3, p { margin-top: 0; }
    the intended one, the colour is not. Removing the class the component used to
    carry is what let that rule take over. */
 .entry-sources .source-section-label { color: var(--source-secondary); }
+.lexicon-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1rem; margin: 1.5rem 0; }
+.lexicon-cards article, .file-lexicon-import { border: 1px solid var(--border, #d8ddd7); border-radius: 16px; padding: 1.25rem; background: var(--surface, #fff); }
+.lexicon-cards article h2 { margin-top: 0; }
+.lexicon-cards article h2 small { font-size: .7em; color: #4c734e; margin-left: .4rem; }
+.file-lexicon-import label { display: block; margin: 1rem 0; }
+.file-lexicon-import input { display: block; width: min(100%, 480px); margin-top: .4rem; }
+.file-preview-list { max-height: 360px; overflow: auto; margin: 1rem 0; border: 1px solid #d8ddd7; border-radius: 10px; }
+.file-preview-list [role="listitem"] { display: flex; flex-wrap: wrap; gap: .75rem; padding: .55rem .8rem; border-bottom: 1px solid #edf0eb; }
+.file-preview-list [role="listitem"]:last-child { border-bottom: 0; }

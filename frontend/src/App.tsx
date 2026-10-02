@@ -8,6 +8,7 @@ import { LoadingState } from './components/States'
 import { DashboardPage } from './pages/DashboardPage'
 import { ImportPage } from './pages/ImportPage'
 import { LibraryPage } from './pages/LibraryPage'
+import { LexiconsPage } from './pages/LexiconsPage'
 import { WordDetailPage } from './pages/WordDetailPage'
 import type { LibraryPosition } from './pages/wordDetailModel'
 import { LoginPage } from './pages/LoginPage'
@@ -37,6 +38,7 @@ function AuthenticatedApp() {
         <Route path="/study" element={<StudyPage />} />
         <Route path="/reading" element={<ReadingPage />} />
         <Route path="/library" element={<LibraryPage positions={libraryPositions.current} />} />
+        <Route path="/lexicons" element={<LexiconsPage />} />
         <Route path="/library/:wordStateId" element={<WordDetailPage positions={libraryPositions.current} />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* Read-only provenance page, reached from the settings section rather than

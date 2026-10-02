@@ -102,6 +102,7 @@ export interface Word {
   source_meanings: string[]
   /** The primary source's own line, verbatim. Still the thing to check a value against. */
   source_raw: string
+  meaning_origin?: 'user_provided' | 'platform'
   /**
    * The short, confirmed display values, grouped by part of speech and ordered by
    * `pos_order`, with each group's values in `display_order`. An empty array means
