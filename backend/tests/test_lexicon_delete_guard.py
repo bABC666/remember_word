@@ -79,7 +79,8 @@ def test_deleting_a_lexicon_with_learning_records_is_refused(world) -> None:
     detail = response.json()["detail"]
     # The message must be actionable: what is at stake, how much of it, and that
     # the request changed nothing.
-    assert "2 个单词" in detail, detail
+    # Both states hold progress, and the review is a third learning record.
+    assert "3 条学习记录" in detail, detail
     assert "学习记录" in detail, detail
     assert "已拒绝删除" in detail, detail
 
@@ -174,6 +175,24 @@ def test_a_lexicon_with_untouched_entries_can_still_be_deleted(world) -> None:
 
     response = world.client.delete(f"/api/lexicons/{lexicon_id}")
 
+    assert response.status_code == 200, response.text
+    assert world.client.get(f"/api/lexicons/{lexicon_id}").status_code == 404
+
+
+def test_a_lexicon_with_only_an_untouched_queue_placeholder_can_be_deleted(world) -> None:
+    """A ``new`` state with no override, review, or schedule is not progress."""
+    from app.models import UserWordState
+
+    lexicon_id = world.lexicon("placeholder-lexicon")
+    state_id, _ = world.add_word("queued", lexicon_id=lexicon_id)
+    with world.session() as session:
+        state = session.get(UserWordState, state_id)
+        assert state is not None
+        state.anchor_override = ""
+        session.commit()
+
+    assert state_ids_in(world, lexicon_id) == {state_id}
+    response = world.client.delete(f"/api/lexicons/{lexicon_id}")
     assert response.status_code == 200, response.text
     assert world.client.get(f"/api/lexicons/{lexicon_id}").status_code == 404
 

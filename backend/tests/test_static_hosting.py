@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 
@@ -13,19 +15,19 @@ def test_built_frontend_is_served_for_spa_routes() -> None:
     assert "<title>拾词</title>" in nested.text
 
 
-def test_pwa_shell_assets_are_public_and_never_cache_api_data() -> None:
+def test_pwa_shell_assets_are_public_and_never_cache_api_data(monkeypatch) -> None:
     """The installable shell is served statically without widening the cache scope.
 
-    ``public/`` is copied into ``dist/`` by the build, so the worker, the manifest
-    and the install icons reach the browser through the same fallback that serves
-    the SPA.  The worker's own boundary -- ``/api`` requests, other origins and
-    write requests left alone -- is asserted here as a file-level guard; the
-    HTTP-level boundary of the ``/api`` namespace is covered by
-    ``test_spa_fallback.py``.
+    Point the fallback at the versioned public assets, which Vite copies to dist.
+    This exercises the route and worker without requiring a prior frontend build.
+    The HTTP-level ``/api`` boundary is covered by ``test_spa_fallback.py``.
     """
-    from app.main import app
+    from app import main
 
-    with TestClient(app) as client:
+    public = Path(__file__).resolve().parents[2] / "frontend" / "public"
+    monkeypatch.setattr(main, "frontend_dist", public)
+
+    with TestClient(main.app) as client:
         manifest = client.get("/manifest.webmanifest")
         worker = client.get("/sw.js")
         icon = client.get("/icons/shici-192.png")

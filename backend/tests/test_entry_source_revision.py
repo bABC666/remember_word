@@ -39,6 +39,8 @@ REVISION_0009 = "0009_entry_concise_meaning"
 REVISION_0010 = "0010_entry_source_revision"
 REVISION_0011 = "0011_entry_concise_meaning_pos"
 REVISION_0012 = "0012_source_wikitext_line"
+REVISION_0013 = "0013_concise_meaning_wikitext_binding"
+REVISION_0014 = "0014_selected_lexicon"
 
 NOW = "2026-01-01 00:00:00"
 
@@ -288,12 +290,13 @@ def test_0010_stacks_on_0009_and_the_graph_has_one_head() -> None:
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    # ``0011`` and then ``0012`` follow ``0010``, so this asserts the part that is
-    # 0010's own: the chain has a single head, and 0010 is a step in it rather than a
-    # second branch.
-    assert script.get_heads() == [REVISION_0012], (
+    # The later revisions follow 0010 in one chain, not a second branch.
+    assert script.get_heads() == [REVISION_0014], (
         "there must be exactly one head; a second head means the migration graph branched"
     )
+    assert script.get_revision(REVISION_0014).down_revision == REVISION_0013
+    assert script.get_revision(REVISION_0013).down_revision == REVISION_0012
+    assert script.get_revision(REVISION_0012).down_revision == REVISION_0011
     assert script.get_revision(REVISION_0011).down_revision == REVISION_0010, (
         "0011 follows 0010 rather than editing it in place"
     )
