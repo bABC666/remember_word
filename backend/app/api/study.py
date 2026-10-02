@@ -6,6 +6,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.schemas import ReviewRequest
 from app.services.concise_meaning import entry_short_meanings
+from app.services.lexicon_selection import effective_lexicon_selection
 from app.services.study import (
     build_today_queue,
     record_review_for_user,
@@ -37,7 +38,9 @@ def today_queue(
     numbers behind it are reported as ``daily_new_words``; the rules and their
     boundaries are in ``docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md``.
     """
-    queue = build_today_queue(session, user, limit=limit, lexicon_id=lexicon_id)
+    selected_id, source = effective_lexicon_selection(session, user)
+    scope = lexicon_id if lexicon_id is not None else selected_id
+    queue = build_today_queue(session, user, limit=limit, lexicon_id=scope)
     # One query for the whole response. ``entry_short_meanings`` returns only
     # human-confirmed values, so a word with an unconfirmed proposal answers with an
     # empty list and the client falls back to the source meanings.
@@ -48,6 +51,8 @@ def today_queue(
     ]
     return {
         "total": len(words),
+        "lexicon_id": scope,
+        "selection_source": "request" if lexicon_id is not None else source,
         "words": words,
         "daily_new_words": {
             "target": queue.budget.target,

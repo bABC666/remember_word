@@ -35,10 +35,53 @@ function settingsPayload() {
 }
 
 beforeEach(() => {
+  window.history.replaceState({}, '', '/')
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => signedInRoutes(String(input))))
 })
 
 describe('App shell', () => {
+  it('keeps a chosen lexicon after leaving study through home and the navigation', async () => {
+    let selected: number | null = null
+    const requests: string[] = []
+    const word = (name: string, id: number, lexiconId: number) => ({
+      id: null, word_state_id: id, legacy_word_id: null, lexicon_entry_id: id,
+      lexicon_id: lexiconId, word: name, phonetic: '', part_of_speech: '',
+      source_meanings: [], source_raw: '', concise_meanings: [], anchor: '', semantic_note: '',
+      status: 'new', first_seen: '', last_review: null, next_review_at: null,
+      recall_success: 0, recall_fail: 0, context_exposure: 0, possible_issue: false, notes: '',
+    })
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      requests.push(url)
+      if (url === '/api/lexicons') return json([
+        { id: 2, name: 'A', description: '', entry_count: 1, is_system: false, source_type: 'user_file', enabled: true },
+        { id: 3, name: 'B', description: '', entry_count: 1, is_system: false, source_type: 'user_file', enabled: true },
+      ])
+      if (url === '/api/lexicons/selection') return json({ lexicon_id: selected, source: selected ? 'explicit' : 'none' })
+      if (url === '/api/lexicons/2/select') { selected = 2; return json({ lexicon_id: 2 }) }
+      if (url.startsWith('/api/study/today')) {
+        const scope = new URL(url, 'http://testserver').searchParams.get('lexicon_id')
+        const words = scope === '2' || (!scope && selected === 2)
+          ? [word('apple', 11, 2)] : [word('apple', 11, 2), word('banana', 12, 3)]
+        return json({ total: words.length, words })
+      }
+      return signedInRoutes(url)
+    })
+    window.history.pushState({}, '', '/lexicons')
+    render(<App />)
+    await userEvent.click((await screen.findAllByRole('button', { name: '学习这个词库' }))[0])
+    expect(await screen.findByRole('heading', { name: 'apple' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: '今日概览' }))
+    await userEvent.click(await screen.findByRole('link', { name: /开始今日学习/ }))
+    expect(await screen.findByRole('heading', { name: 'apple' })).toBeInTheDocument()
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: '今日概览' }))
+    await userEvent.click(screen.getByRole('link', { name: '今日学习' }))
+    expect(await screen.findByRole('heading', { name: 'apple' })).toBeInTheDocument()
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    expect(requests.filter((url) => url.startsWith('/api/study/today')).length).toBeGreaterThanOrEqual(2)
+  })
+
   it('navigates through the six-page shell once signed in', async () => {
     render(<App />)
     expect(await screen.findByText('今天也从一个词开始。')).toBeInTheDocument()

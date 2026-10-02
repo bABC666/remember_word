@@ -6,8 +6,9 @@ from fastapi import APIRouter
 from sqlalchemy import func, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
-from app.models import Article, ReviewEvent, UserWordState
+from app.models import Article, LexiconEntry, ReviewEvent, UserWordState
 from app.services.day import day_bounds
+from app.services.lexicon_selection import effective_lexicon_selection
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -24,13 +25,17 @@ def dashboard(user: CurrentUser, session: SessionDep) -> dict[str, object]:
     # the study queue's daily new-word allowance uses the same window.
     start, end = day_bounds(today)
     now = datetime.now(UTC)
+    selected_id, _ = effective_lexicon_selection(session, user)
+    word_scope = [] if selected_id is None else [LexiconEntry.lexicon_id == selected_id]
 
     new_count = (
         session.scalar(
             select(func.count())
             .select_from(UserWordState)
+            .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
             .where(
                 UserWordState.user_id == user.id,
+                *word_scope,
                 UserWordState.first_seen >= start,
                 UserWordState.first_seen < end,
             )
@@ -41,8 +46,10 @@ def dashboard(user: CurrentUser, session: SessionDep) -> dict[str, object]:
         session.scalar(
             select(func.count())
             .select_from(UserWordState)
+            .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
             .where(
                 UserWordState.user_id == user.id,
+                *word_scope,
                 or_(
                     UserWordState.next_review_at <= now,
                     UserWordState.status == "weak",
@@ -55,7 +62,9 @@ def dashboard(user: CurrentUser, session: SessionDep) -> dict[str, object]:
         session.scalar(
             select(func.count())
             .select_from(UserWordState)
-            .where(UserWordState.user_id == user.id, UserWordState.status == "weak")
+            .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
+            .where(UserWordState.user_id == user.id, *word_scope,
+                   UserWordState.status == "weak")
         )
         or 0
     )

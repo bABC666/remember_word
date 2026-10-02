@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, ensure_user_settings
 from app.models import (
     Lexicon,
     LexiconEntry,
@@ -15,6 +15,7 @@ from app.models import (
 )
 from app.schemas import LexiconCreateRequest, LexiconUpdateRequest
 from app.services.file_lexicons import parse_file
+from app.services.lexicon_selection import effective_lexicon_selection
 from app.services.public_lexicon_target_preflight import explicitly_unapproved
 from app.services.userdata import (
     load_readable_lexicon,
@@ -99,6 +100,27 @@ def list_lexicons(user: CurrentUser, session: SessionDep) -> list[dict[str, obje
             )
         )
     return items
+
+
+@router.get("/selection")
+def read_selection(user: CurrentUser, session: SessionDep) -> dict[str, object]:
+    lexicon_id, source = effective_lexicon_selection(session, user)
+    return {"lexicon_id": lexicon_id, "source": source}
+
+
+@router.post("/{lexicon_id}/select")
+def select_lexicon(lexicon_id: int, user: CurrentUser, session: SessionDep) -> dict[str, object]:
+    lexicon = load_readable_lexicon(session, user, lexicon_id)
+    membership = user_lexicon(session, user, lexicon.id)
+    if membership is None:
+        membership = UserLexicon(user_id=user.id, lexicon_id=lexicon.id, enabled=True)
+    else:
+        membership.enabled = True
+    settings = ensure_user_settings(session, user)
+    settings.selected_lexicon_id = lexicon.id
+    session.add_all((membership, settings))
+    session.commit()
+    return {"lexicon_id": lexicon.id, "source": "explicit"}
 
 
 async def _parse_upload(file: UploadFile):

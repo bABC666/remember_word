@@ -401,6 +401,9 @@ class UserSettings(Base):
     daily_new_words: Mapped[int] = mapped_column(Integer, default=15)
     article_length: Mapped[int] = mapped_column(Integer, default=650)
     onboarding_seen: Mapped[bool] = mapped_column(Boolean, default=False)
+    selected_lexicon_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lexicon.id", ondelete="SET NULL"), nullable=True
+    )
     theme: Mapped[str] = mapped_column(String(16), default="auto")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(

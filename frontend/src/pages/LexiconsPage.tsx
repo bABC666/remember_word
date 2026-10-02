@@ -25,9 +25,15 @@ export function LexiconsPage() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [imported, setImported] = useState<number | null>(null)
   const lexicons = useQuery({ queryKey: ['lexicons'], queryFn: () => api<LexiconChoice[]>('/api/lexicons') })
+  const selection = useQuery({ queryKey: ['lexicon-selection'], queryFn: () => api<{ lexicon_id: number | null; source: string }>('/api/lexicons/selection') })
   const selectLexicon = useMutation({
-    mutationFn: (id: number) => api(`/api/lexicons/${id}/enable`, { method: 'POST' }),
-    onSuccess: (_, id) => navigate(`/study?lexicon_id=${id}`),
+    mutationFn: (id: number) => api(`/api/lexicons/${id}/select`, { method: 'POST' }),
+    onSuccess: async (_, id) => {
+      queryClient.removeQueries({ queryKey: ['study-today'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['lexicon-selection'] })
+      navigate(`/study?lexicon_id=${id}`)
+    },
   })
   const previewFile = useMutation({
     mutationFn: (chosen: File) => {
@@ -58,7 +64,7 @@ export function LexiconsPage() {
     {lexicons.data && <section className="lexicon-cards" aria-label="可用词库">
       {lexicons.data.length === 0 && <p>暂无可用词库。你可以先导入自己的单词。</p>}
       {[...lexicons.data].sort((a, b) => Number(b.is_system && /NETEM/i.test(b.name)) - Number(a.is_system && /NETEM/i.test(a.name))).map((item) => <article key={item.id}>
-        <h2>{item.name} {item.is_system && /NETEM/i.test(item.name) && <small>推荐</small>}</h2><p>{item.description}</p>
+        <h2>{item.name} {item.is_system && /NETEM/i.test(item.name) && <small>推荐</small>}{selection.data?.lexicon_id === item.id && <small>当前选择</small>}</h2><p>{item.description}</p>
         <p>{item.entry_count} 个单词 · {item.is_system ? '系统词库' : '仅本人可见'}</p>
         <button className="button secondary" disabled={selectLexicon.isPending} onClick={() => selectLexicon.mutate(item.id)}>学习这个词库</button>
       </article>)}

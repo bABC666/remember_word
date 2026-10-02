@@ -13,6 +13,7 @@ it('previews file rows and imports only after confirmation', async () => {
     const path = String(input)
     calls.push(path)
     if (path === '/api/lexicons') return Promise.resolve(Response.json([]))
+    if (path === '/api/lexicons/selection') return Promise.resolve(Response.json({ lexicon_id: null, source: 'none' }))
     if (path.endsWith('/file-preview')) return Promise.resolve(Response.json({
       rows: [
         { line: 1, word: 'apple', meaning: '苹果', part_of_speech: 'n.', status: 'valid', reason: '' },
@@ -42,7 +43,8 @@ it('recommends NETEM only when the system lexicon exists and enables the chosen 
       { id: 2, name: '我的词库', description: '', entry_count: 1, is_system: false, source_type: 'user_file', enabled: true },
       { id: 1, name: 'NETEM 考研词库', description: '', entry_count: 10, is_system: true, source_type: 'kaoyan', enabled: null },
     ]))
-    if (path === '/api/lexicons/1/enable') return Promise.resolve(Response.json({ ok: true }))
+    if (path === '/api/lexicons/selection') return Promise.resolve(Response.json({ lexicon_id: 1, source: 'recommended' }))
+    if (path === '/api/lexicons/1/select') return Promise.resolve(Response.json({ lexicon_id: 1, source: 'explicit' }))
     throw new Error(path)
   }))
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -50,5 +52,5 @@ it('recommends NETEM only when the system lexicon exists and enables the chosen 
   </QueryClientProvider>)
   expect(await screen.findByText('推荐')).toBeInTheDocument()
   await userEvent.click(screen.getAllByRole('button', { name: '学习这个词库' })[0])
-  expect(calls).toContain('/api/lexicons/1/enable')
+  expect(calls).toContain('/api/lexicons/1/select')
 })
