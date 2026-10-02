@@ -25,10 +25,16 @@ def test_selection_migration_preserves_existing_user_settings(alembic_database):
 
 
 def _import(world, name: str, word: str) -> int:
+    content = (word + "\n").encode()
+    preview = world.client.post(
+        "/api/lexicons/file-preview",
+        files={"file": ("words.txt", BytesIO(content), "text/plain")},
+    )
+    assert preview.status_code == 200, preview.text
     response = world.client.post(
         "/api/lexicons/file-import",
-        data={"name": name},
-        files={"file": ("words.txt", BytesIO((word + "\n").encode()), "text/plain")},
+        data={"name": name, "preview_sha256": preview.json()["sha256"]},
+        files={"file": ("words.txt", BytesIO(content), "text/plain")},
     )
     assert response.status_code == 201, response.text
     return response.json()["id"]

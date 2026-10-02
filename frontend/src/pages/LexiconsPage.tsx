@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -15,15 +15,17 @@ export interface LexiconChoice {
 }
 
 interface PreviewRow { line: number; word: string; meaning: string; part_of_speech: string; status: 'valid' | 'duplicate' | 'error'; reason: string }
-interface Preview { rows: PreviewRow[]; counts: Record<'valid' | 'duplicate' | 'error', number> }
+interface Preview { rows: PreviewRow[]; counts: Record<'valid' | 'duplicate' | 'error', number>; sha256: string }
 
 export function LexiconsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<Preview | null>(null)
+  const [preview, setPreview] = useState<(Preview & { file: File }) | null>(null)
   const [imported, setImported] = useState<number | null>(null)
+  const fileChoice = useRef(0)
+  const fileInput = useRef<HTMLInputElement>(null)
   const lexicons = useQuery({ queryKey: ['lexicons'], queryFn: () => api<LexiconChoice[]>('/api/lexicons') })
   const selection = useQuery({ queryKey: ['lexicon-selection'], queryFn: () => api<{ lexicon_id: number | null; source: string }>('/api/lexicons/selection') })
   const selectLexicon = useMutation({
@@ -36,24 +38,29 @@ export function LexiconsPage() {
     },
   })
   const previewFile = useMutation({
-    mutationFn: (chosen: File) => {
+    mutationFn: ({ chosen }: { chosen: File; choice: number }) => {
       const form = new FormData()
       form.append('file', chosen)
       return api<Preview>('/api/lexicons/file-preview', { method: 'POST', body: form })
     },
-    onSuccess: setPreview,
+    onSuccess: (result, { chosen, choice }) => {
+      if (choice === fileChoice.current) setPreview({ ...result, file: chosen })
+    },
   })
   const importFile = useMutation({
-    mutationFn: () => {
+    mutationFn: ({ confirmed, title }: { confirmed: Preview & { file: File }; title: string }) => {
       const form = new FormData()
-      form.append('file', file!)
-      form.append('name', name.trim())
+      form.append('file', confirmed.file)
+      form.append('name', title)
+      form.append('preview_sha256', confirmed.sha256)
       return api<{ imported_count: number }>('/api/lexicons/file-import', { method: 'POST', body: form })
     },
     onSuccess: async (result) => {
+      fileChoice.current += 1
       setImported(result.imported_count)
       setPreview(null)
       setFile(null)
+      if (fileInput.current) fileInput.current.value = ''
       await queryClient.invalidateQueries({ queryKey: ['lexicons'] })
     },
   })
@@ -74,15 +81,16 @@ export function LexiconsPage() {
       <h2>导入自定义词库</h2>
       <p>TXT 每行一个英文单词；CSV 需要 word（或 单词）列，可选 meaning（释义）、part_of_speech（词性）。文件需为 UTF-8，最多 1 MB、10000 行。</p>
       <p>你提供的释义会标明“用户提供，未核实”，不会与平台来源合并。</p>
-      <label>词库名称 <input aria-label="词库名称" value={name} maxLength={200} onChange={(event) => setName(event.target.value)} /></label>
-      <label>选择 TXT 或 CSV 文件 <input aria-label="选择 TXT 或 CSV 文件" type="file" accept=".txt,.csv,text/plain,text/csv" onChange={(event) => {
+      <label>词库名称 <input aria-label="词库名称" value={name} maxLength={200} disabled={importFile.isPending} onChange={(event) => setName(event.target.value)} /></label>
+      <label>选择 TXT 或 CSV 文件 <input ref={fileInput} aria-label="选择 TXT 或 CSV 文件" type="file" accept=".txt,.csv,text/plain,text/csv" disabled={importFile.isPending} onChange={(event) => {
         const chosen = event.target.files?.[0] ?? null
+        const choice = ++fileChoice.current
         setFile(chosen); setPreview(null); setImported(null)
-        if (chosen) previewFile.mutate(chosen)
+        if (chosen) previewFile.mutate({ chosen, choice })
       }} /></label>
       {previewFile.isPending && <p>正在预览…</p>}
       {previewFile.isError && <ErrorState error={previewFile.error} />}
-      {preview && <div>
+      {preview && preview.file === file && <div>
         <p>有效 {preview.counts.valid} 行 · 重复 {preview.counts.duplicate} 行 · 错误 {preview.counts.error} 行</p>
         <div className="file-preview-list" role="list">
           {preview.rows.map((row) => <div role="listitem" key={row.line}>
@@ -90,8 +98,8 @@ export function LexiconsPage() {
             <span>{row.status === 'valid' ? '有效' : row.status === 'duplicate' ? '重复' : '错误'} {row.reason}</span>
           </div>)}
         </div>
-        <button className="button primary" disabled={!name.trim() || !preview.counts.valid || importFile.isPending}
-          onClick={() => importFile.mutate()}>确认导入 {preview.counts.valid} 个单词</button>
+        <button className="button primary" disabled={!name.trim() || !preview.counts.valid || importFile.isPending || previewFile.isPending}
+          onClick={() => importFile.mutate({ confirmed: preview, title: name.trim() })}>确认导入 {preview.counts.valid} 个单词</button>
       </div>}
       {importFile.isError && <ErrorState error={importFile.error} />}
       {imported !== null && <p role="status">已导入 {imported} 个单词。可在上方选择词库开始学习。</p>}
