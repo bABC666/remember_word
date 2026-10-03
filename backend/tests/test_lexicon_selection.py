@@ -24,6 +24,106 @@ def test_selection_migration_preserves_existing_user_settings(alembic_database):
     assert any(key[2] == "lexicon" and key[3] == "selected_lexicon_id" for key in foreign_keys)
 
 
+def _selection_downgrade_snapshot(database):
+    with sqlite3.connect(database) as connection:
+        tables = [
+            row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
+        return (
+            connection.execute("SELECT version_num FROM alembic_version").fetchall(),
+            connection.execute(
+                "SELECT type, name, tbl_name, sql FROM sqlite_master "
+                "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
+            ).fetchall(),
+            [(table, connection.execute(f'SELECT * FROM "{table}"').fetchall()) for table in tables],
+        )
+
+
+def test_selection_downgrade_refuses_explicit_choices_without_changes(
+    alembic_database, tmp_path
+):
+    upgraded = alembic_database("upgrade", "0014_selected_lexicon")
+    assert upgraded.returncode == 0, upgraded.stderr
+    with sqlite3.connect(alembic_database.database) as connection:
+        admin_id = connection.execute("SELECT id FROM user WHERE role = 'admin'").fetchone()[0]
+        connection.execute(
+            "INSERT INTO user (username, display_name, password_hash, role, is_active, "
+            "created_at, updated_at) VALUES ('other', 'Other', '!', 'user', 1, ?, ?)",
+            ("2026-01-01", "2026-01-01"),
+        )
+        other_id = connection.execute("SELECT last_insert_rowid()").fetchone()[0]
+        for source_type in ("downgrade-one", "downgrade-two"):
+            connection.execute(
+                "INSERT INTO lexicon (owner_user_id, name, description, visibility, "
+                "source_type, entry_count, created_at, updated_at) "
+                "VALUES (NULL, ?, '', 'public', ?, 0, ?, ?)",
+                (source_type, source_type, "2026-01-01", "2026-01-01"),
+            )
+        lexicon_ids = [
+            row[0] for row in connection.execute(
+                "SELECT id FROM lexicon WHERE source_type LIKE 'downgrade-%' ORDER BY id"
+            )
+        ]
+        connection.execute(
+            "UPDATE user_settings SET daily_new_words = 23, selected_lexicon_id = ? "
+            "WHERE user_id = ?", (lexicon_ids[0], admin_id),
+        )
+        connection.execute(
+            "INSERT INTO user_settings "
+            "(user_id, daily_new_words, selected_lexicon_id, created_at, updated_at) "
+            "VALUES (?, 23, ?, ?, ?)",
+            (other_id, lexicon_ids[1], "2026-01-01", "2026-01-01"),
+        )
+        connection.commit()
+
+    before = _selection_downgrade_snapshot(alembic_database.database)
+    refused = alembic_database(
+        "downgrade", "0013_concise_meaning_wikitext_binding",
+        extra_env={"VOCAB_REAL_DATA_DIR": str(tmp_path / "protected-real-data")},
+    )
+    assert refused.returncode != 0
+    output = refused.stdout + refused.stderr
+    assert "explicit lexicon selections would be lost" in output
+    for user_id, lexicon_id in zip((admin_id, other_id), lexicon_ids):
+        assert f"user_id={user_id}, selected_lexicon_id={lexicon_id}" in output
+    assert _selection_downgrade_snapshot(alembic_database.database) == before
+
+
+def test_selection_downgrade_allows_null_choices(alembic_database, tmp_path):
+    upgraded = alembic_database("upgrade", "0014_selected_lexicon")
+    assert upgraded.returncode == 0, upgraded.stderr
+    with sqlite3.connect(alembic_database.database) as connection:
+        admin_id = connection.execute("SELECT id FROM user WHERE role = 'admin'").fetchone()[0]
+        connection.execute(
+            "UPDATE user_settings SET daily_new_words = 23, selected_lexicon_id = NULL "
+            "WHERE user_id = ?", (admin_id,),
+        )
+        connection.commit()
+
+    downgraded = alembic_database(
+        "downgrade", "0013_concise_meaning_wikitext_binding",
+        extra_env={"VOCAB_REAL_DATA_DIR": str(tmp_path / "protected-real-data")},
+    )
+    assert downgraded.returncode == 0, downgraded.stderr
+    with sqlite3.connect(alembic_database.database) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+            "0013_concise_meaning_wikitext_binding",
+        )
+        columns = [row[1] for row in connection.execute("PRAGMA table_info(user_settings)")]
+        assert "selected_lexicon_id" not in columns
+        assert all(
+            row[3] != "selected_lexicon_id"
+            for row in connection.execute("PRAGMA foreign_key_list(user_settings)")
+        )
+        assert connection.execute(
+            "SELECT daily_new_words FROM user_settings WHERE user_id = ?", (admin_id,)
+        ).fetchone() == (23,)
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+
+
 def _import(world, name: str, word: str) -> int:
     content = (word + "\n").encode()
     preview = world.client.post(
