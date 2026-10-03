@@ -2,6 +2,10 @@ const NUMBERED_MEANING = /(?=(?:\d{1,2}[.)、]\s*|[①②③④⑤⑥⑦⑧⑨�
 const LEADING_MARKER = /^(?:\d{1,2}[.)、]\s*|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]\s*)/u
 const PART_OF_SPEECH_ONLY = /^(?:(?:n|v|vt|vi|adj|adv|prep|conj|pron|num|art|aux|modal|int|abbr)\.?)(?:\s*[/、,&，]\s*(?:(?:n|v|vt|vi|adj|adv|prep|conj|pron|num|art|aux|modal|int|abbr)\.?))*$/iu
 
+export function hasMeaningText(values: string[], fallback: string) {
+  return values.some((value) => value.trim().length > 0) || fallback.trim().length > 0
+}
+
 export function splitMeanings(values: string[]) {
   const parts = values.flatMap((value) => {
     const trimmed = value.trim()

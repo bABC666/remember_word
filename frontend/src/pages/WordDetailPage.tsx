@@ -7,6 +7,7 @@ import { ConciseMeaningList } from '../components/ConciseMeaningList'
 import { EntrySourceList } from '../components/EntrySourceList'
 import { MeaningList } from '../components/MeaningList'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
+import { hasMeaningText } from '../meaningText'
 import { statusLabels, type LibraryPosition, type WordDetail } from './wordDetailModel'
 
 function exposureTime(value: string | null | undefined) {
@@ -17,6 +18,11 @@ function exposureTime(value: string | null | undefined) {
 
 export function WordDetailContent({ word }: { word: WordDetail }) {
   const rawIsFallback = word.source_meanings.every((meaning) => !meaning.trim())
+  const hasSource = hasMeaningText(word.source_meanings, word.source_raw)
+  const meaningSources = [...new Set(word.sources.fields
+    .filter((field) => field.field_kind === 'meaning')
+    .flatMap((field) => field.selected)
+    .map((row) => row.source.publisher || row.source.name))]
   // With groups, the headings inside the concise list state the part of speech; the
   // single source-declared `part_of_speech` would be a second claim beside them. With
   // no groups there is nothing else to read and it stays.
@@ -33,18 +39,22 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
       {/* The component supplies its own labelled section, so a word with nothing
           confirmed renders no empty "核心释义" block at all. */}
       <ConciseMeaningList groups={word.concise_meanings} />
+      {!hasGroups && <p className="muted">{hasSource ? '暂无已确认的核心释义' : '暂无可用释义'}</p>}
       <section>
         <span>最小语义锚点</span>
         <h3>{word.anchor || '—'}</h3>
         {word.semantic_note && <p>{word.semantic_note}</p>}
       </section>
-      <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : '原书完整释义'}>
-        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '原书完整释义'}</span>
+      {hasSource && <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : '来源原文'}>
+        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '来源原文 · 未确认短义'}</span>
+        {word.meaning_origin !== 'user_provided' && <p className="muted">{rawIsFallback
+          ? '原始记录行 · 来源未单独标注'
+          : `释义采用来源：${meaningSources.join('、') || '未记录（见下方来源记录）'}`}</p>}
         <MeaningList values={word.source_meanings} fallback={word.source_raw} />
         {word.source_raw && !rawIsFallback && (
-          <details className="source-raw"><summary>查看原书原文</summary><pre>{word.source_raw}</pre></details>
+          <details className="source-raw"><summary>{word.meaning_origin === 'user_provided' ? '查看用户提供的原始记录行' : '查看原始记录行（来源可能不同）'}</summary><pre>{word.source_raw}</pre></details>
         )}
-      </section>
+      </section>}
       {/* Placed after the source's own text, so a reader who doubts a value meets the
           record of where it came from next. The concise blocks above keep their own
           labels: a rewritten or self-authored short value is never presented as the

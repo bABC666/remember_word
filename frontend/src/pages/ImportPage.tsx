@@ -114,13 +114,13 @@ export function ImportPage() {
         <section className="candidate-review">
           <div className="review-head"><div><h2>识别到 {batch.candidates.length} 个词条</h2><p>AI 已排除明显噪声；仍请逐项校对，勾选后才会入库。</p></div><div className="review-meta"><span>批次 #{batch.id}</span>{batch.status !== 'confirmed' && <button className="text-button danger" onClick={abandonCurrent}><Trash2 size={14} />放弃批次</button>}{batch.status === 'confirmed' && <button className="text-button" onClick={() => setBatch(null)}>开始新的导入</button>}</div></div>
           <div className="candidate-table">
-            <div className="candidate-header"><span>选择</span><span>单词 / 音标</span><span>词性</span><span>原书完整释义</span><span>Anchor</span><span>疑点</span></div>
+            <div className="candidate-header"><span>选择</span><span>单词 / 音标</span><span>词性</span><span>用户提供的释义（未核实）</span><span>Anchor</span><span>疑点</span></div>
             {batch.candidates.map((candidate) => (
               <div className="candidate-row" key={candidate.id}>
                 <label className="check"><input type="checkbox" checked={candidate.selected} disabled={candidate.confirmed} onChange={(event) => updateCandidate(candidate, { selected: event.target.checked })} /><span /></label>
                 <div className="stacked-input"><input aria-label="单词" value={candidate.word} onChange={(event) => updateCandidate(candidate, { word: event.target.value })} /><input className="phonetic" aria-label="音标" value={candidate.phonetic} placeholder="音标" onChange={(event) => updateCandidate(candidate, { phonetic: event.target.value })} /></div>
                 <input aria-label="词性" value={candidate.part_of_speech} onChange={(event) => updateCandidate(candidate, { part_of_speech: event.target.value })} />
-                <textarea aria-label="原书完整释义" value={candidate.source_meanings.join('\n')} onChange={(event) => updateCandidate(candidate, { source_meanings: event.target.value.split('\n').filter(Boolean) })} />
+                <textarea aria-label="用户提供的释义（未核实）" value={candidate.source_meanings.join('\n')} onChange={(event) => updateCandidate(candidate, { source_meanings: event.target.value.split('\n').filter(Boolean) })} />
                 <textarea aria-label="Anchor" value={candidate.anchor} onChange={(event) => updateCandidate(candidate, { anchor: event.target.value })} />
                 <div className={candidate.possible_issue ? 'issue' : 'no-issue'}>{candidate.possible_issue ? <><AlertTriangle size={17} />{candidate.issue_note || '请重点检查'}</> : '—'}</div>
               </div>

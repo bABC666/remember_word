@@ -19,7 +19,7 @@ export interface ConciseMeaningCitation {
 }
 
 /**
- * One short, human-confirmed sense of a word, from
+ * One short, evidence-confirmed sense of a word, from
  * `entry_concise_meaning`. Separate from `source_meanings` on purpose: the source
  * default is what the source said, this is what the study page shows, and a
  * supplement nobody else wrote must be able to say so without pretending otherwise.
@@ -107,8 +107,8 @@ export interface Word {
    * The short, confirmed display values, grouped by part of speech and ordered by
    * `pos_order`, with each group's values in `display_order`. An empty array means
    * nothing is displayable for this word -- no confirmed value, or none that passed the
-   * server's display gate: fall back to `source_meanings`/`source_raw`, and never fill
-   * the gap with an unreviewed candidate.
+   * server's display gate. Source text remains separate and must not become a core
+   * meaning or an unmarked answer when this array is empty.
    */
   concise_meanings: ConciseMeaningGroup[]
   anchor: string

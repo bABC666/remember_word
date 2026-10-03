@@ -8,7 +8,7 @@ import type { ConciseMeaningGroup } from '../types'
  * that contract rather than the source of the order, so a group is never rendered in
  * whatever order the JSON happened to arrive in.
  *
- * Every value here has been confirmed in the review workflow, but confirmed does **not** mean
+ * Every value here has passed the evidence review workflow, but confirmed does **not** mean
  * "the source said this". `is_source_verbatim` is the only field that says so, and
  * anything else is labelled with where its wording came from: `据来源改写` for a
  * documented change to a source value, `自拟补充` for text no source contains. The

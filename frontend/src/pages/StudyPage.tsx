@@ -6,6 +6,7 @@ import { api } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { ConciseMeaningList } from '../components/ConciseMeaningList'
 import { MeaningList } from '../components/MeaningList'
+import { hasMeaningText } from '../meaningText'
 import type { ReviewResult, Word } from '../types'
 
 export function StudyPage() {
@@ -17,9 +18,8 @@ export function StudyPage() {
   const query = useQuery({ queryKey: ['study-today', lexiconQuery], queryFn: () => api<{ total: number; words: Word[] }>(`/api/study/today${lexiconQuery}`) })
   const words = query.data?.words ?? []
   const current = words[index]
-  // A word with nothing displayable answers with an empty list, which is the fallback
-  // signal -- never a server-side substitute of something unreviewed.
   const groups = current?.concise_meanings ?? []
+  const hasSource = current ? hasMeaningText(current.source_meanings, current.source_raw) : false
   const mutation = useMutation({
     // `word_state_id`, not the legacy id: a word added from an article has no
     // `word` row, and the legacy route deliberately does not accept a state id.
@@ -57,32 +57,25 @@ export function StudyPage() {
           <button className="reveal-button" onClick={() => setRevealed(true)}><BookOpen size={19} />显示答案 <kbd>Space</kbd></button>
         ) : (
           <div className="answer-area">
-            {/* The owner's rule for this round: prefer one to three short, common
-                senses **per part of speech**. They are shown only when a person
-                confirmed them; otherwise the answer falls back to exactly what it
-                showed before. */}
-            {groups.length > 0 ? (
-              <>
-                <ConciseMeaningList groups={groups} />
-                <div className="answer-divider" />
-                <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
-                <details className="source-raw study-source">
-                  <summary>查看{current.meaning_origin === 'user_provided' ? '用户提供的释义' : '原书完整释义'}</summary>
-                  <span className="source-label">{current.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '原书完整释义'}</span>
-                  <MeaningList values={current.source_meanings} fallback={current.source_raw} />
-                  {current.source_raw && (
-                    <pre className="source-raw-line">{current.source_raw}</pre>
-                  )}
-                </details>
-              </>
-            ) : (
-              <>
-                <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
-                <div className="answer-divider" />
-                <span className="source-label">{current.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '原书完整释义'}</span>
-                <MeaningList values={current.source_meanings} fallback={current.source_raw} />
-              </>
+            {groups.length > 0 ? <ConciseMeaningList groups={groups} /> : (
+              <p className="muted">{hasSource ? '暂无已确认的核心释义' : '暂无可用释义'}</p>
             )}
+            <div className="answer-divider" />
+            <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
+            {hasSource && (current.meaning_origin === 'user_provided' ? (
+              <section aria-label="用户提供的释义">
+                <span className="source-label">用户提供的释义 · 未核实</span>
+                <MeaningList values={current.source_meanings} fallback={current.source_raw} />
+              </section>
+            ) : (
+              <details className="source-raw study-source">
+                <summary>查看来源原文（未确认）</summary>
+                <span className="source-label">来源原文 · 未确认短义</span>
+                <p className="muted"><Link to={`/library/${current.word_state_id}`}>查看词条来源记录</Link>（可能未记录）</p>
+                <MeaningList values={current.source_meanings} fallback={current.source_raw} />
+                {current.source_raw && <pre className="source-raw-line">{current.source_raw}</pre>}
+              </details>
+            ))}
             {current.semantic_note && <p className="semantic-note">{current.semantic_note}</p>}
           </div>
         )}

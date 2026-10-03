@@ -31,7 +31,7 @@ def word_dict_from_view(
     the ambiguity that let a request resolve to a different row than the caller
     meant.
 
-    ``concise_meanings`` is the short, human-confirmed display value the study page
+    ``concise_meanings`` is the evidence-confirmed short display value the study page
     prefers, as a list of **part-of-speech groups** ordered by ``pos_order``; each group
     carries the part of speech (``pos_key``, its display label and how it was
     established) and its values in ``display_order``. It is passed in already loaded so
@@ -40,7 +40,8 @@ def word_dict_from_view(
     source's own raw line are still returned untouched, so a reader who doubts a short
     value can always go and read the source. An empty list means "nothing displayable
     for this word" -- no confirmed value, or none of the confirmed ones passed the
-    display gate -- and is the client's signal to fall back; it is never filled in from
+    display gate -- and is the client's signal to show an unconfirmed state. It is
+    never filled in from
     ``source_meanings`` on the server, because then a client could not tell a reviewed
     value from an unreviewed one.
 
