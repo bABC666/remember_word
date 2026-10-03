@@ -509,6 +509,21 @@ def test_changed_session_token_still_fails(runtime_database: Path) -> None:
     assert report["tables"]["user_session"]["status"] == "rows_changed"
 
 
+def test_changed_session_owner_still_fails(runtime_database: Path) -> None:
+    """A row kept under the same ID cannot silently change account ownership."""
+    write_rows(runtime_database, "user_session", [session_row(1, "a")])
+    baseline = verified_db.capture_baseline(runtime_database, label="runtime")
+
+    write_sql(runtime_database, 'update "user_session" set user_id = 2 where id = 1')
+
+    verified, report = verified_db.compare_against_baseline(runtime_database, baseline)
+    assert not verified
+    assert any(
+        "user_session" in failure and "changed" in failure
+        for failure in report["failures"]
+    )
+
+
 def test_lost_user_word_state_row_still_fails(runtime_database: Path) -> None:
     """Learning state is not row-tolerant: a lost row is still loss."""
     write_rows(

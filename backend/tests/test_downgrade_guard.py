@@ -255,7 +255,9 @@ def test_staging_clone_downgrade_runs_and_keeps_the_data(tmp_path: Path) -> None
     elsewhere.mkdir()
     env = {"VOCAB_REAL_DATA_DIR": str(elsewhere)}
 
-    result = run_alembic(database, "upgrade", "head", extra_env=env)
+    # This older path tests the 0014 -> 0006 chain. The new 0015 revision
+    # intentionally refuses direct downgrade because it would reuse session IDs.
+    result = run_alembic(database, "upgrade", "0014_selected_lexicon", extra_env=env)
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
     assert foreign_key_count(database) == 47
     connection = sqlite3.connect(str(database))

@@ -75,7 +75,7 @@ Invoke-Step 'test isolation proof (real data must be untouched)' {
 }
 
 $productionDatabase = Join-Path $projectRoot 'data\vocab.db'
-$expectedReleaseRevision = '0014_selected_lexicon'
+$expectedReleaseRevision = '0015_session_autoincrement'
 
 Invoke-Step 'production database and code revision' {
     Push-Location $backendRoot
@@ -99,7 +99,7 @@ Invoke-Step 'production database and code revision' {
 Invoke-Step 'historical baseline rows, integrity and foreign keys' {
     Push-Location $projectRoot
     try {
-        # The preceding gate pins both revisions to 0014; the 0007 baseline
+        # The preceding gate pins both revisions to 0015; the 0007 baseline
         # remains the source of historical row fingerprints.
         & $python (Join-Path $projectRoot 'tools\verify_backup.py') `
             $productionDatabase `

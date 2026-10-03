@@ -162,7 +162,7 @@ def test_new_columns_do_not_give_supplements_a_source_or_undetermined_pos_a_basi
 
 
 def test_lossy_downgrade_refuses_before_ddl_but_unbound_history_survives(tmp_path: Path) -> None:
-    db = migrated(tmp_path)
+    db = migrated(tmp_path, REV_0013)
     _lexicon, entry = seed_lexicon_and_entry(db)
     meaning = insert_meaning(db, entry)
     citation = insert_citation(db, meaning)

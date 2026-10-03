@@ -1862,7 +1862,10 @@ def test_0009_follows_the_unpublished_0008_and_keeps_one_head() -> None:
     script = ScriptDirectory.from_config(config)
 
     # Later revisions stack on 0009; the graph must still have one head.
-    assert script.get_heads() == ["0014_selected_lexicon"]
+    assert script.get_heads() == ["0015_session_autoincrement"]
+    assert script.get_revision("0015_session_autoincrement").down_revision == (
+        "0014_selected_lexicon"
+    )
     assert script.get_revision("0014_selected_lexicon").down_revision == (
         "0013_concise_meaning_wikitext_binding"
     )
