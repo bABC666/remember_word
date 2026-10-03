@@ -93,8 +93,12 @@ def repair(database: Path, backup: Path, historical: Path, baseline: Path,
         require(not db.execute("SELECT 1 FROM history_event WHERE entity_type='user_session' "
                                "AND CAST(entity_id AS TEXT)='1'").fetchall(),
                 "audit reference to session 1")
-        require(not db.execute("SELECT 1 FROM sqlite_master WHERE type='trigger'").fetchall(),
-                "unexpected trigger")
+        # Only an UPDATE on user_session executes in this transaction. Other
+        # tables have legitimate triggers from 0012/0013; their definitions are
+        # already pinned by the full schema comparison above and below.
+        require(not db.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' "
+                               "AND tbl_name='user_session'").fetchall(),
+                "unexpected user_session trigger")
         require(db.execute("UPDATE user_session SET id=2 WHERE id=1 AND user_id=2").rowcount == 1,
                 "update affected unexpected number of rows")
         expected = dict(before)

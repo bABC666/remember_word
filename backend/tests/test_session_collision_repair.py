@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import run_alembic
+
 SPEC = importlib.util.spec_from_file_location(
     "repair_session_id_0015", Path(__file__).resolve().parents[2] / "tools/repair_session_id_0015.py"
 )
@@ -99,3 +101,68 @@ def test_historical_evidence_predicates_are_checked_in_transaction(evidence):
     with pytest.raises(ValueError, match="historical session set"):
         repair_module.repair(**evidence, apply=True)
     assert evidence["database"].read_bytes() == before
+
+
+@pytest.fixture
+def real_chain_evidence(tmp_path):
+    """Both source revisions are built by their actual Alembic chains."""
+    target = tmp_path / "real-0014.db"
+    historical = tmp_path / "real-0007.db"
+    backup = tmp_path / "real-backup.db"
+    baseline = tmp_path / "real-baseline.json"
+    for database, revision in ((target, "0014_selected_lexicon"),
+                               (historical, "0007_bridge_foreign_keys")):
+        upgrade = run_alembic(database, "upgrade", revision)
+        assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
+        with sqlite3.connect(database) as db:
+            db.execute("INSERT INTO user (id,username,display_name,password_hash,role,is_active,"
+                       "created_at,updated_at) VALUES (2,'release_smoke_20261003','smoke','!',"
+                       "'user',1,'2026-09-01','2026-09-01')")
+            db.execute("INSERT INTO user_session (id,user_id,token_hash,created_at,expires_at,"
+                       "user_agent) VALUES (1,?,?,?,?,?)",
+                       (2 if database == target else 1,
+                        "synthetic-new" if database == target else "synthetic-old",
+                        "2026-10-03" if database == target else "2026-09-01",
+                        "2027-01-01", "test"))
+            if database == target:
+                db.execute("INSERT INTO history_event (user_id,event_type,timestamp,"
+                           "entity_type,entity_id,payload) VALUES "
+                           "(2,'user_login','2026-10-03','user',2,'{}')")
+    shutil.copyfile(target, backup)
+    baseline.write_text(json.dumps({"alembic_revision": "0007_bridge_foreign_keys",
+                                    "sha256": repair_module.file_hash(historical)}))
+    return {"database": target, "backup": backup, "historical": historical,
+            "baseline": baseline, "backup_sha256": repair_module.file_hash(backup)}
+
+
+def test_real_0014_chain_keeps_five_unrelated_triggers(real_chain_evidence):
+    with sqlite3.connect(real_chain_evidence["database"]) as db:
+        triggers = db.execute("SELECT name, tbl_name FROM sqlite_master "
+                              "WHERE type='trigger' ORDER BY name").fetchall()
+    assert len(triggers) == 5
+    assert all(table != "user_session" for _, table in triggers)
+    result = repair_module.repair(**real_chain_evidence, apply=True)
+    assert result["passed"] and result["non_id_fields_unchanged"] == 7
+    with sqlite3.connect(real_chain_evidence["database"]) as db:
+        assert db.execute("SELECT id,user_id FROM user_session").fetchall() == [(2, 2)]
+        assert db.execute("SELECT name,tbl_name FROM sqlite_master WHERE type='trigger' "
+                          "ORDER BY name").fetchall() == triggers
+        assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_real_0014_chain_refuses_session_trigger_and_rolls_back(real_chain_evidence):
+    target = real_chain_evidence["database"]
+    with sqlite3.connect(target) as db:
+        db.execute("CREATE TRIGGER dangerous AFTER UPDATE ON user_session "
+                   "BEGIN DELETE FROM user WHERE id=2; END")
+    shutil.copyfile(target, real_chain_evidence["backup"])
+    real_chain_evidence["backup_sha256"] = repair_module.file_hash(real_chain_evidence["backup"])
+    before = target.read_bytes()
+    with pytest.raises(ValueError, match="unexpected user_session trigger"):
+        repair_module.repair(**real_chain_evidence, apply=True)
+    assert target.read_bytes() == before
+    with sqlite3.connect(target) as db:
+        assert db.execute("SELECT id,user_id FROM user_session").fetchall() == [(1, 2)]
+        assert db.execute("SELECT username FROM user WHERE id=2").fetchone() == (
+            "release_smoke_20261003",)
