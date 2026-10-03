@@ -45,3 +45,27 @@ it('keeps the OCR action pending while a large image runs beyond two minutes', a
   finishOcr(new Response(JSON.stringify({ ...batch, status: 'ocr_complete', stage: 'ocr', raw_ocr_text: 'apple' }), { status: 200 }))
   await vi.runAllTimersAsync()
 })
+
+it('labels an uploaded candidate meaning as user supplied and unverified', async () => {
+  const batch = {
+    id: 43, status: 'structured', stage: 'review',
+    created_at: '2026-10-03T00:00:00Z', updated_at: '2026-10-03T00:00:00Z',
+    raw_ocr_text: 'rural', error_stage: '', error_message: '', images: [],
+    candidates: [{
+      id: 1, word: 'rural', phonetic: '', part_of_speech: 'adj.',
+      source_meanings: ['用户抄录的释义'], source_raw: '', anchor: '',
+      semantic_note: '', possible_issue: false, issue_note: '',
+      selected: false, confirmed: false,
+    }],
+  }
+  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path === '/api/imports') return Promise.resolve(Response.json([{ id: 43, status: 'structured', stage: 'review', created_at: batch.created_at }]))
+    if (path === '/api/imports/43') return Promise.resolve(Response.json(batch))
+    throw new Error(`Unexpected request: ${path}`)
+  }))
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ImportPage /></QueryClientProvider>)
+  await userEvent.click(await screen.findByRole('button', { name: /批次 #43/ }))
+  expect(await screen.findByRole('textbox', { name: '用户提供的释义（未核实）' })).toHaveValue('用户抄录的释义')
+  expect(screen.queryByText('原书完整释义')).toBeNull()
+})

@@ -203,10 +203,23 @@ describe('the word detail page and grouped short meanings', () => {
     expect(screen.queryByText('wikdict:1')).toBeNull()
   })
 
-  it('falls back to the source unchanged when nothing is displayable', () => {
+  it('marks source text unconfirmed when nothing is displayable', () => {
     renderDetail(detail({ concise_meanings: [] }))
     expect(screen.queryByRole('region', { name: '核心释义' })).toBeNull()
     expect(screen.getByText('農村的')).toBeTruthy()
-    expect(screen.getByText('原书完整释义')).toBeTruthy()
+    expect(screen.getByText('来源原文 · 未确认短义')).toBeTruthy()
+    expect(screen.getByText('暂无已确认的核心释义')).toBeTruthy()
+  })
+
+  it('marks uploaded text as user provided and unverified', () => {
+    renderDetail(detail({ meaning_origin: 'user_provided', source_meanings: ['用户释义'], source_raw: '' }))
+    expect(screen.getByText('用户提供的释义 · 未核实')).toBeTruthy()
+    expect(screen.getByText('用户释义')).toBeTruthy()
+  })
+
+  it('shows a clear empty state without source or confirmed text', () => {
+    renderDetail(detail({ source_meanings: [], source_raw: '' }))
+    expect(screen.getByText('暂无可用释义')).toBeTruthy()
+    expect(screen.queryByText('来源原文 · 未确认短义')).toBeNull()
   })
 })

@@ -127,7 +127,7 @@ describe('the study page and short confirmed meanings', () => {
     const source = document.querySelector<HTMLDetailsElement>('.study-source')!
     expect(source).toBeTruthy()
     expect(source.textContent).toContain('農村的')
-    expect(source.textContent).toContain('原书完整释义')
+    expect(source.textContent).toContain('来源原文 · 未确认短义')
     expect(source.open).toBe(false)  // collapsed, not removed: "可回查", not "always shown"
   })
 
@@ -140,15 +140,20 @@ describe('the study page and short confirmed meanings', () => {
     expect(block).not.toHaveTextContent('人工确认')
   })
 
-  it('falls back to the anchor and the source when nothing is confirmed', async () => {
+  it('separates unconfirmed source text from the answer when nothing is confirmed', async () => {
     mockApi([word()])
     await reveal()
 
     // Exactly what the page showed before short meanings existed.
     expect((await screen.findAllByText('最小语义锚点')).length).toBeGreaterThan(0)
     expect(screen.getByText('乡村')).toBeInTheDocument()
+    expect(screen.getByText('暂无已确认的核心释义')).toBeInTheDocument()
+    expect(screen.getByText('農村的')).not.toBeVisible()
+    const source = document.querySelector<HTMLDetailsElement>('.study-source')!
+    expect(source).toHaveTextContent('查看词条来源记录')
+    expect(source.querySelector('a')).toHaveAttribute('href', '/library/42')
+    await userEvent.click(screen.getByText('查看来源原文（未确认）'))
     expect(screen.getByText('農村的')).toBeInTheDocument()
-    expect(document.querySelector('.study-source')).toBeNull()
   })
 
   it('marks uploaded meanings as user supplied and unverified', async () => {
@@ -168,10 +173,19 @@ describe('the study page and short confirmed meanings', () => {
     })])
     await reveal()
 
-    expect(await screen.findByText('農村的')).toBeInTheDocument()
+    expect(await screen.findByText('暂无已确认的核心释义')).toBeInTheDocument()
+    expect(screen.getByText('農村的')).not.toBeVisible()
     expect(screen.queryByRole('region', { name: '核心释义' })).toBeNull()
     expect(screen.queryByText('已由 owner 人工确认')).toBeNull()
     expect(screen.queryByText('农村的')).toBeNull()
+  })
+
+  it('shows a clear empty state when no meaning text exists', async () => {
+    mockApi([word({ source_meanings: [], source_raw: '', anchor: '' })])
+    await reveal()
+    expect(screen.getByText('暂无可用释义')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '核心释义' })).toBeNull()
+    expect(document.querySelector('.study-source')).toBeNull()
   })
 
   it('announces a self-authored supplement as a supplement', async () => {

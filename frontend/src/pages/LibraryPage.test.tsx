@@ -15,8 +15,7 @@ const savedWord: Word = {
   part_of_speech: 'n.',
   source_meanings: ['琥珀；一种由古代树脂形成的黄色物质', '琥珀色'],
   source_raw: 'amber n. 琥珀；琥珀色。原书补充说明。',
-  // No confirmed short meaning: the detail page must still show the source exactly
-  // as it did before this slice, so the fallback is exercised by every test here.
+  // No confirmed short meaning: the detail page must label the source separately.
   concise_meanings: [],
   anchor: '树脂',
   semantic_note: '在原书语境里指琥珀。',
@@ -477,10 +476,11 @@ describe('mobile library detail', () => {
     // A partial record says so, and the declaration is quoted as a declaration.
     expect(within(record).getByText(/该词条的来源记录不完整/)).toBeInTheDocument()
     expect(within(record).getByText('以上是导入时记录的来源声明，不代表授权已获确认。')).toBeInTheDocument()
+    expect(screen.getByText('释义采用来源：补充来源整理者')).toBeInTheDocument()
 
-    // The source's own line and the full meanings are still on the page.
+    // The source's own line and meanings are still on the page, separately labelled.
     expect(screen.getByText('琥珀；一种由古代树脂形成的黄色物质')).toBeInTheDocument()
-    expect(screen.getByText('查看原书原文')).toBeInTheDocument()
+    expect(screen.getByText('查看原始记录行（来源可能不同）')).toBeInTheDocument()
   })
 
   it('shows an owned-word-safe 404 on a direct detail visit', async () => {
