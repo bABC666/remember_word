@@ -11,6 +11,14 @@ $healthUrl = 'http://127.0.0.1:8000/api/health'
 $appUrl = 'http://127.0.0.1:8000'
 $shortcutInstaller = Join-Path $PSScriptRoot 'install-shortcut.ps1'
 
+function Open-AppBrowser {
+    try {
+        Start-Process $appUrl
+    } catch {
+        Write-Warning "Shici is ready, but the browser could not be opened: $($_.Exception.Message)"
+    }
+}
+
 # Keep the desktop shortcut aligned with the versioned launcher and icon.
 try {
     & $shortcutInstaller -Quiet
@@ -20,15 +28,16 @@ try {
 
 New-Item -ItemType Directory -Force -Path $dataRoot, $logRoot | Out-Null
 
+$health = $null
 try {
     $health = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2
-    if ($health.StatusCode -eq 200) {
-        Start-Process $appUrl
-        Write-Host 'Shici is already running. The browser is open.' -ForegroundColor Green
-        exit 0
-    }
 } catch {
     # Expected when the local server is not running yet.
+}
+if ($health -and $health.StatusCode -eq 200) {
+    Write-Host "Shici is already running at $appUrl" -ForegroundColor Green
+    Open-AppBrowser
+    exit 0
 }
 
 if (-not (Test-Path -LiteralPath $python)) {
@@ -98,16 +107,17 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
         $detail = if (Test-Path -LiteralPath $stderr) { Get-Content -LiteralPath $stderr -Tail 20 | Out-String } else { '' }
         throw "FastAPI failed to start.`n$detail"
     }
+    $health = $null
     try {
         $health = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2
-        if ($health.StatusCode -eq 200) {
-            Start-Process $appUrl
-            Write-Host "Shici is running at $appUrl" -ForegroundColor Green
-            Write-Host "Data directory: $dataRoot"
-            exit 0
-        }
     } catch {
         # Keep waiting until the bounded loop expires.
+    }
+    if ($health -and $health.StatusCode -eq 200) {
+        Write-Host "Shici is running at $appUrl" -ForegroundColor Green
+        Write-Host "Data directory: $dataRoot"
+        Open-AppBrowser
+        exit 0
     }
 }
 
