@@ -301,7 +301,8 @@ def test_a_database_behind_the_code_with_rows_is_refused(tmp_path: Path) -> None
     assert "alembic" in result.stdout
     assert "upgrade" in result.stdout
     assert "verified backup" in result.stdout
-    assert "0007-production-migration-runbook" in result.stdout
+    assert "V1.2-PRIVATE-FILE-PRODUCTION-MIGRATION-RUNBOOK" in result.stdout
+    assert "private_file_release.py" in result.stdout
     assert "upgrade head" in result.stdout  # named as the thing not to do on real data
     # And the database is exactly as it was.
     assert revision_of(database) == before_revision
@@ -323,14 +324,8 @@ def test_the_refusal_names_both_revisions_and_the_likely_cost(tmp_path: Path) ->
     assert "Tables/rows" in result.stdout
 
 
-def test_the_refusal_lists_every_rehearsal_tool_that_exists(tmp_path: Path) -> None:
-    """The guidance must not name a stale migration.
-
-    It used to print one hard-coded tool, which is correct only until the next
-    migration lands -- and after 0009 it named a rehearsal that covers the first hop
-    of two. The list is now read from ``tools/``, so this asserts the advice matches
-    what is actually on disk.
-    """
+def test_the_refusal_points_to_the_current_release_procedure(tmp_path: Path) -> None:
+    """An old single-hop rehearsal is not the 0007 -> 0014 release plan."""
     behind = behind_head()
     database = tmp_path / "rehearsals.db"
     build_database(database, revision=behind, with_rows=True)
@@ -338,13 +333,9 @@ def test_the_refusal_lists_every_rehearsal_tool_that_exists(tmp_path: Path) -> N
     result = run_prepare(database)
 
     assert result.returncode == 3
-    tools = sorted(
-        path.name
-        for path in (PROJECT_ROOT / "tools").glob("rehearsal_migration_*.py")
-    )
-    assert tools, "the repository ships rehearsal tools; the guidance must name them"
-    for tool in tools:
-        assert tool in result.stdout, f"{tool} is not offered by the refusal message"
+    assert "private_file_release.py backup" in result.stdout
+    assert "V1.2-PRIVATE-FILE-PRODUCTION-MIGRATION-RUNBOOK.md" in result.stdout
+    assert "0007-production-migration-runbook" not in result.stdout
 
 
 # --- 3. a previous migration attempt failed ----------------------------------
