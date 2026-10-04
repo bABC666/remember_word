@@ -12,7 +12,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/phase29"))
-from zhwiktionary_clean_measure import EN_TITLES, HEAD, norm_title, strip_markup
+from zhwiktionary_clean_measure import (
+    EN_TITLES,
+    HEAD,
+    definition_section_text,
+    norm_title,
+    strip_markup,
+)
 
 HAN = re.compile(r"[\u3400-\u9fff]")
 NUMBERED = re.compile(r"^:\s*\d+[.、]\s*(.+)$")
@@ -31,7 +37,7 @@ def extract(text: str) -> list[dict]:
     found = []
     in_english = False
     subsection = ""
-    for number, raw in enumerate(text.splitlines(), 1):
+    for number, raw in enumerate(definition_section_text(text).splitlines(), 1):
         line = raw.strip()
         heading = HEAD.match(line)
         if heading:

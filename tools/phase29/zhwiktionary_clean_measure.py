@@ -63,6 +63,47 @@ def norm_title(t: str) -> str:
     return t.strip()
 
 
+NON_DEFINITION_SECTION = re.compile(
+    r"近[義义]|同[義义]|反[義义]|[衍派]生|用法|使用[說说]明|[參参]考|[相有][關关]|"
+    r"延伸|[異异]序|翻[譯译]|[詞词]源|其他[寫写形]|其他[詞词]形|替代|另[見见]|"
+    r"synonyms|antonyms|derived|related|usage|references|further reading|"
+    r"anagrams|translations|etymology|alternative|see also",
+    re.IGNORECASE,
+)
+
+
+def definition_section_text(text: str) -> str:
+    """Blank ancillary sections, preserving original line numbers and headings.
+
+    A nested heading cannot reopen a blocked section; a sibling/ancestor can.
+    Pronunciation is intentionally not blocked: legacy entries put bare
+    definitions immediately after pronunciation without another heading.
+    """
+    blocked_level = None
+    etymology_body = False
+    lines = []
+    for raw in text.splitlines():
+        heading = HEAD.match(raw.strip())
+        if heading:
+            level = len(heading.group(1))
+            etymology_body = bool(
+                re.search(r"[詞词]源|etymology", norm_title(heading.group(2)), re.IGNORECASE)
+            )
+            if blocked_level is not None and level <= blocked_level:
+                blocked_level = None
+            if (
+                blocked_level is None
+                and level > 2
+                and not etymology_body
+                and NON_DEFINITION_SECTION.search(norm_title(heading.group(2)))
+            ):
+                blocked_level = level
+            lines.append(raw)
+        else:
+            lines.append(raw if blocked_level is None and not etymology_body else "")
+    return "\n".join(lines)
+
+
 def split_sections(text: str) -> list[tuple[int, str, str]]:
     secs: list[tuple[int, str, str]] = []
     title, level, buf = None, 0, []
@@ -92,7 +133,7 @@ def strip_markup(line: str) -> str:
 
 
 def clean(wikitext: str) -> tuple[list[str], str]:
-    secs = split_sections(wikitext)
+    secs = split_sections(definition_section_text(wikitext))
     idx = next((i for i, (lv, t, _) in enumerate(secs) if lv == 2 and norm_title(t) in EN_TITLES), None)
     if idx is None:
         return [], "no_en_section"
