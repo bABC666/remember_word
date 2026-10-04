@@ -193,7 +193,7 @@ describe('the study page and short confirmed meanings', () => {
     const block = await screen.findByRole('region', { name: '词典释义' })
     expect(block).toHaveTextContent('冰淇淋')
     expect(block).toHaveTextContent('WikDict / Wiktionary via DBnary')
-    expect(block).toHaveTextContent('未确认短义')
+    expect(block).toHaveTextContent('抽取片段，未做全库逐词语义校订')
     expect(screen.queryByText('用户提供的释义 · 未核实')).toBeNull()
     expect(screen.queryByText('暂无已确认的核心释义')).toBeNull()
   })

@@ -207,7 +207,7 @@ describe('the word detail page and grouped short meanings', () => {
     renderDetail(detail({ concise_meanings: [] }))
     expect(screen.queryByRole('region', { name: '核心释义' })).toBeNull()
     expect(screen.getByText('農村的')).toBeTruthy()
-    expect(screen.getByText('来源原文 · 未确认短义')).toBeTruthy()
+    expect(screen.getByText('词典释义 · 抽取片段，未做全库逐词语义校订')).toBeTruthy()
     expect(screen.getByText('暂无已确认的核心释义')).toBeTruthy()
   })
 
@@ -220,7 +220,7 @@ describe('the word detail page and grouped short meanings', () => {
   it('shows a clear empty state without source or confirmed text', () => {
     renderDetail(detail({ source_meanings: [], source_raw: '' }))
     expect(screen.getByText('暂无可用释义')).toBeTruthy()
-    expect(screen.queryByText('来源原文 · 未确认短义')).toBeNull()
+    expect(screen.queryByText('词典释义 · 抽取片段，未做全库逐词语义校订')).toBeNull()
   })
 
   it('does not turn a public import CSV row into a missing dictionary meaning', () => {
@@ -232,6 +232,6 @@ describe('the word detail page and grouped short meanings', () => {
     }))
     expect(screen.getByText('暂无可用释义')).toBeTruthy()
     expect(screen.queryByText('owing to,,netem:rank:5448,70dc6b68')).toBeNull()
-    expect(screen.queryByText('来源原文 · 未确认短义')).toBeNull()
+    expect(screen.queryByText('词典释义 · 抽取片段，未做全库逐词语义校订')).toBeNull()
   })
 })

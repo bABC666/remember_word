@@ -52,6 +52,7 @@ from app.services.public_lexicon_preview import (
     RevisionDeclaration,
     linkable_revision_identifier,
 )
+from app.services.source_attribution import frozen_attribution, has_fixed_package
 
 #: Reported in ``completeness.missing`` when a degradation reason applies. Named
 #: rather than counted, so a caller can branch on the machine-readable code and a
@@ -133,7 +134,7 @@ def _evidence_dict(
     alike.
     """
     revision = row.source_revision or ""
-    return {
+    value = {
         "source_evidence_id": row.id,
         "field_kind": row.field_kind,
         "row_locator": row.row_locator,
@@ -155,6 +156,11 @@ def _evidence_dict(
             "license_id": artifact.license_id,
         },
     }
+    attribution = frozen_attribution(artifact)
+    if attribution:
+        value["source"]["attribution"] = attribution
+        value["source_history_url"] = revision_url(attribution.get("history_url_template", ""), revision)
+    return value
 
 
 def _rows(session: Session, entry_id: int) -> list[tuple[EntrySourceEvidence, SourceArtifact]]:
@@ -182,7 +188,7 @@ def _rows(session: Session, entry_id: int) -> list[tuple[EntrySourceEvidence, So
 
 def selected_meaning_sources(
     session: Session, entry_ids: list[int]
-) -> dict[int, list[dict[str, str]]]:
+) -> dict[int, list[dict[str, object]]]:
     """Batch-load adopted dictionary attribution for a study queue.
 
     The physical CSV row and the source-internal position remain separate. Only
@@ -201,18 +207,24 @@ def selected_meaning_sources(
         .order_by(EntrySourceEvidence.lexicon_entry_id, EntrySourceEvidence.selection_order,
                   EntrySourceEvidence.id)
     ).all()
-    result: dict[int, list[dict[str, str]]] = {}
+    result: dict[int, list[dict[str, object]]] = {}
     for evidence, artifact in rows:
         revision = evidence.source_revision or ""
         template = frozen_revision_template(artifact)
-        result.setdefault(evidence.lexicon_entry_id, []).append({
+        item = {
             "publisher": artifact.publisher,
             "version": artifact.version,
             "source_position": evidence.sense_key,
             "import_csv_line": str(evidence.row_locator),
             "source_revision": revision,
             "source_revision_url": revision_url(template, revision),
-        })
+            "license_id": artifact.license_id,
+        }
+        attribution = frozen_attribution(artifact)
+        if attribution:
+            item["attribution"] = attribution
+            item["source_history_url"] = revision_url(attribution.get("history_url_template", ""), revision)
+        result.setdefault(evidence.lexicon_entry_id, []).append(item)
     return result
 
 
@@ -255,6 +267,8 @@ def _completeness(
             missing.append(_missing(FIELD_WITHOUT_SELECTED_SOURCE, field_kind))
             continue
         for item in selected:
+            if has_fixed_package(item["source"].get("attribution", {})):
+                continue
             if not item["source_revision"]:
                 missing.append(_missing(SOURCE_REVISION_MISSING, field_kind))
             elif not item["source_revision_url"]:

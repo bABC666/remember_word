@@ -298,6 +298,7 @@ def _mapping_from_plan(source: dict[str, Any]) -> PreviewMapping:
         delimiter=frozen["delimiter"],
         revision=revision,
         sense_key_column=frozen.get("sense_key_column"),
+        attribution=frozen.get("attribution"),
     )
 
 

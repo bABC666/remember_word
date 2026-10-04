@@ -6,6 +6,8 @@ import { api } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { ConciseMeaningList } from '../components/ConciseMeaningList'
 import { MeaningList } from '../components/MeaningList'
+import { SourceAttribution } from '../components/SourceAttribution'
+import { licenseLink } from './sourcesModel'
 import { hasMeaningText } from '../meaningText'
 import type { ReviewResult, Word } from '../types'
 
@@ -66,9 +68,14 @@ export function StudyPage() {
             )}
             {hasDictionaryMeaning && groups.length === 0 && (
               <section aria-label="词典释义" className="dictionary-meaning">
-                <span className="source-label">词典释义 · 来源原文，未确认短义</span>
+                <span className="source-label">词典释义 · 抽取片段，未做全库逐词语义校订</span>
                 <MeaningList values={current.source_meanings} />
                 <p className="muted">来源：{[...new Set(dictionarySources.map((source) => source.publisher))].join('、')} · <Link to={`/library/${current.word_state_id}`}>查看来源与原文位置</Link></p>
+                {dictionarySources.map((source, index) => <div key={index}>
+                  <small>版本：{source.version} · {source.license_id && licenseLink(source.license_id)
+                    ? <a href={licenseLink(source.license_id)!} target="_blank" rel="noreferrer noopener">{source.license_id}</a> : source.license_id}</small>
+                  <SourceAttribution value={source.attribution} historyUrl={source.source_history_url} compact />
+                </div>)}
               </section>
             )}
             <div className="answer-divider" />

@@ -50,7 +50,7 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
         {word.semantic_note && <p>{word.semantic_note}</p>}
       </section>
       {hasSource && <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : '来源原文'}>
-        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '来源原文 · 未确认短义'}</span>
+        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '词典释义 · 抽取片段，未做全库逐词语义校订'}</span>
         {word.meaning_origin !== 'user_provided' && <p className="muted">{rawIsFallback
           ? '原始记录行 · 来源未单独标注'
           : `释义采用来源：${meaningSources.join('、') || '未记录（见下方来源记录）'}`}</p>}

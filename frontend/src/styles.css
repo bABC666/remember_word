@@ -270,6 +270,11 @@ h1, h2, h3, p { margin-top: 0; }
 .source-card { padding: 16px 18px; border: 1px solid var(--line); border-radius: 10px; background: white; }
 .source-card > header { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
 .source-card h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.source-attribution { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.source-attribution code { font-size: 11px; word-break: break-all; }
+.attribution-links { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.attribution-details { margin: 8px 0; }
+.attribution-details > summary { cursor: pointer; color: var(--accent); }
 .source-role { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: var(--source-secondary); font-size: 10px; }
 .approval-badge { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: var(--source-secondary); font-size: 10px; }
 .approval-badge.unapproved { background: var(--danger-soft); color: var(--danger); }

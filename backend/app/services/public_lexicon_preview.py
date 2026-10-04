@@ -182,8 +182,12 @@ class PreviewMapping:
     # Optional original position within a dictionary or source snapshot. The
     # existing row locator remains the physical line of this import CSV.
     sense_key_column: str | None = None
+    attribution: dict | None = None
 
     def __post_init__(self) -> None:
+        if self.attribution is not None:
+            from app.services.source_attribution import validate_attribution
+            validate_attribution(self.attribution)
         if "word" not in self.columns or not self.columns["word"]:
             raise ValueError("word needs a source column")
         if not self.columns.keys() <= FIELDS:
@@ -233,6 +237,9 @@ def mapping_as_frozen(mapping: PreviewMapping) -> dict[str, object]:
         frozen["revision"] = mapping.revision.as_mapping()
     if mapping.sense_key_column is not None:
         frozen["sense_key_column"] = mapping.sense_key_column
+    if mapping.attribution is not None:
+        from app.services.source_attribution import validate_attribution
+        frozen["attribution"] = validate_attribution(mapping.attribution)
     return frozen
 
 

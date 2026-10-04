@@ -20,6 +20,7 @@ from app.schemas import LexiconCreateRequest, LexiconUpdateRequest
 from app.services.file_lexicons import parse_file
 from app.services.lexicon_selection import effective_lexicon_selection
 from app.services.public_lexicon_target_preflight import explicitly_unapproved
+from app.services.source_attribution import frozen_attribution
 from app.services.userdata import (
     load_readable_lexicon,
     user_lexicon,
@@ -384,6 +385,9 @@ def list_lexicon_sources(
                 "display_scope": artifact.display_scope,
                 "runs": [],
             }
+            attribution = frozen_attribution(artifact)
+            if attribution:
+                item["attribution"] = attribution
             # Decided after the declaration fields are in place, and kept apart from
             # the values above on purpose: these are what the *source* declares about
             # its own use, and the preflight's recogniser reads them to decide whether

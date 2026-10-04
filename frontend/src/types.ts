@@ -1,6 +1,19 @@
 export type WordStatus = 'new' | 'familiar' | 'learning' | 'known' | 'weak' | 'mastered'
 export type ReviewResult = 'know' | 'fuzzy' | 'fail'
 
+export interface PublicAttribution {
+  creators: string
+  modifications: string
+  license_url: string
+  source_url?: string
+  copyright_notice?: string
+  disclaimer?: string
+  snapshot_label?: string
+  snapshot_url?: string
+  snapshot_sha256?: string
+  links?: Array<{ label: string; url: string }>
+}
+
 /**
  * One additional source position a displayed value rests on.
  *
@@ -111,6 +124,9 @@ export interface Word {
     import_csv_line: string
     source_revision: string
     source_revision_url: string
+    license_id?: string
+    attribution?: PublicAttribution
+    source_history_url?: string
   }>
   /**
    * The short, confirmed display values, grouped by part of speech and ordered by
@@ -192,6 +208,7 @@ export interface ArticleWordLookup {
 
 /** One source value the import recorded for one field, and what it decided about it. */
 export interface SourceEvidence {
+  source_history_url?: string
   source_evidence_id: number
   /** `word` | `meaning` | `phonetic` | `part_of_speech`, as the import recorded it. */
   field_kind: string
@@ -222,6 +239,7 @@ export interface SourceEvidence {
     publisher: string
     version: string
     license_id: string
+    attribution?: PublicAttribution
   }
 }
 

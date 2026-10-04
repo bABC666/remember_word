@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom'
 import { api } from '../api'
 import { sourceCardAnchor } from '../sourceAnchor'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
+import { SourceAttribution } from '../components/SourceAttribution'
 import {
   approvalLabel,
   licenseLink,
@@ -32,7 +33,7 @@ import {
  */
 const DECLARATION_NOTICE =
   '本页只如实转述导入时记录的来源声明与许可标识，不核实许可有效性，也不代表授权已获确认。'
-  + '词库中的来源原文按原样保存，不会被改写。'
+  + '释义可能经过抽取、清洗、去重和拼接；固定版本与具体修改说明见各来源。'
 
 /** How each recorded declaration state is announced at the lexicon level. */
 const REVIEW_LABELS: Record<string, string> = {
@@ -196,6 +197,7 @@ function SourceCard({ row, lexiconId }: { row: SourceArtifactRow; lexiconId: num
         <div className="full"><dt>使用范围声明</dt><dd>{row.use_scope || '未记录'}</dd></div>
         <div className="full"><dt>展示范围声明</dt><dd>{row.display_scope || '未记录'}</dd></div>
       </dl>
+      <SourceAttribution value={row.attribution} />
       <p className="source-foot">
         记录文件：{row.name}；导入记录：
         {row.runs.length > 0

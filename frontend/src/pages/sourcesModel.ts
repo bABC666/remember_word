@@ -10,6 +10,7 @@
 
 /** One source artifact as `GET /api/lexicons/{id}/sources` reports it. */
 export interface SourceArtifactRow {
+  attribution?: import('../types').PublicAttribution
   source_artifact_id: number
   role: string
   name: string
