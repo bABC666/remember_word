@@ -180,6 +180,42 @@ def _rows(session: Session, entry_id: int) -> list[tuple[EntrySourceEvidence, So
     )
 
 
+def selected_meaning_sources(
+    session: Session, entry_ids: list[int]
+) -> dict[int, list[dict[str, str]]]:
+    """Batch-load adopted dictionary attribution for a study queue.
+
+    The physical CSV row and the source-internal position remain separate. Only
+    selected meaning evidence is eligible; private uploads have no such record.
+    """
+    if not entry_ids:
+        return {}
+    rows = session.execute(
+        select(EntrySourceEvidence, SourceArtifact)
+        .join(SourceArtifact, SourceArtifact.id == EntrySourceEvidence.source_artifact_id)
+        .where(
+            EntrySourceEvidence.lexicon_entry_id.in_(entry_ids),
+            EntrySourceEvidence.field_kind == "meaning",
+            EntrySourceEvidence.selected_for_default.is_(True),
+        )
+        .order_by(EntrySourceEvidence.lexicon_entry_id, EntrySourceEvidence.selection_order,
+                  EntrySourceEvidence.id)
+    ).all()
+    result: dict[int, list[dict[str, str]]] = {}
+    for evidence, artifact in rows:
+        revision = evidence.source_revision or ""
+        template = frozen_revision_template(artifact)
+        result.setdefault(evidence.lexicon_entry_id, []).append({
+            "publisher": artifact.publisher,
+            "version": artifact.version,
+            "source_position": evidence.sense_key,
+            "import_csv_line": str(evidence.row_locator),
+            "source_revision": revision,
+            "source_revision_url": revision_url(template, revision),
+        })
+    return result
+
+
 def _field_order(field_kinds: list[str]) -> list[str]:
     """The canonical field order first, any unexpected field after it.
 

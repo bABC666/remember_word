@@ -18,7 +18,11 @@ function exposureTime(value: string | null | undefined) {
 
 export function WordDetailContent({ word }: { word: WordDetail }) {
   const rawIsFallback = word.source_meanings.every((meaning) => !meaning.trim())
-  const hasSource = hasMeaningText(word.source_meanings, word.source_raw)
+  // A public import's raw CSV line is provenance, not a definition. Earlier
+  // platform entries without source records still use the legacy raw fallback.
+  const hasSource = word.meaning_origin === 'platform' && word.sources.fields.length > 0
+    ? word.source_meanings.some((meaning) => meaning.trim())
+    : hasMeaningText(word.source_meanings, word.source_raw)
   const meaningSources = [...new Set(word.sources.fields
     .filter((field) => field.field_kind === 'meaning')
     .flatMap((field) => field.selected)

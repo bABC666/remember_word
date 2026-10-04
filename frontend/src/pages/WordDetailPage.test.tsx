@@ -222,4 +222,16 @@ describe('the word detail page and grouped short meanings', () => {
     expect(screen.getByText('暂无可用释义')).toBeTruthy()
     expect(screen.queryByText('来源原文 · 未确认短义')).toBeNull()
   })
+
+  it('does not turn a public import CSV row into a missing dictionary meaning', () => {
+    renderDetail(detail({
+      word: 'owing to', meaning_origin: 'platform', source_meanings: [],
+      source_raw: 'owing to,,netem:rank:5448,70dc6b68',
+      sources: { fields: [{ field_kind: 'word', selected: [], candidates: [] }],
+        completeness: { status: 'complete', missing: [], message: '' } },
+    }))
+    expect(screen.getByText('暂无可用释义')).toBeTruthy()
+    expect(screen.queryByText('owing to,,netem:rank:5448,70dc6b68')).toBeNull()
+    expect(screen.queryByText('来源原文 · 未确认短义')).toBeNull()
+  })
 })

@@ -19,7 +19,11 @@ export function StudyPage() {
   const words = query.data?.words ?? []
   const current = words[index]
   const groups = current?.concise_meanings ?? []
-  const hasSource = current ? hasMeaningText(current.source_meanings, current.source_raw) : false
+  const dictionarySources = current?.source_meaning_sources ?? []
+  const hasDictionaryMeaning = dictionarySources.length > 0 && !!current?.source_meanings.some((value) => value.trim())
+  const hasSource = current ? (current.source_meaning_sources !== undefined
+    ? current.source_meanings.some((value) => value.trim())
+    : hasMeaningText(current.source_meanings, current.source_raw)) : false
   const mutation = useMutation({
     // `word_state_id`, not the legacy id: a word added from an article has no
     // `word` row, and the legacy route deliberately does not accept a state id.
@@ -57,12 +61,19 @@ export function StudyPage() {
           <button className="reveal-button" onClick={() => setRevealed(true)}><BookOpen size={19} />显示答案 <kbd>Space</kbd></button>
         ) : (
           <div className="answer-area">
-            {groups.length > 0 ? <ConciseMeaningList groups={groups} /> : (
+            {groups.length > 0 ? <ConciseMeaningList groups={groups} /> : !hasDictionaryMeaning && (
               <p className="muted">{hasSource ? '暂无已确认的核心释义' : '暂无可用释义'}</p>
+            )}
+            {hasDictionaryMeaning && groups.length === 0 && (
+              <section aria-label="词典释义" className="dictionary-meaning">
+                <span className="source-label">词典释义 · 来源原文，未确认短义</span>
+                <MeaningList values={current.source_meanings} />
+                <p className="muted">来源：{[...new Set(dictionarySources.map((source) => source.publisher))].join('、')} · <Link to={`/library/${current.word_state_id}`}>查看来源与原文位置</Link></p>
+              </section>
             )}
             <div className="answer-divider" />
             <span>最小语义锚点</span><h3>{current.anchor || '尚未生成语义锚点'}</h3>
-            {hasSource && (current.meaning_origin === 'user_provided' ? (
+            {hasSource && hasDictionaryMeaning && groups.length === 0 ? null : hasSource && (current.meaning_origin === 'user_provided' ? (
               <section aria-label="用户提供的释义">
                 <span className="source-label">用户提供的释义 · 未核实</span>
                 <MeaningList values={current.source_meanings} fallback={current.source_raw} />

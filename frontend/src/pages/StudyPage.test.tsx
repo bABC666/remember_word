@@ -180,6 +180,32 @@ describe('the study page and short confirmed meanings', () => {
     expect(screen.queryByText('农村的')).toBeNull()
   })
 
+  it('shows adopted NETEM dictionary meaning directly with its real source', async () => {
+    mockApi([word({
+      word: 'ice cream', source_meanings: ['冰淇淋'], source_raw: 'ice cream,,netem:rank:91',
+      meaning_origin: 'platform', source_meaning_sources: [{
+        publisher: 'WikDict / Wiktionary via DBnary', version: '2026-06-23',
+        source_position: 'stardict.idx#12075:offset:800', import_csv_line: '2',
+        source_revision: '', source_revision_url: '',
+      }],
+    })])
+    await reveal()
+    const block = await screen.findByRole('region', { name: '词典释义' })
+    expect(block).toHaveTextContent('冰淇淋')
+    expect(block).toHaveTextContent('WikDict / Wiktionary via DBnary')
+    expect(block).toHaveTextContent('未确认短义')
+    expect(screen.queryByText('用户提供的释义 · 未核实')).toBeNull()
+    expect(screen.queryByText('暂无已确认的核心释义')).toBeNull()
+  })
+
+  it('keeps a NETEM word without any adopted definition visibly empty', async () => {
+    mockApi([word({ source_meanings: [], source_raw: 'owing to,,netem:rank:90',
+      source_meaning_sources: [] })])
+    await reveal()
+    expect(await screen.findByText('暂无可用释义')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '词典释义' })).toBeNull()
+  })
+
   it('shows a clear empty state when no meaning text exists', async () => {
     mockApi([word({ source_meanings: [], source_raw: '', anchor: '' })])
     await reveal()

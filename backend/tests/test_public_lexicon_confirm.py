@@ -246,6 +246,49 @@ def test_confirm_writes_public_content_only(admin, tmp_path: Path) -> None:
     assert after["import_run"] == before["import_run"] + 1
 
 
+def test_confirm_keeps_source_position_separate_from_import_line(admin, tmp_path: Path) -> None:
+    from app.models import EntrySourceEvidence
+    from app.services.public_lexicon_confirm import ConfirmRefused, confirm_plan
+    from app.services.public_lexicon_plan import build_plan, plan_digest
+
+    root = tmp_path / "sources"
+    root.mkdir()
+    _write(root, "primary.csv", "word,source_position\nIce Cream,netem:rank:91\n")
+    _write(root, "dictionary.csv", "word,meaning,source_position\nIce Cream,冰淇淋,stardict.idx#12075:offset:800\n")
+    (root / "manifest.json").write_text(json.dumps({
+        "required_fields": [],
+        "sources": [
+            {"id": "primary", "role": "primary", "file": "primary.csv",
+             "columns": {"word": "word"}, "sense_key_column": "source_position",
+             "provenance": provenance_block("primary")},
+            {"id": "dictionary", "role": "meaning", "file": "dictionary.csv",
+             "columns": {"word": "word", "meaning": "meaning"},
+             "sense_key_column": "source_position",
+             "provenance": provenance_block("dictionary")},
+        ],
+    }), encoding="utf-8")
+    _decisions(root, [])
+    plan = build_plan(manifest_path=root / "manifest.json", source_root=root,
+                      decisions_path=root / "decisions.json", target_lexicon="p29-position")
+    assert plan["confirmation_ready"]
+    with admin.session() as session:
+        _system_lexicon(session, "p29-position", "p29-test-position")
+        existing_evidence = session.query(EntrySourceEvidence).count()
+        tampered = json.loads(json.dumps(plan))
+        tampered["entries"][0]["evidence"]["meaning"][0]["sense_key"] = "stardict.idx#1"
+        tampered["plan_sha256"] = plan_digest(tampered)
+        with pytest.raises(ConfirmRefused, match="来源内位置"):
+            confirm_plan(session, plan=tampered, administrator=_administrator(session, admin), source_root=root)
+        assert session.query(EntrySourceEvidence).count() == existing_evidence
+        result = confirm_plan(session, plan=plan, administrator=_administrator(session, admin), source_root=root)
+        rows = session.query(EntrySourceEvidence).filter_by(import_run_id=result["import_run_id"]).all()
+    assert {(row.field_kind, row.row_locator, row.sense_key) for row in rows} == {
+        ("word", 2, "netem:rank:91"),
+        ("word", 2, "stardict.idx#12075:offset:800"),
+        ("meaning", 2, "stardict.idx#12075:offset:800"),
+    }
+
+
 def test_confirm_records_every_source_value_with_its_decision(
     admin, tmp_path: Path
 ) -> None:

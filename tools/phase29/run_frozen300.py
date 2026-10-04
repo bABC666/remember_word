@@ -133,7 +133,8 @@ def _migrate(root: Path, db: Path) -> None:
 def run(root: Path, output: Path, *, words: list[str] | None = None) -> dict:
     root, output = root.resolve(), output.resolve()
     archive_root = (root / EVIDENCE).resolve()
-    allowed = [root / "test-artifacts", root / ".pytest-tmp"]
+    allowed = [root / "test-artifacts", root / ".pytest-tmp",
+               root / "backend/.pytest-tmp"]
     pytest_temp = _configured_pytest_temp_root(root)
     if pytest_temp is not None:
         allowed.append(pytest_temp)

@@ -6,6 +6,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.schemas import ReviewRequest
 from app.services.concise_meaning import entry_short_meanings
+from app.services.entry_provenance import selected_meaning_sources
 from app.services.lexicon_selection import effective_lexicon_selection
 from app.services.study import (
     build_today_queue,
@@ -45,10 +46,13 @@ def today_queue(
     # human-confirmed values, so a word with an unconfirmed proposal answers with an
     # empty list and the client falls back to the source meanings.
     short = entry_short_meanings(session, (view.entry.id for view in queue.words))
-    words = [
-        word_dict_from_view(view, short.get(view.entry.id))
-        for view in queue.words
-    ]
+    attribution = selected_meaning_sources(session, [view.entry.id for view in queue.words])
+    words = []
+    for view in queue.words:
+        word = word_dict_from_view(view, short.get(view.entry.id))
+        if view.entry.lexicon.source_type == "netem":
+            word["source_meaning_sources"] = attribution.get(view.entry.id, [])
+        words.append(word)
     return {
         "total": len(words),
         "lexicon_id": scope,

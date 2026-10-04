@@ -75,6 +75,15 @@ describe('EntrySourceList', () => {
     expect(screen.queryByRole('list', { name: '释义：未采用的候选' })).not.toBeInTheDocument()
   })
 
+  it('distinguishes an original wikitext line from an old cache definition index', () => {
+    renderList(sources({ fields: [{ field_kind: 'meaning', selected: [
+      evidence({ source_evidence_id: 11, row_locator: 2, sense_key: 'wikitext:line:9|15' }),
+      evidence({ source_evidence_id: 12, row_locator: 3, sense_key: 'cache:def:0|2' }),
+    ], candidates: [] }] }))
+    expect(screen.getByText(/导入文件第 2 行 · 原 wikitext 行号 9\|15/)).toBeInTheDocument()
+    expect(screen.getByText(/导入文件第 3 行 · 旧清洗缓存定义序号 0\|2（非原文行号）/)).toBeInTheDocument()
+  })
+
   it('keeps a recorded but unadopted row out of the adopted list', () => {
     // The import wrote a row for the primary's meaning too and a human took the
     // supplement's instead. Both stay visible; only one may sit beside the value.

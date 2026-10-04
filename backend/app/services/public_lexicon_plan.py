@@ -82,7 +82,9 @@ MULTI_SELECT_FIELDS = frozenset({"meaning"})
 
 #: Row-level issues that make a row unreadable: the row cannot be interpreted at all,
 #: so it can only be acknowledged and excluded, never silently skipped.
-UNREADABLE_ROW_CODES = frozenset({"csv_error", "column_count", "invalid_source_revision"})
+UNREADABLE_ROW_CODES = frozenset({
+    "csv_error", "column_count", "invalid_source_revision", "invalid_sense_key",
+})
 
 MAX_DECISIONS_BYTES = 4 * 1024 * 1024
 MAX_PLAN_BYTES = 32 * 1024 * 1024
@@ -564,6 +566,11 @@ def build_plan(
     #: Which revision each source row was read at. Empty for a manifest whose sources
     #: declare none, which is what keeps this invisible to every older plan.
     revisions = _row_revisions(previews)
+    sense_keys = {
+        (source_id, row["line"]): row["sense_key"]
+        for source_id, preview in previews.items()
+        for row in preview["rows"] if "sense_key" in row
+    }
 
     joint_entries = {entry["normalized_word"]: entry for entry in report["entries"]}
     evidence_at: dict[tuple[str, str], set[tuple[str, int]]] = {}
@@ -593,6 +600,7 @@ def build_plan(
             joint_entry=joint_entries[word],
             source_meta=source_meta,
             revisions=revisions,
+            sense_keys=sense_keys,
             book=book,
             required_fields=specs.required_fields,
         )
@@ -748,6 +756,7 @@ def _entry(
     joint_entry: dict[str, Any],
     source_meta: dict[str, dict[str, str]],
     revisions: dict[tuple[str, int], str],
+    sense_keys: dict[tuple[str, int], str],
     book: _DecisionBook,
     required_fields: tuple[str, ...],
 ) -> dict[str, Any]:
@@ -774,6 +783,9 @@ def _entry(
                 # change the claim quietly. A declaration-free source adds no key at
                 # all, so an old manifest keeps producing exactly the plan it did.
                 located["source_revision"] = revision
+            sense_key = sense_keys.get((item["source_id"], item["line"]))
+            if sense_key is not None:
+                located["sense_key"] = sense_key
             items.append(located)
         evidence[field] = items
     conflicts = [

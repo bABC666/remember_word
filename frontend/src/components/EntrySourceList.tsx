@@ -95,6 +95,15 @@ export function EntrySourceList({ sources, lexiconId }: { sources: EntrySources;
 }
 
 function EvidenceRow({ row, unadopted, lexiconId }: { row: SourceEvidence; unadopted: boolean; lexiconId: number }) {
+  const position = row.sense_key.startsWith('wikitext:line:')
+    ? `原 wikitext 行号 ${row.sense_key.slice('wikitext:line:'.length)}`
+    : row.sense_key.startsWith('cache:def:')
+      ? `旧清洗缓存定义序号 ${row.sense_key.slice('cache:def:'.length)}（非原文行号）`
+      : row.sense_key.startsWith('stardict.idx#')
+        ? `StarDict 索引及正文偏移 ${row.sense_key}`
+        : row.sense_key.startsWith('netem:rank:')
+          ? `NETEM 原序号 ${row.sense_key.slice('netem:rank:'.length)}`
+          : `来源内位置 ${row.sense_key}`
   return (
     <li className={unadopted ? 'source-row unadopted' : 'source-row'}>
       <div className="source-row-head">
@@ -106,7 +115,7 @@ function EvidenceRow({ row, unadopted, lexiconId }: { row: SourceEvidence; unado
       </div>
       <p className="source-row-text">{row.raw_text}</p>
       <small className="source-row-meta">
-        第 {row.row_locator} 行 · 版本 {row.source.version || '未记录'} · 许可标识 {row.source.license_id || '未记录'}
+        导入文件第 {row.row_locator} 行 · {position} · 版本 {row.source.version || '未记录'} · 许可标识 {row.source.license_id || '未记录'}
       </small>
       <small className="source-row-revision">
         {row.source_revision ? `固定修订 ${row.source_revision}` : '没有记录固定修订号'}
