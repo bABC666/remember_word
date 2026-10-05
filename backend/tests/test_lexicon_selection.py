@@ -203,3 +203,29 @@ def test_netem_is_default_only_without_explicit_choice(world):
         with world.session() as session:
             session.delete(session.get(Lexicon, netem_id))
             session.commit()
+
+
+def test_withdrawn_public_library_leaves_progress_but_not_fallback_queue(world):
+    from app.models import Lexicon, LexiconEntry, UserSettings, UserWordState
+
+    own = _import(world, "自有", "banana")
+    with world.session() as session:
+        library = Lexicon(name="NETEM", visibility="public", source_type="netem")
+        session.add(library)
+        session.flush()
+        session.add(LexiconEntry(lexicon_id=library.id, word="apple", normalized_word="apple", sequence=1))
+        session.commit()
+        target = library.id
+    assert world.client.post(f"/api/lexicons/{target}/select").status_code == 200
+    queue = world.client.get("/api/study/today").json()["words"]
+    state_id = queue[0]["word_state_id"]
+    with world.session() as session:
+        session.get(Lexicon, target).visibility = "private"
+        session.commit()
+    fallback = world.client.get("/api/study/today").json()["words"]
+    assert all(word["lexicon_id"] != target for word in fallback)
+    assert world.client.get(f"/api/study/today?lexicon_id={target}").status_code == 404
+    with world.session() as session:
+        assert session.get(UserWordState, state_id) is not None
+        assert session.get(UserSettings, world.user_id).selected_lexicon_id == target
+    assert world.client.post(f"/api/lexicons/{own}/select").status_code == 200

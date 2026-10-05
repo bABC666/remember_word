@@ -370,3 +370,9 @@ h1, h2, h3, p { margin-top: 0; }
 .file-preview-list { max-height: 360px; overflow: auto; margin: 1rem 0; border: 1px solid #d8ddd7; border-radius: 10px; }
 .file-preview-list [role="listitem"] { display: flex; flex-wrap: wrap; gap: .75rem; padding: .55rem .8rem; border-bottom: 1px solid #edf0eb; }
 .file-preview-list [role="listitem"]:last-child { border-bottom: 0; }
+.dictionary-source-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; }
+.dictionary-source-note button { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.dictionary-source-dialog { width: min(660px, 100%); max-height: min(760px, 85dvh); overflow-y: auto; overscroll-behavior: contain; min-width: 0; }
+.dictionary-source-dialog > header { display: flex; justify-content: space-between; align-items: center; }
+.dictionary-source-dialog h2 { margin: 0; }
+.dictionary-source-dialog .source-attribution { font-size: 13px; line-height: 1.7; }

@@ -7,6 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Lexicon,
     LexiconEntry,
     ReviewEvent,
     User,
@@ -270,6 +271,15 @@ def _ensure_selected_states(session: Session, user: User, lexicon_id: int, limit
     session.commit()
 
 
+def _readable_lexicon_ids(user: User):
+    # Withdrawal keeps historical states intact. A fallback queue must still
+    # respect library visibility rather than re-serving a withdrawn library.
+    return select(Lexicon.id).where(or_(
+        Lexicon.owner_user_id == user.id,
+        (Lexicon.owner_user_id.is_(None)) & (Lexicon.visibility == "public"),
+    ))
+
+
 def _due_rows(
     session: Session, user: User, moment: datetime, limit: int, lexicon_id: int | None = None
 ) -> list[tuple[UserWordState, LexiconEntry]]:
@@ -286,6 +296,7 @@ def _due_rows(
             .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
             .where(
                 UserWordState.user_id == user.id,
+                LexiconEntry.lexicon_id.in_(_readable_lexicon_ids(user)),
                 *lexicon_filter,
                 UserWordState.status != "new",
                 or_(
@@ -322,6 +333,7 @@ def _new_rows(
         .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
         .where(
             UserWordState.user_id == user.id,
+            LexiconEntry.lexicon_id.in_(_readable_lexicon_ids(user)),
             *lexicon_filter,
             UserWordState.status == "new",
         )

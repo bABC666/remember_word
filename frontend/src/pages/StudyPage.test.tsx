@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
@@ -180,20 +180,42 @@ describe('the study page and short confirmed meanings', () => {
     expect(screen.queryByText('农村的')).toBeNull()
   })
 
-  it('shows adopted NETEM dictionary meaning directly with its real source', async () => {
+  it.each([['wikdict.csv', 'WikDict', 'Karl Bartel'], ['zhwiktionary.csv', '中文维基词典', '中文维基词典贡献者']])('keeps %s attribution closed until one click outside the answer', async (name, shortName, creator) => {
     mockApi([word({
       word: 'ice cream', source_meanings: ['冰淇淋'], source_raw: 'ice cream,,netem:rank:91',
       meaning_origin: 'platform', source_meaning_sources: [{
-        publisher: 'WikDict / Wiktionary via DBnary', version: '2026-06-23',
+        name, source_artifact_id: 9,
+        publisher: `${creator}；完整作者串`, version: '2026-06-23',
         source_position: 'stardict.idx#12075:offset:800', import_csv_line: '2',
         source_revision: '', source_revision_url: '',
+        attribution: { creators: `${creator}；完整作者串`,
+          license_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+          modifications: '抽取清洗与拼接', snapshot_sha256: 'a'.repeat(64) },
       }],
     })])
     await reveal()
     const block = await screen.findByRole('region', { name: '词典释义' })
     expect(block).toHaveTextContent('冰淇淋')
-    expect(block).toHaveTextContent('WikDict / Wiktionary via DBnary')
-    expect(block).toHaveTextContent('抽取片段，未做全库逐词语义校订')
+    expect(block).toHaveTextContent(`词典释义 · ${shortName} · 来源与许可`)
+    expect(screen.queryByText(/完整作者串/)).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    const trigger = within(block).getByRole('button', { name: '来源与许可' })
+    await userEvent.click(trigger)
+    const detail = screen.getByRole('dialog', { name: '来源与许可' })
+    expect(block).not.toContainElement(detail)
+    expect(detail).toHaveTextContent(creator)
+    expect(detail).toHaveTextContent('未做全库逐词语义校订')
+    expect(detail).toHaveTextContent('a'.repeat(64))
+    expect(within(detail).getByRole('link', { name: `${shortName} 来源详情` })).toHaveAttribute('href', '/sources#source-1-9')
+    await userEvent.keyboard('3')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(trigger).toHaveFocus()
+    await userEvent.keyboard(' ')
+    const reopened = screen.getByRole('dialog', { name: '来源与许可' })
+    expect(within(reopened).getByRole('link', { name: '当前词条来源记录与原文位置' })).toHaveAttribute('href', '/library/42')
+    await userEvent.click(within(reopened).getByRole('button', { name: '关闭' }))
     expect(screen.queryByText('用户提供的释义 · 未核实')).toBeNull()
     expect(screen.queryByText('暂无已确认的核心释义')).toBeNull()
   })

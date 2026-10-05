@@ -212,6 +212,9 @@ def selected_meaning_sources(
         revision = evidence.source_revision or ""
         template = frozen_revision_template(artifact)
         item = {
+            "name": artifact.name,
+            "source_artifact_id": artifact.id,
+            "file_sha256": artifact.file_sha256,
             "publisher": artifact.publisher,
             "version": artifact.version,
             "source_position": evidence.sense_key,

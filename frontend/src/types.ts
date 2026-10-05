@@ -118,6 +118,9 @@ export interface Word {
   meaning_origin?: 'user_provided' | 'platform'
   /** Adopted dictionary evidence for study display; absent for private uploads. */
   source_meaning_sources?: Array<{
+    name?: string
+    source_artifact_id?: number
+    file_sha256?: string
     publisher: string
     version: string
     source_position: string
