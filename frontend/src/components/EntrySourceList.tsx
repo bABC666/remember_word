@@ -91,7 +91,7 @@ export function EntrySourceList({ sources, lexiconId }: { sources: EntrySources;
 
       {fields.length > 0 && (
         <>
-          <p className="source-foot">这里展示固定来源抽取的片段，未经全库逐词语义校订。</p>
+          <p className="source-foot">这里展示固定来源选取或翻译整理的片段；具体修改见来源声明，未经全库逐词语义校订。</p>
           <p className="source-foot">以上是导入时记录的来源声明，不代表授权已获确认。</p>
         </>
       )}

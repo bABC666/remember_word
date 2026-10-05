@@ -45,7 +45,8 @@ from urllib.parse import quote
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import EntrySourceEvidence, SourceArtifact
+from app.models import EntrySourceEvidence, PublicImportRun, SourceArtifact
+from app.services.public_lexicon_gap import RETRACTION_KIND
 from app.services.public_lexicon_joint_preview import FIELD_ORDER
 from app.services.public_lexicon_preview import (
     REVISION_PLACEHOLDER,
@@ -208,7 +209,10 @@ def selected_meaning_sources(
                   EntrySourceEvidence.id)
     ).all()
     result: dict[int, list[dict[str, object]]] = {}
+    retracted = _retracted_run_ids(session)
     for evidence, artifact in rows:
+        if evidence.import_run_id in retracted:
+            continue
         revision = evidence.source_revision or ""
         template = frozen_revision_template(artifact)
         item = {
@@ -299,12 +303,18 @@ def entry_sources(session: Session, entry_id: int) -> dict[str, object]:
     pairs = _rows(session, entry_id)
     templates: dict[int, str] = {}
     grouped: dict[str, dict[str, list[dict[str, object]]]] = {}
+    retracted = _retracted_run_ids(session)
     for row, artifact in pairs:
         if artifact.id not in templates:
             templates[artifact.id] = frozen_revision_template(artifact)
         item = _evidence_dict(row, artifact, templates[artifact.id])
+        active = row.selected_for_default and row.import_run_id not in retracted
+        if row.import_run_id in retracted:
+            item["selection_retracted"] = True
+            item["recorded_selected_for_default"] = item["selected_for_default"]
+            item["selected_for_default"] = False
         bucket = grouped.setdefault(row.field_kind, {"selected": [], "candidates": []})
-        bucket["selected" if row.selected_for_default else "candidates"].append(item)
+        bucket["selected" if active else "candidates"].append(item)
 
     fields = [
         {
@@ -315,3 +325,13 @@ def entry_sources(session: Session, entry_id: int) -> dict[str, object]:
         for field_kind in _field_order(list(grouped))
     ]
     return {"fields": fields, "completeness": _completeness(fields, bool(pairs))}
+
+
+def _retracted_run_ids(session: Session) -> set[int]:
+    """An appended retraction changes adoption, never the original evidence row."""
+    values = session.scalars(select(PublicImportRun.result_json).where(
+        PublicImportRun.target_lexicon_id == 5,
+        PublicImportRun.result_json["kind"].as_string() == RETRACTION_KIND,
+    )).all()
+    return {value["retracted_run_id"] for value in values
+            if isinstance(value.get("retracted_run_id"), int)}

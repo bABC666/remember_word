@@ -6,7 +6,7 @@ import { api } from '../api'
 import { sourceCardAnchor } from '../sourceAnchor'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { SourceAttribution } from '../components/SourceAttribution'
-import { dictionarySourceName } from '../dictionarySource'
+import { dictionaryMeaningNotice, dictionarySourceName } from '../dictionarySource'
 import {
   approvalLabel,
   licenseLink,
@@ -195,7 +195,8 @@ function SourceCard({ row, lexiconId }: { row: SourceArtifactRow; lexiconId: num
         <div className="full"><dt>展示范围声明</dt><dd>{row.display_scope || '未记录'}</dd></div>
       </dl>
       <SourceAttribution value={row.attribution} />
-      {row.attribution && row.name !== 'netem-words.csv' && <p className="muted">词典释义为抽取片段，未做全库逐词语义校订。</p>}
+      {row.attribution && row.name !== 'netem-words.csv' && <p className="muted">{row.name.startsWith('enwiktionary-')
+        ? dictionaryMeaningNotice([row.name]) : '词典释义为抽取片段，未做全库逐词语义校订。'}</p>}
       <p className="source-foot">
         记录文件：{row.name}；导入记录：
         {row.runs.length > 0

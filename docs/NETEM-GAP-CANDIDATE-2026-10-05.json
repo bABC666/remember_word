@@ -1,0 +1,17 @@
+{
+  "candidate_sha256": "5fcc8dfa504ab1d008ce9f015ab2848a6c65f75cf64474eb8d56188cb42ae146",
+  "superseded_initial_candidate_sha256": "5fcc8dfa504ab1d008ce9f015ab2848a6c65f75cf64474eb8d56188cb42ae146",
+  "candidate_directory": "test-artifacts/netem-gap-20261005/candidate",
+  "baseline_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+  "target_lexicon_id": 5,
+  "initial_import_run_id": 1,
+  "initial_import_plan_sha256": "5e17f98651acbb5df9af697c6a19b6abbd0088e7373cce99603059e2b21497fe",
+  "words": 77,
+  "chinese_selection": 55,
+  "english_definition_translation_by_codex": 22,
+  "human_reviewed": false,
+  "self_authored_supplement": 0,
+  "source": "English Wiktionary contributors, fixed revisions retrieved 2026-10-05",
+  "adapter_license": "CC-BY-SA-4.0",
+  "status": "candidate locked; copy and production acceptance pending"
+}

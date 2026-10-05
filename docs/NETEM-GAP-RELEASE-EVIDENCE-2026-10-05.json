@@ -1,0 +1,41 @@
+{
+  "status": "final candidate, copy browser and full gate accepted; authenticated production update pending",
+  "baseline_code_sha": "214b55790aef518b86f16abc23ab74199f7ce18b",
+  "candidate_sha256": "5fcc8dfa504ab1d008ce9f015ab2848a6c65f75cf64474eb8d56188cb42ae146",
+  "baseline_candidate_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+  "copy_plan_sha256": "cbebb5e2c1405e139d8265cdb541cf5c0288dc4f20d39da388e507b592428272",
+  "copy_backup_sha256": "5ff921c173aa0e6ad9b258bfa8a4793643fb3e18e76bbc4d2f2bde0b63318aca",
+  "adopted": 77,
+  "remaining_empty": 0,
+  "chinese_selection": 55,
+  "ai_definition_translation": 22,
+  "human_reviewed": false,
+  "self_authored_supplement": 0,
+  "evidence_root": "test-artifacts/netem-gap-20261005",
+  "evidence": {
+    "rehearsal/copy-receipt.json": "849f4f60b826f0492249c7c45681242194d592524023ba29c45efae2345b69c4",
+    "rehearsal/all-word-verification.json": "512e5ba7049019cee21af85acef9a6fbba782975a11eebfd67e51ecc0a25481f",
+    "rehearsal/locked-plan.json": "e68ce239c16167179a5e32fabfe0500d6f4801a2923038bedd7b28c07b50d410",
+    "rehearsal/browser-copy.json": "4ffc5233a2d14ab487017210c3a87dbd6a5dfa69b1d9f4d57284c319a8d538f1",
+    "rehearsal/after-browser-preservation.json": "fccebb76b521aa0b1f704531766d42b4661cce208de924801a8a7af348673a5c",
+    "auth-ready.json": "9b857c2fafcd0645800a4b712baaa64605444449351923b24184a41281d4ce56",
+    "full-gate-final.log": "8333b1d93a64f47caa6e29ea0a42365e991e6486978779dab45402fe1e095be4",
+    "pytest-isolation-evidence.json": "6a61d294820b9f08267e001e23da4b6c0d9510bcb3f82e77a42f210a49d5c6f4",
+    "source-adoption-review.json": "df920f2ccf5b16d575fab20243dd0c8e1975cfd4ad87d4f1065ebb7f72067905"
+  },
+  "browser_fallback": "Browser plugin unavailable; bundled Playwright and installed Chrome",
+  "original_documents": {
+    "V1.2-NETEM-DEFAULT-LEXICON-LAUNCH-CANDIDATE-2026-10-03.md": "8bdce41ae071d76284f3ca3d196e73c716714a6b905a14ea5af2d8270ee155ed",
+    "V1.2-PHASE2.9-POS-MEANING-CONTRACT-DESIGN.md": "dfae28454a18a3603815139e6fe549e72332ff85defa241d7cd7416d78668bf4",
+    "V1.2-PHASE2.9-ZHWIKTIONARY-LICENSE-EVIDENCE-CHECK.md": "28284746f65db876938af58e36e58b59103e9efd8d891c3cd9076a9f9a660122"
+  },
+  "review": "No subagents per owner instruction. Self-review: locked candidate authority, exact empty CAS, locked administrator identity, current DB revision, initial run/evidence preservation, no concise meaning, append-only source audit and slice-only retraction; visual screenshot inspection completed.",
+  "full_gate": {
+    "exit_code": 0,
+    "backend_passed": 1041,
+    "backend_skipped": 1,
+    "warnings": 2,
+    "frontend_passed": 200,
+    "real_data_files_unchanged": 42406
+  }
+}

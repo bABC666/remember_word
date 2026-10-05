@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { SourceAttribution } from './SourceAttribution'
 import { sourceCardHref } from '../sourceAnchor'
-import { dictionarySourceName } from '../dictionarySource'
+import { dictionaryMeaningNotice, dictionarySourceName } from '../dictionarySource'
 import type { Word } from '../types'
 
 export function DictionarySourceNote({ word }: { word: Word }) {
@@ -20,7 +20,7 @@ export function DictionarySourceNote({ word }: { word: Word }) {
     return () => { document.body.style.overflow = previousOverflow; opener?.focus() }
   }, [open])
   return <>
-    <p className="dictionary-source-note">词典释义 · {[...new Set(sources.map(s => dictionarySourceName(s.name)))].join('、')} · {' '}
+    <p className="dictionary-source-note">{sources.some(s => s.name?.startsWith('enwiktionary-translation-')) ? 'AI译释' : '词典释义'} · {[...new Set(sources.map(s => dictionarySourceName(s.name)))].join('、')} · {' '}
       <button ref={trigger} type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(true)}>来源与许可</button>
     </p>
     {open && createPortal(<div className="modal-overlay" onClick={() => setOpen(false)}>
@@ -36,7 +36,9 @@ export function DictionarySourceNote({ word }: { word: Word }) {
           }
         }}>
         <header><h2>来源与许可</h2><button className="text-button" onClick={() => setOpen(false)}>关闭</button></header>
-        <p className="muted">词典释义为抽取片段，未做全库逐词语义校订。</p>
+        <p className="muted">{sources.some(s => s.name?.startsWith('enwiktionary-'))
+          ? dictionaryMeaningNotice(sources.map(s => s.name))
+          : '词典释义为抽取片段，未做全库逐词语义校订。'}</p>
         {sources.map((source, index) => <section key={index}>
           <h3>{dictionarySourceName(source.name)}</h3>
           <p>导入版本：{source.version}</p>

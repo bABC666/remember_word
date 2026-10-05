@@ -8,6 +8,7 @@ import { EntrySourceList } from '../components/EntrySourceList'
 import { MeaningList } from '../components/MeaningList'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { hasMeaningText } from '../meaningText'
+import { dictionaryMeaningNotice } from '../dictionarySource'
 import { statusLabels, type LibraryPosition, type WordDetail } from './wordDetailModel'
 
 function exposureTime(value: string | null | undefined) {
@@ -27,6 +28,8 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
     .filter((field) => field.field_kind === 'meaning')
     .flatMap((field) => field.selected)
     .map((row) => row.source.publisher || row.source.name))]
+  const sourceNames = word.sources.fields.filter(field => field.field_kind === 'meaning')
+    .flatMap(field => field.selected).map(row => row.source.name)
   // With groups, the headings inside the concise list state the part of speech; the
   // single source-declared `part_of_speech` would be a second claim beside them. With
   // no groups there is nothing else to read and it stays.
@@ -49,8 +52,8 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
         <h3>{word.anchor || '—'}</h3>
         {word.semantic_note && <p>{word.semantic_note}</p>}
       </section>
-      {hasSource && <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : '来源原文'}>
-        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : '词典释义 · 抽取片段，未做全库逐词语义校订'}</span>
+      {hasSource && <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : sourceNames.some(name => name.startsWith('enwiktionary-translation-')) ? '翻译整理的释义' : '来源原文'}>
+        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : dictionaryMeaningNotice(sourceNames)}</span>
         {word.meaning_origin !== 'user_provided' && <p className="muted">{rawIsFallback
           ? '原始记录行 · 来源未单独标注'
           : `释义采用来源：${meaningSources.join('、') || '未记录（见下方来源记录）'}`}</p>}
