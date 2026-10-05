@@ -13,5 +13,7 @@
   "self_authored_supplement": 0,
   "source": "English Wiktionary contributors, fixed revisions retrieved 2026-10-05",
   "adapter_license": "CC-BY-SA-4.0",
-  "status": "candidate locked; copy and production acceptance pending"
+  "status": "final candidate accepted and applied to production run 2",
+  "release_code_sha": "acbf0119c7711a28e541c29453729b6929f8856a",
+  "plan_sha256": "cbebb5e2c1405e139d8265cdb541cf5c0288dc4f20d39da388e507b592428272"
 }
