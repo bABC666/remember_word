@@ -11,9 +11,8 @@ import pytest
 from app.services.pinned_wikitext_writer import _paths, write_pinned_lines
 from tests.test_source_wikitext_line import connect, migrated
 
-ARCHIVE = (Path(__file__).resolve().parents[2] / "test-artifacts" /
-           "phase29-provenance-evidence/kaoyan-vocab-research/rehearsal/pilot/zh-pinned-wikitext-300.json")
-FILE_HASH = "09650bf2143440c5810b992a35a24ab8171094c6055aca111c02fe2a73a82a46"
+ARCHIVE = Path(__file__).parent / "fixtures/synthetic-wikitext.json"
+FILE_HASH = "8eef969fb7e59e92b11c6c668efa5c549d71dae1f631091c5292b80ef14018cc"
 SOURCE = "zhwiktionary-pinned-oldid"
 
 
@@ -22,9 +21,9 @@ def test_linked_english_heading_keeps_target_language_identity() -> None:
     assert language == "英语"
     assert path == "英语 > 發音"
 PAGES = {
-    "9576029": ("8b4e7331f2fe3cd59d3786cfdc0f85950243d4374b231febcd74ebc918768b68", (12, 15, 16, 19, 23)),
-    "8457333": ("8f937bc8d81ea6f1a513efb17b45e357587dfac4610aec23b53d098cefe72d56", (3, 10, 12)),
-    "7831922": ("042786853924911d423bb20f2df50ad822a7caf496eeaa98b99c88fa70c13d8a", (3, 6, 17, 20)),
+    "9576029": ("c128dc73624dfc0c818903622a63c3373dcf7dfca3729da79173f3adb8222c2e", (12, 15, 16, 19, 23)),
+    "8457333": ("316dff55c8c68af3f593f1e947761af75ddf50a9be69f06a52cb327a71857f47", (3, 10, 12)),
+    "7831922": ("41d58c475bc9f65e5d1b34c61db247e11bd7cac5286a7484c2446a204fd68f9a", (3, 6, 17, 20)),
 }
 
 

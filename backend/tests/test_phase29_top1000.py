@@ -12,6 +12,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools/phase29/top1000.py"
+# Historical manual-review audit needs a separately preserved local archive.
+pytestmark = pytest.mark.skipif(
+    not (ROOT / "test-artifacts/phase29-provenance-evidence/kaoyan-vocab-research/rehearsal/notes/05-worklist.tsv").is_file(),
+    reason="historical manual-review archive is not distributed; public seed and synthetic contracts are tested independently",
+)
+
 
 
 def _module():

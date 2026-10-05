@@ -1,0 +1,3 @@
+# Preserve immutable public source snapshots byte-for-byte, including upstream whitespace.
+assets/classmate-test/** -text -whitespace
+backend/tests/fixtures/synthetic-wikitext.json -text whitespace=cr-at-eol

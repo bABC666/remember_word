@@ -1,0 +1,22 @@
+{
+  "creators": "English Wiktionary contributors（forge词条及其历史列出的贡献者）；中文选择或翻译整理：拾词项目 / Codex（AI）。",
+  "modifications": "本项目由Codex根据固定英语释义翻译整理中文；不是词典中文原文，不是人工确认短义，未经人工逐词核准。 金属加热锤打与造假两义；来源中文表的铸造不符合前义，故剔除而按英英整理。",
+  "copyright_notice": "上游文字依Wikimedia社区贡献条款；选择CC路径；本项目改编CC BY-SA 4.0。",
+  "disclaimer": "来源及改编按现状提供，无准确性保证；核心义选取不代表全部义项。",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.en",
+  "source_url": "https://en.wiktionary.org/w/index.php?title=forge&oldid=92983507",
+  "snapshot_label": "forge / oldid 92983507 / wikitext lines 161,171",
+  "snapshot_sha256": "c442c5fed8f415b95a113ce00a0b118447f5e30063538e55090e3f47b793b06f",
+  "snapshot_url": "https://en.wiktionary.org/w/index.php?title=forge&oldid=92983507",
+  "history_url_template": "https://en.wiktionary.org/w/index.php?title=forge&action=history&oldid={revision}",
+  "links": [
+    {
+      "label": "固定英文字典词条（forge）",
+      "url": "https://en.wiktionary.org/w/index.php?title=forge&oldid=92983507"
+    },
+    {
+      "label": "Wikimedia文字再利用条款 §7",
+      "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content"
+    }
+  ]
+}

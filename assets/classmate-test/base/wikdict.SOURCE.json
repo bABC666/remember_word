@@ -1,0 +1,36 @@
+{
+  "creators": "Karl Bartel；WikDict / FreeDict；DBnary；Wiktionary 各语言版本贡献者",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "source_url": "https://www.wikdict.com/page/about",
+  "snapshot_label": "English–中文 FreeDict+WikDict StarDict ZIP，包内日期 2026-06-23",
+  "snapshot_url": "https://download.wikdict.com/dictionaries/stardict/wikdict-en-zh.zip",
+  "snapshot_sha256": "62d6d4a8ccf28c28bbe4ec82ac65fa67fd52c0f34d71294ab1d9d95fa3233830",
+  "modifications": "WikDict 在 DBnary 抽取上整理格式、组合多语言译文、排序和去重，包内声明 CC BY-SA 4.0；DBnary 声明 3.0，改编的同要素后续版本路径见 3.0 第 4(b) 节。本项目按词头大小写折叠精确匹配，仅提取含中文 HTML 译文片段、去标签、同串去重并用分号拼接，剔除已知问题释义；无逐词修订号，以 ZIP 指纹及 StarDict 索引和正文偏移定位。下载直链可能更新，字节不匹配该指纹即不是本版本。本项目抽取改编以 CC BY-SA 4.0 提供。",
+  "disclaimer": "来源按原样及可用状态提供，无准确性等保证，详见许可证第 5 节。署名不表示来源方认可本项目。",
+  "links": [
+    {
+      "label": "WikDict 来源与上游修改",
+      "url": "https://www.wikdict.com/page/about"
+    },
+    {
+      "label": "WikDict 下载",
+      "url": "https://www.wikdict.com/page/download"
+    },
+    {
+      "label": "DBnary 来源、署名与 3.0 声明",
+      "url": "https://kaiko.getalp.org/about-dbnary/"
+    },
+    {
+      "label": "CC BY-SA 3.0 第 4(b) 节",
+      "url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode#s4b"
+    },
+    {
+      "label": "Wiktionary 各语言版本",
+      "url": "https://www.wiktionary.org/"
+    },
+    {
+      "label": "FreeDict",
+      "url": "https://freedict.org/"
+    }
+  ]
+}

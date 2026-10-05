@@ -1,0 +1,26 @@
+{
+  "creators": "English Wiktionary contributors（afterwards词条及其历史列出的贡献者）；中文选择或翻译整理：拾词项目 / Codex（AI）。",
+  "modifications": "本项目由Codex选择中文译词、去模板、繁简转换并拼接；不是整句逐字原文，未经人工逐词核准。 美式afterward对应afterwards；时间上在其后。",
+  "copyright_notice": "上游文字依Wikimedia社区贡献条款；选择CC路径；本项目改编CC BY-SA 4.0。",
+  "disclaimer": "来源及改编按现状提供，无准确性保证；核心义选取不代表全部义项。",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.en",
+  "source_url": "https://en.wiktionary.org/w/index.php?title=afterwards&oldid=92713109",
+  "snapshot_label": "afterwards / oldid 92713109 / wikitext lines 54",
+  "snapshot_sha256": "98f0d299260d0343df533120b3c2c6fd162227c7d5a7838c3135331a365be609",
+  "snapshot_url": "https://en.wiktionary.org/w/index.php?title=afterwards&oldid=92713109",
+  "history_url_template": "https://en.wiktionary.org/w/index.php?title=afterwards&action=history&oldid={revision}",
+  "links": [
+    {
+      "label": "固定英文字典词条（afterwards）",
+      "url": "https://en.wiktionary.org/w/index.php?title=afterwards&oldid=92713109"
+    },
+    {
+      "label": "Wikimedia文字再利用条款 §7",
+      "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content"
+    },
+    {
+      "label": "固定词形关系（afterward）",
+      "url": "https://en.wiktionary.org/w/index.php?oldid=85361461"
+    }
+  ]
+}

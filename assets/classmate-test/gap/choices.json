@@ -1,0 +1,2088 @@
+[
+  {
+    "word": "build",
+    "sequence": 256,
+    "new_meanings": [
+      "建设；建造"
+    ],
+    "source_file": "enwiktionary-zh_selection-0256.csv",
+    "source_title": "build",
+    "oldid": "92700843",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "材料或部件组成的建造义；不采用旧编纂文本。",
+    "citations": [
+      {
+        "line": 132,
+        "raw_text": "*: Mandarin: {{t+|cmn|建設|tr=jiànshè}}, {{t+|cmn|建造|tr=jiànzào}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|(transitive) to form by combining materials or parts}}"
+      }
+    ],
+    "page_text_sha256": "6d1792b2b2ade1719994f1cdc5ddf41dc4cef4b61ad1d36c5e6cbdcdc97dcc22"
+  },
+  {
+    "word": "set",
+    "sequence": 271,
+    "new_meanings": [
+      "放置；确定；一套"
+    ],
+    "source_file": "enwiktionary-translation-0271.csv",
+    "source_title": "set",
+    "oldid": "93403206",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "分开采用放置、确定和相配事物集合义；不将不同词性义项混作一句。",
+    "citations": [
+      {
+        "line": 35,
+        "raw_text": "# {{lb|en|transitive}} To [[put]] (something) down, to [[rest]].",
+        "heading": "====Verb====",
+        "translation_sense": ""
+      },
+      {
+        "line": 52,
+        "raw_text": "# {{senseid|en|determine}}{{lb|en|transitive}} To [[determine]] or [[settle]].",
+        "heading": "====Verb====",
+        "translation_sense": ""
+      },
+      {
+        "line": 463,
+        "raw_text": "# {{senseid|en|matching collection}} A [[match]]ing [[collection]] of similar things. (''Note the similar meaning in {{l|en|set|Etymology 2, Noun|id=series or group}}''.)",
+        "heading": "====Noun====",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "7207886e35106e9be055828a5923cda6222f73084be333bba2f9e926f8f9ea5d"
+  },
+  {
+    "word": "identify",
+    "sequence": 435,
+    "new_meanings": [
+      "辨认；识别"
+    ],
+    "source_file": "enwiktionary-zh_selection-0435.csv",
+    "source_title": "identify",
+    "oldid": "93356443",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "确定身份的普通动词义。",
+    "citations": [
+      {
+        "line": 65,
+        "raw_text": "*: Mandarin: {{t+|cmn|辨認|tr=biànrèn}}, {{t+|cmn|識別|tr=shíbié}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|to establish the identity of someone or something}}"
+      }
+    ],
+    "page_text_sha256": "2152e03b0fdcce797c891caf9e82dbada7ca96cef9801373851bf41e396cf9ed"
+  },
+  {
+    "word": "successful",
+    "sequence": 763,
+    "new_meanings": [
+      "成功的；有成效的"
+    ],
+    "source_file": "enwiktionary-zh_selection-0763.csv",
+    "source_title": "successful",
+    "oldid": "92127589",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "保留来源alt中文表形，不恢复中文维基词典CC-CEDICT材料。",
+    "citations": [
+      {
+        "line": 45,
+        "raw_text": "*: Mandarin: {{t+|cmn|成效|tr=yǒu chéngxiào de|alt=有成效的}}, {{t+|cmn|完滿|tr=wánmǎn}}, {{t+|cmn|成功|tr=chénggōng de|alt=成功的}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|resulting in success}}"
+      }
+    ],
+    "page_text_sha256": "49a51e04b151be8aad0cbe927b936b9161232b7fae9ea302805efd95965a3fc1"
+  },
+  {
+    "word": "operation",
+    "sequence": 898,
+    "new_meanings": [
+      "操作；手术"
+    ],
+    "source_file": "enwiktionary-zh_selection-0898.csv",
+    "source_title": "operation",
+    "oldid": "92722085",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "设备操作与外科手术在两个独立翻译表中；不采用军事表或旧混列。",
+    "citations": [
+      {
+        "line": 104,
+        "raw_text": "*: Mandarin: {{t+|cmn|運營}}, {{t+|cmn|操作}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|method by which a device performs its function}}"
+      },
+      {
+        "line": 203,
+        "raw_text": "*: Mandarin: {{t+|cmn|手術}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|surgical procedure}}"
+      }
+    ],
+    "page_text_sha256": "2835268642d0f45e9fd8e17fea0a8947383ca46a30edcbb3594935b9f51f515b"
+  },
+  {
+    "word": "complex",
+    "sequence": 984,
+    "new_meanings": [
+      "复杂"
+    ],
+    "source_file": "enwiktionary-zh_selection-0984.csv",
+    "source_title": "complex",
+    "oldid": "93317009",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "只选非简单、非直接的形容词义，不选数学或心理义。",
+    "citations": [
+      {
+        "line": 164,
+        "raw_text": "*: Mandarin: {{t+|cmn|複雜|tr=fùzá}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|not simple or straightforward|complicated}}"
+      }
+    ],
+    "page_text_sha256": "e53d4b0be741c29cfa1a239c1f2c851055fc27a3ce19720c082a0311ce074dcf"
+  },
+  {
+    "word": "collect",
+    "sequence": 1127,
+    "new_meanings": [
+      "收集；收藏"
+    ],
+    "source_file": "enwiktionary-zh_selection-1127.csv",
+    "source_title": "collect",
+    "oldid": "92306736",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "只取有明确聚集义项上下文的中文，不取庋藏或旧累。",
+    "citations": [
+      {
+        "line": 80,
+        "raw_text": "*: Mandarin: {{t+|cmn|庋藏|tr=guǐcáng; jǐcáng}}, {{t+|cmn|收藏|tr=shōucáng}}, {{t+|cmn|收集|tr=shōují}}",
+        "heading": "=====Translations=====",
+        "translation_sense": "{{trans-top-see|to gather together|unite|compile|gather}}"
+      }
+    ],
+    "page_text_sha256": "ef2eabaadba7eefa925633739e19fe74ca8ea4e3dc9124f6c56ee13960be20a9"
+  },
+  {
+    "word": "shortage",
+    "sequence": 1131,
+    "new_meanings": [
+      "短缺"
+    ],
+    "source_file": "enwiktionary-zh_selection-1131.csv",
+    "source_title": "shortage",
+    "oldid": "92356915",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "缺少或不足义；不采用t+check待核词。",
+    "citations": [
+      {
+        "line": 45,
+        "raw_text": "*: Mandarin: {{t+|cmn|短缺|tr=duǎnquē}}, {{t|cmn|緊缺|tr=jǐnquē}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|lack or deficiency}}"
+      }
+    ],
+    "page_text_sha256": "977efbb05b12bf0e94773758b8822384754a65e650f3f1557e4c6de8184a8da8"
+  },
+  {
+    "word": "bit",
+    "sequence": 1213,
+    "new_meanings": [
+      "少量；比特（计算机单位）"
+    ],
+    "source_file": "enwiktionary-translation-1213.csv",
+    "source_title": "bit",
+    "oldid": "93061501",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "少量义与计算机单位分开，后者保留领域限制；中文由Codex翻译整理。",
+    "citations": [
+      {
+        "line": 45,
+        "raw_text": "# A [[small]] [[amount]] of something.",
+        "heading": "====Noun====",
+        "translation_sense": ""
+      },
+      {
+        "line": 589,
+        "raw_text": "*: Mandarin: {{tt+|cmn|位|tr=wèi}}, {{tt+|cmn|比特|tr=bǐtè}}, {{tt+|cmn|位元|tr=wèiyuán}}, {{tt|cmn|二進位元|tr=èrjìn wèiyuán}} {{qualifier|Taiwan}}, {{tt|cmn|二進制位元|tr=èrjìnzhì wèiyuán}} {{qualifier|Taiwan}}, {{tt|cmn|二進制數字|tr=èrjìnzhì shùzì}}, {{tt|cmn|二進制位|tr=èrjìnzhì wèi}}",
+        "heading": "=====Translations=====",
+        "translation_sense": "{{trans-top|computing: smallest unit of storage}}"
+      }
+    ],
+    "page_text_sha256": "411a772b26e4faae7787f3d4b44846912a850c0b683e800904ea0ba09b53b961"
+  },
+  {
+    "word": "apart",
+    "sequence": 1469,
+    "new_meanings": [
+      "分别；分离地"
+    ],
+    "source_file": "enwiktionary-zh_selection-1469.csv",
+    "source_title": "apart",
+    "oldid": "92202892",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "空间或陪伴关系的分开义，不取四分五裂扩展义。",
+    "citations": [
+      {
+        "line": 49,
+        "raw_text": "*: Mandarin: {{t+|cmn|分離|alt=分離地|tr=fēnlí de}}, {{t+|cmn|分別|tr=fēnbié}}, {{t+|cmn|四分五裂|tr=sìfēnwǔliè}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|separately, in regard to space or company}}"
+      }
+    ],
+    "page_text_sha256": "134445b3e6c79541caf0b1a6c3b7c281726acbb51dce86f2bffc6ab383f36ce1"
+  },
+  {
+    "word": "locate",
+    "sequence": 1683,
+    "new_meanings": [
+      "把…设置在某处；找出位置"
+    ],
+    "source_file": "enwiktionary-translation-1683.csv",
+    "source_title": "locate",
+    "oldid": "92116986",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "固定英英两义独立翻译，不修猜旧位于指出。",
+    "citations": [
+      {
+        "line": 19,
+        "raw_text": "# {{lb|en|transitive}} To place; to set in a particular spot or position.",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      },
+      {
+        "line": 23,
+        "raw_text": "# {{lb|en|transitive}} To find out where something is located.",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "a8df66255058b419230d3e716746b3f535976209c399d43822a7079a7cc3b140"
+  },
+  {
+    "word": "bacteria",
+    "sequence": 1762,
+    "new_meanings": [
+      "细菌（bacterium 的复数）"
+    ],
+    "source_file": "enwiktionary-zh_selection-1762.csv",
+    "source_title": "bacterium",
+    "oldid": "92411812",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "bacteria",
+        "oldid": 92512313,
+        "page_text_sha256": "c24d58f0b800496c38fc54ad3d4be9b07674cfd82cc89da79bd6a1e87d20987e",
+        "lines": [
+          {
+            "line": 18,
+            "raw_text": "# {{plural of|en|bacterium}}"
+          },
+          {
+            "line": 23,
+            "raw_text": "# {{lb|en|US}} A type, species, or strain of bacterium."
+          },
+          {
+            "line": 26,
+            "raw_text": "# {{lb|en|US|proscribed}} {{alternative form of|en|bacterium}}."
+          },
+          {
+            "line": 58,
+            "raw_text": "# {{lb|en|dated|medicine}} An oval [[bacterium]], as distinguished from a spherical [[coccus]] or rod-shaped [[bacillus]]."
+          }
+        ]
+      }
+    ],
+    "reason": "bacteria英语名词第一义明确为bacterium复数；保留NETEM词形，括注复数关系。",
+    "citations": [
+      {
+        "line": 53,
+        "raw_text": "*: Mandarin: {{t+|cmn|細菌|tr=xìjūn}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|single-celled organism with no nucleus or organelles}}"
+      }
+    ],
+    "page_text_sha256": "64991dc0ac405347a7241696c92abb0f5bc44625ab37a149f3a4ead82511ae56"
+  },
+  {
+    "word": "honor",
+    "sequence": 2041,
+    "new_meanings": [
+      "荣誉；名誉"
+    ],
+    "source_file": "enwiktionary-zh_selection-2041.csv",
+    "source_title": "honor",
+    "oldid": "93351854",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "采用honor本页的名词表；honour是英式异形，不反向盲目切换。",
+    "citations": [
+      {
+        "line": 215,
+        "raw_text": "*: Mandarin: {{t+|cmn|榮譽}}, {{t+|cmn|名譽}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|token of praise or respect}}"
+      }
+    ],
+    "page_text_sha256": "3cd8fe4bf9a86f4f14c1310fea005948be7b0f58ad9d32d0ccd81faf73ece3ef"
+  },
+  {
+    "word": "neighbor",
+    "sequence": 2075,
+    "new_meanings": [
+      "邻居"
+    ],
+    "source_file": "enwiktionary-zh_selection-2075.csv",
+    "source_title": "neighbour",
+    "oldid": "92364260",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "neighbor",
+        "oldid": 89925816,
+        "page_text_sha256": "404604b5252682fb9f8008511158a4d5cdc5aed9bb57b46d2dfbc1d37ab741d4",
+        "lines": [
+          {
+            "line": 12,
+            "raw_text": "# {{standard spelling of|en|neighbour|from=US}}."
+          },
+          {
+            "line": 24,
+            "raw_text": "# {{standard spelling of|en|neighbour|from=US}}."
+          }
+        ]
+      }
+    ],
+    "reason": "neighbor固定页明确美式拼写对应neighbour；只取邻近居住者义。",
+    "citations": [
+      {
+        "line": 105,
+        "raw_text": "*: Mandarin: {{t+|cmn|鄰居|tr=línjū}}, {{t+|cmn|比鄰|tr=bǐlín, bìlín}} {{qualifier|literary}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|a person living on adjacent or nearby land}}"
+      }
+    ],
+    "page_text_sha256": "4b6afb7116d91ef8d91437acd027b20cc4db3498efb1ab18cc8b5edc426fa795"
+  },
+  {
+    "word": "admire",
+    "sequence": 2111,
+    "new_meanings": [
+      "佩服；欣赏"
+    ],
+    "source_file": "enwiktionary-zh_selection-2111.csv",
+    "source_title": "admire",
+    "oldid": "92755234",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "现代赞赏义，不取古义惊讶。",
+    "citations": [
+      {
+        "line": 63,
+        "raw_text": "*: Mandarin: {{t+|cmn|佩服|tr=pèifu}}, {{t+|cmn|欣賞|tr=xīnshǎng}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|regard with wonder and delight}}"
+      }
+    ],
+    "page_text_sha256": "bfa79b15a5e32bec9da31cbd9badb36b7bf5065ffb02cd1b1dad721a2177d615"
+  },
+  {
+    "word": "artistic",
+    "sequence": 2121,
+    "new_meanings": [
+      "艺术的"
+    ],
+    "source_file": "enwiktionary-zh_selection-2121.csv",
+    "source_title": "artistic",
+    "oldid": "93139920",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "保留alt形容词中文表形；不采用互联网冒犯性义。",
+    "citations": [
+      {
+        "line": 45,
+        "raw_text": "*: Mandarin: {{t+|cmn|藝術|alt=藝術的|tr=yìshù de}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|having creative skill}}"
+      }
+    ],
+    "page_text_sha256": "8bc7fe2bb133a5362f297fc6a6132b98e2ec56c220e1bc70a615a15afb667ae1"
+  },
+  {
+    "word": "exciting",
+    "sequence": 2142,
+    "new_meanings": [
+      "令人激动的"
+    ],
+    "source_file": "enwiktionary-zh_selection-2142.csv",
+    "source_title": "exciting",
+    "oldid": "89636845",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "形容词引起兴奋义，不把现在分词或性刺激义混入。",
+    "citations": [
+      {
+        "line": 35,
+        "raw_text": "*: Mandarin: {{t|cmn|[[令人]][[激動]][[的]]|tr=lìng rén jīdòng de}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|causing excitement}}"
+      }
+    ],
+    "page_text_sha256": "ee27db0c71b30fc51e147c25d421cb2d53ed84e2301849d7889171d784cb5039"
+  },
+  {
+    "word": "temporary",
+    "sequence": 2172,
+    "new_meanings": [
+      "暂时"
+    ],
+    "source_file": "enwiktionary-zh_selection-2172.csv",
+    "source_title": "temporary",
+    "oldid": "92493543",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "只取短暂时间形容词义，不取临时工名词义。",
+    "citations": [
+      {
+        "line": 49,
+        "raw_text": "*: Mandarin: {{t+|cmn|暫時|tr=zànshí, zhànshí, zǎnshí}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|for a limited time, ephemeral, not constant|temporal}}"
+      }
+    ],
+    "page_text_sha256": "0e0ef13143e25810f20d64a124a3980cbb20742a20bd66380438fcb83ebd81c7"
+  },
+  {
+    "word": "fatal",
+    "sequence": 2178,
+    "new_meanings": [
+      "致命的；毁灭性的"
+    ],
+    "source_file": "enwiktionary-translation-2178.csv",
+    "source_title": "fatal",
+    "oldid": "93135872",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "直接翻译造成死亡或破坏义，不选古老命运义。",
+    "citations": [
+      {
+        "line": 24,
+        "raw_text": "# Causing death or [[destruction]].",
+        "heading": "===Adjective===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "241479b53e781f8d617c4b0b0de2493aec38cbe2df39e72dd804dc9165245576"
+  },
+  {
+    "word": "ambitious",
+    "sequence": 2237,
+    "new_meanings": [
+      "有雄心；有野心的"
+    ],
+    "source_file": "enwiktionary-zh_selection-2237.csv",
+    "source_title": "ambitious",
+    "oldid": "91473906",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "人的雄心义，不采用同表远大这个缺少宾语的歧义译词。",
+    "citations": [
+      {
+        "line": 62,
+        "raw_text": "*: Mandarin: {{t|cmn|[[有]][[雄心]]|tr=yǒu xióngxīn}}, {{t+|cmn|遠大|tr=yuǎndà}}, {{t|cmn|[[有]][[野心]][[的]]|tr=yǒu yěxīn de}}, {{t|cmn|[[雄心勃勃]][[的]]|tr=xióngxīn bóbó de}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|possessing, or controlled by, ambition}}"
+      }
+    ],
+    "page_text_sha256": "cf5723ca7e204fd2a193f07a0ea94c299fff67f5d37309bc19bec6f0d7e71d1c"
+  },
+  {
+    "word": "tolerant",
+    "sequence": 2480,
+    "new_meanings": [
+      "宽容"
+    ],
+    "source_file": "enwiktionary-zh_selection-2480.csv",
+    "source_title": "tolerant",
+    "oldid": "93126941",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "容许或接纳义，不采用能耐这个不自然表形。",
+    "citations": [
+      {
+        "line": 77,
+        "raw_text": "*: Mandarin: {{t+|cmn|寬容}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|tending to permit, allow, understand, or accept something}}"
+      }
+    ],
+    "page_text_sha256": "5c6e4587f9fba8e71cc5e92c61d9dbf1033f22158e9c86a991a6277c31dbd6c1"
+  },
+  {
+    "word": "consistent",
+    "sequence": 2564,
+    "new_meanings": [
+      "一贯的"
+    ],
+    "source_file": "enwiktionary-zh_selection-2564.csv",
+    "source_title": "consistent",
+    "oldid": "93067324",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "稳定、持续表现的义项；不把逻辑表同词当作额外义。",
+    "citations": [
+      {
+        "line": 55,
+        "raw_text": "*: Mandarin: {{t|cmn|[[一貫]][[的]]|tr=yīguàn de}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|of a regularly occurring, dependable nature|constant}}"
+      }
+    ],
+    "page_text_sha256": "7e9786be2cc3165b2deda39f8b96da327c9f899b9635b4960c78e5bc17422bfc"
+  },
+  {
+    "word": "tolerance",
+    "sequence": 2613,
+    "new_meanings": [
+      "宽容；公差（工程）"
+    ],
+    "source_file": "enwiktionary-zh_selection-2613.csv",
+    "source_title": "tolerance",
+    "oldid": "92392374",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "宽容与工程允许偏差分开，补工程括注；不引入医药耐受义。",
+    "citations": [
+      {
+        "line": 86,
+        "raw_text": "*: Mandarin: {{t+|cmn|寬容|tr=kuānróng}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|ability or practice of tolerating}}"
+      },
+      {
+        "line": 132,
+        "raw_text": "*: Mandarin: {{t+|cmn|公差|tr=gōngchā}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|permitted deviation from standard}}"
+      }
+    ],
+    "page_text_sha256": "881899c6a0aef8a4d17fdc6f2436528acc1cfb314662343755a769373c2e1cb1"
+  },
+  {
+    "word": "transmission",
+    "sequence": 2860,
+    "new_meanings": [
+      "传输；变速器"
+    ],
+    "source_file": "enwiktionary-zh_selection-2860.csv",
+    "source_title": "transmission",
+    "oldid": "90743656",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "行为与汽车装置的两个表分别选取。",
+    "citations": [
+      {
+        "line": 49,
+        "raw_text": "*: Mandarin: {{t+|cmn|傳輸|tr=chuánshū}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|act of transmitting}}"
+      },
+      {
+        "line": 104,
+        "raw_text": "*: Mandarin: {{t+|cmn|變速器|tr=biànsùqì}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|assembly of gears}}"
+      }
+    ],
+    "page_text_sha256": "c8400a434a6c20048e9dfe9fd30e5b6c16e035e288478911fd4423412c1ed75b"
+  },
+  {
+    "word": "seemingly",
+    "sequence": 3156,
+    "new_meanings": [
+      "表面上；看起来"
+    ],
+    "source_file": "enwiktionary-translation-3156.csv",
+    "source_title": "seemingly",
+    "oldid": "91313905",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "采用现代apparently义，不取decorously旧义，不回填旧CC-CEDICT。",
+    "citations": [
+      {
+        "line": 16,
+        "raw_text": "# As it appears; [[apparently]].",
+        "heading": "===Adverb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "673f5dcb7d38a4d8706ed4f878ad112236395bb3d73347bd1b2323bb07e26a84"
+  },
+  {
+    "word": "carrier",
+    "sequence": 3194,
+    "new_meanings": [
+      "携带者"
+    ],
+    "source_file": "enwiktionary-zh_selection-3194.csv",
+    "source_title": "carrier",
+    "oldid": "92925018",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "人或物携带义；不借此声称包含运输公司、信号或航空母舰。",
+    "citations": [
+      {
+        "line": 74,
+        "raw_text": "*: Mandarin: {{t+|cmn|攜帶者|tr=xiédàizhě}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|person or object that carries someone or something else}}"
+      }
+    ],
+    "page_text_sha256": "6ed5c7f5185bd57211660f8486b0890a4bb7c0534b37100df36e88f7c3a19acd"
+  },
+  {
+    "word": "qualify",
+    "sequence": 3211,
+    "new_meanings": [
+      "使具备资格；取得资格；限定"
+    ],
+    "source_file": "enwiktionary-translation-3211.csv",
+    "source_title": "qualify",
+    "oldid": "91639207",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "使某人合格、成为合格、加条件限定各有独立英英依据。",
+    "citations": [
+      {
+        "line": 25,
+        "raw_text": "# {{lb|en|transitive}} To make someone [[competent]] or [[eligible]] for some [[position]] or [[task]].",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      },
+      {
+        "line": 27,
+        "raw_text": "# {{lb|en|intransitive|or|reflexive}} To become [[competent]] or [[eligible]] for some [[position]] or [[task]].",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      },
+      {
+        "line": 30,
+        "raw_text": "# {{lb|en|transitive}} To [[modify]], [[limit]], [[restrict]] or [[moderate]] something; especially to add [[condition]]s or [[requirement]]s for an [[assertion]] to be true.",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "ddac551fe359bc889a6cae4ef9f2e3a8c77200b120314b56b8ca316716fa88c9"
+  },
+  {
+    "word": "advisable",
+    "sequence": 3340,
+    "new_meanings": [
+      "可取的；值得推荐的"
+    ],
+    "source_file": "enwiktionary-translation-3340.csv",
+    "source_title": "advisable",
+    "oldid": "90593525",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "只取行动值得推荐义，不恢复旧排除材料。",
+    "citations": [
+      {
+        "line": 15,
+        "raw_text": "# {{lb|en|of a course of action}} Worthy of being [[recommended]]; [[desirable]].",
+        "heading": "===Adjective===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "1c9e14d5180c388902c4ea48dcc055e69d2378cb6d3f8547c37105738d7966ce"
+  },
+  {
+    "word": "progressive",
+    "sequence": 3392,
+    "new_meanings": [
+      "进步的；逐渐发展的"
+    ],
+    "source_file": "enwiktionary-translation-3392.csv",
+    "source_title": "progressive",
+    "oldid": "92039709",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "进步与逐渐扩大两义；不以税率累进翻译表替代普通义。",
+    "citations": [
+      {
+        "line": 23,
+        "raw_text": "# Favouring or promoting [[progress]]; [[advanced]].",
+        "heading": "===Adjective===",
+        "translation_sense": ""
+      },
+      {
+        "line": 24,
+        "raw_text": "# Gradually advancing in extent; [[increasing]].",
+        "heading": "===Adjective===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "f8c2ea5e9fe91fdf33e2d59f4264627d6d8928e2c6c824b8acf97d00d9b2de9b"
+  },
+  {
+    "word": "scrutiny",
+    "sequence": 3406,
+    "new_meanings": [
+      "仔细检查；彻查"
+    ],
+    "source_file": "enwiktionary-zh_selection-3406.csv",
+    "source_title": "scrutiny",
+    "oldid": "91753873",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "仔细研究与彻底检查的两个表。",
+    "citations": [
+      {
+        "line": 67,
+        "raw_text": "*: Mandarin: {{t|cmn|仔細檢查}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|intense study}}"
+      },
+      {
+        "line": 99,
+        "raw_text": "*: Mandarin: {{t+|cmn|徹查}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|thorough inspection}}"
+      }
+    ],
+    "page_text_sha256": "370d68caee41c2c5138efa9202cabb4688e5fcbb9a04397e689ee373c7eb3a1e"
+  },
+  {
+    "word": "thoughtful",
+    "sequence": 3477,
+    "new_meanings": [
+      "周到；体贴"
+    ],
+    "source_file": "enwiktionary-zh_selection-3477.csv",
+    "source_title": "thoughtful",
+    "oldid": "92128346",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "考虑周全与为他人着想分开，独立新来源。",
+    "citations": [
+      {
+        "line": 58,
+        "raw_text": "*: Mandarin: {{t+|cmn|周到|tr=zhōudào}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|demonstrating thought or careful consideration|minutious|meticulous}}"
+      },
+      {
+        "line": 91,
+        "raw_text": "*: Mandarin: {{t+|cmn|體貼|tr=tǐtiē}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|demonstrating kindness or consideration|courteous|attentive​|​considerate}}"
+      }
+    ],
+    "page_text_sha256": "cfb27851d152a74c4fe98526ccc4b93896aeaa721f89771f0bd8f8358128291d"
+  },
+  {
+    "word": "technician",
+    "sequence": 3499,
+    "new_meanings": [
+      "技术员"
+    ],
+    "source_file": "enwiktionary-zh_selection-3499.csv",
+    "source_title": "technician",
+    "oldid": "90671970",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "职业义。",
+    "citations": [
+      {
+        "line": 64,
+        "raw_text": "*: Mandarin: {{t+|cmn|技術員|tr=jìshùyuán}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|occupation}}"
+      }
+    ],
+    "page_text_sha256": "936eb8cce9cbcd202902876b540ae1c2b209a3281aa312b798832dd874f68aa7"
+  },
+  {
+    "word": "inhabit",
+    "sequence": 3525,
+    "new_meanings": [
+      "居住于"
+    ],
+    "source_file": "enwiktionary-translation-3525.csv",
+    "source_title": "inhabit",
+    "oldid": "90840099",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "直接翻译live or reside in，不取旧错误文本。",
+    "citations": [
+      {
+        "line": 19,
+        "raw_text": "# {{lb|en|transitive}} To [[live]] or [[reside]] in.",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "d4a1c558cd25b81d8505f2ce8d693b159c8b86300b6602a030d919a092503dec"
+  },
+  {
+    "word": "spokesman",
+    "sequence": 3747,
+    "new_meanings": [
+      "发言人"
+    ],
+    "source_file": "enwiktionary-zh_selection-3747.csv",
+    "source_title": "spokesman",
+    "oldid": "91772014",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "代表他人或组织发言的人。",
+    "citations": [
+      {
+        "line": 39,
+        "raw_text": "*: Mandarin: {{t+|cmn|發言人}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|one who speaks as the voice of a group of people}}"
+      }
+    ],
+    "page_text_sha256": "3cc2b51cb6de956c4c0511c5b540d4c44706a8e1cbbaf7d1ca2b93a194501988"
+  },
+  {
+    "word": "forge",
+    "sequence": 3800,
+    "new_meanings": [
+      "锻造；伪造"
+    ],
+    "source_file": "enwiktionary-translation-3800.csv",
+    "source_title": "forge",
+    "oldid": "92983507",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "金属加热锤打与造假两义；来源中文表的铸造不符合前义，故剔除而按英英整理。",
+    "citations": [
+      {
+        "line": 161,
+        "raw_text": "# {{senseid|en|metal}} {{lb|en|metallurgy|metalworking}} To [[shape]] a metal by [[heat]]ing and [[hammer]]ing.",
+        "heading": "====Verb====",
+        "translation_sense": ""
+      },
+      {
+        "line": 171,
+        "raw_text": "# To create a [[forgery]] of; to make a [[counterfeit]] item of; to copy or [[imitate]] [[unlawful]]ly.",
+        "heading": "====Verb====",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "c442c5fed8f415b95a113ce00a0b118447f5e30063538e55090e3f47b793b06f"
+  },
+  {
+    "word": "triple",
+    "sequence": 3816,
+    "new_meanings": [
+      "三重；三倍"
+    ],
+    "source_file": "enwiktionary-zh_selection-3816.csv",
+    "source_title": "triple",
+    "oldid": "93126985",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "三个元素与三倍数量分开。",
+    "citations": [
+      {
+        "line": 65,
+        "raw_text": "*: Mandarin: {{t+|cmn|三重|tr=sānchóng}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|made up of three related elements}}"
+      },
+      {
+        "line": 110,
+        "raw_text": "*: Mandarin: {{t+|cmn|三倍|tr=sānbèi}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|three times the quantity}}"
+      }
+    ],
+    "page_text_sha256": "1fd683d53aa16e427b8742c39e2538d197400884866f8482851741dd7b95a3ec"
+  },
+  {
+    "word": "outward",
+    "sequence": 3827,
+    "new_meanings": [
+      "向外"
+    ],
+    "source_file": "enwiktionary-zh_selection-3827.csv",
+    "source_title": "outward",
+    "oldid": "90565843",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "只采用向外副词义，不猜旧外服的。",
+    "citations": [
+      {
+        "line": 71,
+        "raw_text": "*: Mandarin: {{t+|cmn|向外|tr=xiàng wài}}",
+        "heading": "=====Translations=====",
+        "translation_sense": "{{trans-top|toward the outside; away from the centre}}"
+      }
+    ],
+    "page_text_sha256": "4060e9567d5a5829e03dd0432198f86b671f964171a60566f10bb70e3ec88d8c"
+  },
+  {
+    "word": "tribute",
+    "sequence": 3848,
+    "new_meanings": [
+      "致敬；贡品"
+    ],
+    "source_file": "enwiktionary-translation-3848.csv",
+    "source_title": "tribute",
+    "oldid": "92639234",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "感谢敬意与臣服支付物两义独立翻译，不选粗俗或保护费义。",
+    "citations": [
+      {
+        "line": 20,
+        "raw_text": "# An [[acknowledgment]] of [[gratitude]], [[respect]] or [[admiration]]; an [[accompanying]] [[gift]].",
+        "heading": "===Noun===",
+        "translation_sense": ""
+      },
+      {
+        "line": 26,
+        "raw_text": "# A [[payment]] made by one [[nation]] to another in [[submission]].",
+        "heading": "===Noun===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "2a2e68c4b2c8f6c081774a24e2d4b8065d10f2a2fdc400549c76be33b687e19e"
+  },
+  {
+    "word": "fruitful",
+    "sequence": 3916,
+    "new_meanings": [
+      "富有成效的"
+    ],
+    "source_file": "enwiktionary-translation-3916.csv",
+    "source_title": "fruitful",
+    "oldid": "92127583",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "productive, yielding benefits义；不选只限果实生长的义。",
+    "citations": [
+      {
+        "line": 22,
+        "raw_text": "# Being [[productive]] in any sense; yielding [[benefit]]s.",
+        "heading": "===Adjective===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "137f5972b6adbe9b1f6cac317f9e6341753ee7d9521140eb53235c861848ae01"
+  },
+  {
+    "word": "pitch",
+    "sequence": 3987,
+    "new_meanings": [
+      "投掷；音高"
+    ],
+    "source_file": "enwiktionary-translation-3987.csv",
+    "source_title": "pitch",
+    "oldid": "93142118",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "普通投掷与音符频率两义；避开旧混列和其他大量专门义。",
+    "citations": [
+      {
+        "line": 528,
+        "raw_text": "# {{senseid|en|to throw}}{{lb|en|transitive}} To [[throw]].",
+        "heading": "====Verb====",
+        "translation_sense": ""
+      },
+      {
+        "line": 856,
+        "raw_text": "# {{senseid|en|Q118819}} {{lb|en|music|phonetics}} The perceived [[frequency]] of a [[sound]], [[note]] or [[electromagnetic wave]].",
+        "heading": "====Noun====",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "39836268674169db65d706b157e72ee739a7b3542dd83b7a61f148dc02ab46ec"
+  },
+  {
+    "word": "sunrise",
+    "sequence": 4022,
+    "new_meanings": [
+      "日出"
+    ],
+    "source_file": "enwiktionary-zh_selection-4022.csv",
+    "source_title": "sunrise",
+    "oldid": "90899516",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "太阳出现在东边地平线的时间义。",
+    "citations": [
+      {
+        "line": 63,
+        "raw_text": "*: Mandarin: {{t+|cmn|日出|tr=rìchū}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|time of day|dawn}}"
+      }
+    ],
+    "page_text_sha256": "eb59ba9cf11eb8e1aec26330e72004e47d28e25f0ba7762a10db541bcf66732e"
+  },
+  {
+    "word": "temperament",
+    "sequence": 4066,
+    "new_meanings": [
+      "气质；性情；脾气"
+    ],
+    "source_file": "enwiktionary-zh_selection-4066.csv",
+    "source_title": "temperament",
+    "oldid": "93126919",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "人的通常行为反应，不选音乐调律义。",
+    "citations": [
+      {
+        "line": 48,
+        "raw_text": "*: Mandarin: {{t+|cmn|氣質|tr=qìzhì}}, {{t+|cmn|性格|tr=xìnggé}}, {{t+|cmn|性情|tr=xìngqíng}}, {{t+|cmn|脾氣|tr=píqi}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|a person's normal manner of thinking, behaving or reacting}}"
+      }
+    ],
+    "page_text_sha256": "b0063c46d608a03ac38b78fb7d6ab5ecc15424bdc1e4f17c25701abee7ec244d"
+  },
+  {
+    "word": "adverse",
+    "sequence": 4070,
+    "new_meanings": [
+      "不利的；敌对的"
+    ],
+    "source_file": "enwiktionary-translation-4070.csv",
+    "source_title": "adverse",
+    "oldid": "92013472",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "采用第一义的unfavorable与hostile；讨论页指出第二义用法问题，不采用第二义。",
+    "citations": [
+      {
+        "line": 17,
+        "raw_text": "# [[unfavorable|Unfavorable]]; [[antagonistic]] in purpose or effect; [[hostile]]; actively opposing one's interests or wishes; contrary to one's welfare; acting against; working in an opposing direction.",
+        "heading": "===Adjective===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "5bcda82240812a07a4ce63fe0538205aebb6036439f34126e0f150913f2ab160"
+  },
+  {
+    "word": "permeate",
+    "sequence": 4086,
+    "new_meanings": [
+      "渗透"
+    ],
+    "source_file": "enwiktionary-zh_selection-4086.csv",
+    "source_title": "permeate",
+    "oldid": "92077329",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "穿过孔隙的动词义；不取同表与之不精确绑定的弥漫。",
+    "citations": [
+      {
+        "line": 37,
+        "raw_text": "*: Mandarin: {{t+|cmn|滲透|tr=shèntòu}}, {{t+|cmn|彌漫}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|to pass through the pores or interstices of; to penetrate and pass through without causing rupture or displacement|percolate}}"
+      }
+    ],
+    "page_text_sha256": "7a841d3385b1af346c976af9c2ece66130e0f6a1fd3881fa17decf1852f1d15b"
+  },
+  {
+    "word": "tonight",
+    "sequence": 4092,
+    "new_meanings": [
+      "今晚"
+    ],
+    "source_file": "enwiktionary-zh_selection-4092.csv",
+    "source_title": "tonight",
+    "oldid": "90472783",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "今日夜间义，不选古义昨晚。",
+    "citations": [
+      {
+        "line": 49,
+        "raw_text": "*: Mandarin: {{t+|cmn|今晚|tr=jīnwǎn}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|during today's evening}}"
+      }
+    ],
+    "page_text_sha256": "7b58c1d2384394ec4e4389418a95c50b258b4555be24d51b20162994e72633af"
+  },
+  {
+    "word": "characterise",
+    "sequence": 4313,
+    "new_meanings": [
+      "描绘；是…的特征"
+    ],
+    "source_file": "enwiktionary-translation-4313.csv",
+    "source_title": "characterize",
+    "oldid": "91986694",
+    "content_kind": "translation",
+    "form_relation": [
+      {
+        "title": "characterise",
+        "oldid": 92484262,
+        "page_text_sha256": "45cc2eb405c4d75ae1b800e820fe1753e55b3db886386d3d07259cf20f263c2a",
+        "lines": [
+          {
+            "line": 12,
+            "raw_text": "# {{standard spelling of|en|from=non-Oxford British spelling|characterize}}."
+          }
+        ]
+      }
+    ],
+    "reason": "固定异形页指向characterize；根据描绘和典型特征义整理，不以塑造覆盖两义。",
+    "citations": [
+      {
+        "line": 20,
+        "raw_text": "# {{lb|en|transitive}} To depict someone or something a particular way (often negative).",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      },
+      {
+        "line": 30,
+        "raw_text": "# {{lb|en|transitive}} To be [[typical]] of.",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "8d96daec1af61853d38c872b75fe6a039ca0340ffedd1539c9f094f6820ddcb1"
+  },
+  {
+    "word": "shatter",
+    "sequence": 4327,
+    "new_meanings": [
+      "使破碎；粉碎"
+    ],
+    "source_file": "enwiktionary-zh_selection-4327.csv",
+    "source_title": "shatter",
+    "oldid": "92926765",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "及物使碎与不及物碎裂。",
+    "citations": [
+      {
+        "line": 66,
+        "raw_text": "*: Mandarin: {{t|cmn|使破碎}}, {{t|cmn|使碎裂}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|(transitive) to smash, to violently break into tiny pieces}}"
+      },
+      {
+        "line": 100,
+        "raw_text": "*: Mandarin: {{t+|cmn|粉碎}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|(intransitive) to violently break into pieces}}"
+      }
+    ],
+    "page_text_sha256": "e523660f83b766b64222eaf0744d962f3f989af600081e97b2e51faf473015f8"
+  },
+  {
+    "word": "transcend",
+    "sequence": 4379,
+    "new_meanings": [
+      "超越"
+    ],
+    "source_file": "enwiktionary-zh_selection-4379.csv",
+    "source_title": "transcend",
+    "oldid": "91128693",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "超过界限义，不选古义攀登。",
+    "citations": [
+      {
+        "line": 49,
+        "raw_text": "*: Mandarin: {{t+|cmn|超越|tr=chāoyuè}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|to pass beyond the limits of something}}"
+      }
+    ],
+    "page_text_sha256": "b046ef7423ed85131f48466c5006d74f2c0fec2cadd43f19603dd1b53c69fb66"
+  },
+  {
+    "word": "smog",
+    "sequence": 4419,
+    "new_meanings": [
+      "烟雾"
+    ],
+    "source_file": "enwiktionary-zh_selection-4419.csv",
+    "source_title": "smog",
+    "oldid": "93108022",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "只选城市污染混合烟雾义。",
+    "citations": [
+      {
+        "line": 39,
+        "raw_text": "*: Mandarin: {{t+|cmn|煙霧|tr=yānwù}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|urban air pollution}}"
+      }
+    ],
+    "page_text_sha256": "b75334dd2fa90c87ede06f85d0303cf4342dd2504ec84eb609c8e766fe616def"
+  },
+  {
+    "word": "afterward",
+    "sequence": 4527,
+    "new_meanings": [
+      "然后"
+    ],
+    "source_file": "enwiktionary-zh_selection-4527.csv",
+    "source_title": "afterwards",
+    "oldid": "92713109",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "afterward",
+        "oldid": 85361461,
+        "page_text_sha256": "5e0cbb64209ce14c7c8d8bc4cbc8c52cb97c6473c5d26d9fa23b7677b2b67df8",
+        "lines": [
+          {
+            "line": 16,
+            "raw_text": "# {{lb|en|US}} {{alternative form of|en|afterwards}}."
+          }
+        ]
+      }
+    ],
+    "reason": "美式afterward对应afterwards；时间上在其后。",
+    "citations": [
+      {
+        "line": 54,
+        "raw_text": "*: Mandarin: {{t+|cmn|然後|tr=ránhòu}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|at a later or succeeding time}}"
+      }
+    ],
+    "page_text_sha256": "98f0d299260d0343df533120b3c2c6fd162227c7d5a7838c3135331a365be609"
+  },
+  {
+    "word": "ashore",
+    "sequence": 4647,
+    "new_meanings": [
+      "在岸上；向岸上"
+    ],
+    "source_file": "enwiktionary-translation-4647.csv",
+    "source_title": "ashore",
+    "oldid": "91945415",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "保留静态在陆地与方向向岸的区别。",
+    "citations": [
+      {
+        "line": 18,
+        "raw_text": "# {{lb|en|nautical}} On the [[land]] as opposed to [[onboard]].",
+        "heading": "===Adverb===",
+        "translation_sense": ""
+      },
+      {
+        "line": 20,
+        "raw_text": "# {{lb|en|nautical}} On, or towards the [[shore]].",
+        "heading": "===Adverb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "e86f31d3e31e9bdabb3b7e77028f4690e6fe2bb34dff20fc54259d4ac4f0fa59"
+  },
+  {
+    "word": "formidable",
+    "sequence": 4695,
+    "new_meanings": [
+      "令人生畏的"
+    ],
+    "source_file": "enwiktionary-zh_selection-4695.csv",
+    "source_title": "formidable",
+    "oldid": "93128954",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "力量或规模引起畏惧，不误译为相似词formal。",
+    "citations": [
+      {
+        "line": 54,
+        "raw_text": "*: Mandarin: {{t|cmn|可畏|tr=kěwèi}}, {{t|cmn|令人生畏的|tr=lìngrénshēngwèide}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|causing fear, dread, awe or admiration as a result of size, strength, or some other impressive quality}}"
+      }
+    ],
+    "page_text_sha256": "bc0d2667247ad51b84567a23a3d30cf874fb455d324d64711e81e80e4fb4347f"
+  },
+  {
+    "word": "fertiliser",
+    "sequence": 4730,
+    "new_meanings": [
+      "肥料；化肥"
+    ],
+    "source_file": "enwiktionary-zh_selection-4730.csv",
+    "source_title": "fertilizer",
+    "oldid": "92414512",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "fertiliser",
+        "oldid": 90670523,
+        "page_text_sha256": "46174d60a788e639442891e18878f7f573eff87fcfab7638b5f3813ede7680ee",
+        "lines": [
+          {
+            "line": 9,
+            "raw_text": "# {{lb|en|British spelling}} {{alternative spelling of|en|fertilizer}}."
+          }
+        ]
+      }
+    ],
+    "reason": "英式词形经固定异形页对应美式；天然材料与化合物分别取表。",
+    "citations": [
+      {
+        "line": 46,
+        "raw_text": "*: Mandarin: {{t+|cmn|肥料|tr=féiliào}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|a natural substance that is used to make the ground more suitable for growing plants}}"
+      },
+      {
+        "line": 131,
+        "raw_text": "*: Mandarin: {{t+|cmn|化肥|tr=huàféi}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|a chemical compound created to have the same effect}}"
+      }
+    ],
+    "page_text_sha256": "e6a93b2f5f2020e67fb6e2f8c355ab4164c172da570d0277d9d3f0df75d48c1f"
+  },
+  {
+    "word": "civilisation",
+    "sequence": 4845,
+    "new_meanings": [
+      "文明"
+    ],
+    "source_file": "enwiktionary-zh_selection-4845.csv",
+    "source_title": "civilization",
+    "oldid": "92679622",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "civilisation",
+        "oldid": 91864202,
+        "page_text_sha256": "9416f79be15389c916ef47e8782aae8fa20ff96f501badb4af83a1bfd5663d25",
+        "lines": [
+          {
+            "line": 17,
+            "raw_text": "# {{alternative spelling of|en|civilization|from=UK|from2=Ireland|from3=Australia|from4=New Zealand|from5=South Africa|from6=Hong Kong|from7=Commonwealth}}."
+          }
+        ]
+      }
+    ],
+    "reason": "固定英式异形对应文明文化义。",
+    "citations": [
+      {
+        "line": 79,
+        "raw_text": "*: Mandarin: {{t+|cmn|文明}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|organized culture}}"
+      }
+    ],
+    "page_text_sha256": "31bcac70d117ee9394a5bd4b5aeb99a1e21be497871a72e1bcb7f3cbe067c58d"
+  },
+  {
+    "word": "speciality",
+    "sequence": 4938,
+    "new_meanings": [
+      "专业；专长"
+    ],
+    "source_file": "enwiktionary-zh_selection-4938.csv",
+    "source_title": "specialty",
+    "oldid": "92070072",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "speciality",
+        "oldid": 89749081,
+        "page_text_sha256": "a6faffcac9246204bf8ac21e8d183e1362d3dddaff9ccc1bcf5ce329d2e42e1c",
+        "lines": [
+          {
+            "line": 17,
+            "raw_text": "# {{standard form of|en|from=British|specialty}}."
+          }
+        ]
+      }
+    ],
+    "reason": "英国词形，专业技能义；不取擅长这个不适合名词的词。",
+    "citations": [
+      {
+        "line": 59,
+        "raw_text": "*: Mandarin: {{t+|cmn|專業|tr=zhuānyè}}, {{t+|cmn|專長|tr=zhuāncháng}} {{qualifier|special skill}}, {{t+|cmn|擅長|tr=shàncháng}} {{qualifier|special skill}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|that in which one specializes}}"
+      }
+    ],
+    "page_text_sha256": "3bcdfa1971d3a2ef96ff4cd7276b9e358a30f7cb100ca7299699629da93edd84"
+  },
+  {
+    "word": "anyhow",
+    "sequence": 4968,
+    "new_meanings": [
+      "以任何方式；无论如何"
+    ],
+    "source_file": "enwiktionary-translation-4968.csv",
+    "source_title": "anyhow",
+    "oldid": "92504578",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "任意方式与连接语in any case分开，不选随意潦草义。",
+    "citations": [
+      {
+        "line": 15,
+        "raw_text": "# {{lb|en|manner}} In [[any]] [[way]] or [[manner]] whatever.",
+        "heading": "===Adverb===",
+        "translation_sense": ""
+      },
+      {
+        "line": 16,
+        "raw_text": "# {{lb|en|conjunctive}} [[in any case|In any case]]. Used to [[indicate]] that a [[statement]] [[explain]]s or [[support]]s a [[previous]] statement.",
+        "heading": "===Adverb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "1a1cdaa9238165eef8a5cdf9f14e62a64b0ae6497f60d444d54293047daba94e"
+  },
+  {
+    "word": "skilful",
+    "sequence": 5054,
+    "new_meanings": [
+      "熟练；娴熟"
+    ],
+    "source_file": "enwiktionary-zh_selection-5054.csv",
+    "source_title": "skillful",
+    "oldid": "91791298",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "skilful",
+        "oldid": 89469569,
+        "page_text_sha256": "b628b6590430d9af42b137e642d871f0f2c7b0554b174a81ccfba6b1f685c4f6",
+        "lines": [
+          {
+            "line": 11,
+            "raw_text": "# {{standard spelling of|en|skillful|from=Commonwealth form|from2=Irish form}}"
+          }
+        ]
+      }
+    ],
+    "reason": "英式拼写关系已证实；有技能义，不选需要技巧的另一义。",
+    "citations": [
+      {
+        "line": 48,
+        "raw_text": "*: Mandarin: {{t+|cmn|熟練|tr=shúliàn}}, {{t+|cmn|嫻熟|tr=xiánshú}}, {{t+|cmn|擅長|tr=shàncháng}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|possessing skill, skilled|dexterous}}"
+      }
+    ],
+    "page_text_sha256": "19c5e09a0e8b221a60d3a99aea49cca62d7f951a2bb3f7a7712bfa5297025c79"
+  },
+  {
+    "word": "slam",
+    "sequence": 5055,
+    "new_meanings": [
+      "砰地关上"
+    ],
+    "source_file": "enwiktionary-translation-5055.csv",
+    "source_title": "slam",
+    "oldid": "91960200",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "整句翻译突然用力关上并发声，避免原中文甩孤立词太宽泛。",
+    "citations": [
+      {
+        "line": 26,
+        "raw_text": "# {{lb|en|transitive|ergative}} To shut with sudden force so as to produce a shock and noise.",
+        "heading": "====Verb====",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "f6277dab1dc368b2a9b34c33313c0f24f1d59f593de351d4d995f6710994e378"
+  },
+  {
+    "word": "solo",
+    "sequence": 5056,
+    "new_meanings": [
+      "独奏；独唱；单独的"
+    ],
+    "source_file": "enwiktionary-zh_selection-5056.csv",
+    "source_title": "solo",
+    "oldid": "93140675",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "音乐名词与无同伴形容词的表独立选取。",
+    "citations": [
+      {
+        "line": 34,
+        "raw_text": "*: Mandarin: {{t+|cmn|獨奏|tr=dúzòu}}, {{t+|cmn|獨唱|tr=dúchàn}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|piece of music for one}}"
+      },
+      {
+        "line": 98,
+        "raw_text": "*: Mandarin: {{t+|cmn|單|tr=dān}}, {{t|cmn|獨自的|tr=dúzì de}}, {{t|cmn|單獨的|tr=dāndú de}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|without a companion or instructor}}"
+      }
+    ],
+    "page_text_sha256": "0bbee4f9a6373ab2fe683359cfff89a9b9dd78fa9a00198ece44147e1f0cb66c"
+  },
+  {
+    "word": "minimise",
+    "sequence": 5207,
+    "new_meanings": [
+      "最小化"
+    ],
+    "source_file": "enwiktionary-zh_selection-5207.csv",
+    "source_title": "minimize",
+    "oldid": "89262105",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "minimise",
+        "oldid": 85184784,
+        "page_text_sha256": "f51b7e6da35d18d476ea980bef79e7f79c1d37aac8a1adf11b4220fcd48d8fad",
+        "lines": [
+          {
+            "line": 8,
+            "raw_text": "# {{standard spelling of|en|from=Non-Oxford British spelling|minimize}}."
+          }
+        ]
+      }
+    ],
+    "reason": "固定英式词形关系，尽量缩小义；英英第二义有措辞问题，不采用。",
+    "citations": [
+      {
+        "line": 48,
+        "raw_text": "*: Mandarin: {{t+|cmn|最小化|tr=zuìxiǎohuà}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|to make small as possible}}"
+      }
+    ],
+    "page_text_sha256": "26f1448749b57c6eb651223d1169de6a668fa8c131bd0941028970c6502c58cc"
+  },
+  {
+    "word": "esthetic",
+    "sequence": 5217,
+    "new_meanings": [
+      "审美的"
+    ],
+    "source_file": "enwiktionary-zh_selection-5217.csv",
+    "source_title": "aesthetic",
+    "oldid": "91830008",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "esthetic",
+        "oldid": 92414196,
+        "page_text_sha256": "06e1c7097280037321c44f6116d605e05926a3db8cb13f3f38e69b44ac18959a",
+        "lines": [
+          {
+            "line": 10,
+            "raw_text": "# {{lb|en|US}} {{alternative spelling of|en|aesthetic}}."
+          }
+        ]
+      }
+    ],
+    "reason": "美式异形对应aesthetic，关注美的形容词义。",
+    "citations": [
+      {
+        "line": 51,
+        "raw_text": "*: Mandarin: {{t|cmn|[[審美|審美的]]|tr=shěnměi de}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|concerned with beauty}}"
+      }
+    ],
+    "page_text_sha256": "e8084543d6583a4c9f6e3a54049616fb751fd5684d7a7e08178b6dcb8cfdafd1"
+  },
+  {
+    "word": "appal",
+    "sequence": 5219,
+    "new_meanings": [
+      "使惊恐；使愤慨"
+    ],
+    "source_file": "enwiktionary-translation-5219.csv",
+    "source_title": "appall",
+    "oldid": "89178067",
+    "content_kind": "translation",
+    "form_relation": [
+      {
+        "title": "appal",
+        "oldid": 85288541,
+        "page_text_sha256": "7e36d203c6b2e3ad9f90a744023f8062128b99d86be3905c6936f4ad26a7401c",
+        "lines": [
+          {
+            "line": 10,
+            "raw_text": "# {{alternative spelling of|en|appall|from=UK}}."
+          }
+        ]
+      }
+    ],
+    "reason": "英式异形对应appall，只取现代horror或indignation义。",
+    "citations": [
+      {
+        "line": 18,
+        "raw_text": "# {{lb|en|transitive}} To fill with [[horror]] or [[indignation]]; to [[dismay]].",
+        "heading": "===Verb===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "b9d4eec3c1150c166bfc66d93817be5cbfe44b16d91147422365ca58d2f25df4"
+  },
+  {
+    "word": "manoeuvre",
+    "sequence": 5267,
+    "new_meanings": [
+      "机动；演习"
+    ],
+    "source_file": "enwiktionary-zh_selection-5267.csv",
+    "source_title": "maneuver",
+    "oldid": "91300085",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "manoeuvre",
+        "oldid": 91017687,
+        "page_text_sha256": "e2cd2e0015bccae8ba999e59a58ef3c20ab79f5da02a132b7b5a0e0db0334db8",
+        "lines": [
+          {
+            "line": 18,
+            "raw_text": "# {{stand sp|en|maneuver|from=Commonwealth}}."
+          },
+          {
+            "line": 29,
+            "raw_text": "# {{stand sp|en|maneuver|from=Commonwealth}}."
+          }
+        ]
+      }
+    ],
+    "reason": "英式词形，军事机动和训练演习两表独立取用，不声称涵盖所有策略义。",
+    "citations": [
+      {
+        "line": 47,
+        "raw_text": "*: Mandarin: {{t+|cmn|機動|tr=jīdòng}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|planned movement of troops}}"
+      },
+      {
+        "line": 71,
+        "raw_text": "*: Mandarin: {{t+|cmn|演習|tr=yǎnxí}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|a large training exercise of military troops}}"
+      }
+    ],
+    "page_text_sha256": "fde0323eaec6e7498cf4fcffdc0551d80ea437233e2ef5d78ba899eeabfb36ca"
+  },
+  {
+    "word": "summarise",
+    "sequence": 5307,
+    "new_meanings": [
+      "总结；摘要"
+    ],
+    "source_file": "enwiktionary-zh_selection-5307.csv",
+    "source_title": "summarize",
+    "oldid": "92116786",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "summarise",
+        "oldid": 92482948,
+        "page_text_sha256": "d1846e144979932bf912b120ba55bf914c28ac40cfb7efc73319edcd0790a580",
+        "lines": [
+          {
+            "line": 12,
+            "raw_text": "# {{lb|en|British spelling}} {{alt form|en|summarize}}."
+          }
+        ]
+      }
+    ],
+    "reason": "英式拼写对应准备摘要义。",
+    "citations": [
+      {
+        "line": 45,
+        "raw_text": "*: Mandarin: {{t+|cmn|摘要|tr=zhāiyào}}, {{t+|cmn|總結|tr=zǒngjié}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|to prepare a summary}}"
+      }
+    ],
+    "page_text_sha256": "3b840fa31eacb92380208727febcb2dfc660b663230b829d4e85b6398259a58a"
+  },
+  {
+    "word": "tempo",
+    "sequence": 5311,
+    "new_meanings": [
+      "（音乐的）速度"
+    ],
+    "source_file": "enwiktionary-zh_selection-5311.csv",
+    "source_title": "tempo",
+    "oldid": "93111689",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "原行中文领域修饰已在，不把普通速度冒充全部义或象棋节奏。",
+    "citations": [
+      {
+        "line": 86,
+        "raw_text": "*: Mandarin: {{t+|cmn|拍子|tr=pāizǐ}}, （音乐的）{{t+|cmn|速度|tr=sùdù}}",
+        "heading": "=====Translations=====",
+        "translation_sense": "{{trans-top|music: number of beats per minute}}"
+      }
+    ],
+    "page_text_sha256": "165f196d861e29be3b6cb692a65d5d8d49e2057921cf4577e3b242a0ad131c36"
+  },
+  {
+    "word": "temporal",
+    "sequence": 5312,
+    "new_meanings": [
+      "时间的；世俗的"
+    ],
+    "source_file": "enwiktionary-zh_selection-5312.csv",
+    "source_title": "temporal",
+    "oldid": "93130429",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "时间与非神圣物质世界两表，不选颞部义。",
+    "citations": [
+      {
+        "line": 113,
+        "raw_text": "*: Mandarin: {{t+|cmn|時間|alt=時間的|tr=shíjiān de}}",
+        "heading": "=====Translations=====",
+        "translation_sense": "{{trans-top|of or relating to time}}"
+      },
+      {
+        "line": 83,
+        "raw_text": "*: Mandarin: {{t+|cmn|世俗|alt=世俗的|tr=shìsú de}}",
+        "heading": "=====Translations=====",
+        "translation_sense": "{{trans-top|of or relating to the material world}}"
+      }
+    ],
+    "page_text_sha256": "ee6f4ed2fdb3c8ab166ad958bbcfa12de48b1ed7871b04c2de5b7f3dd478aa6f"
+  },
+  {
+    "word": "apologise",
+    "sequence": 5337,
+    "new_meanings": [
+      "道歉"
+    ],
+    "source_file": "enwiktionary-zh_selection-5337.csv",
+    "source_title": "apologize",
+    "oldid": "91792782",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "apologise",
+        "oldid": 92483018,
+        "page_text_sha256": "ae65fd10cfae7406e43525689e6045a2362aeaa0177540cbf5ddb6d34dc822c5",
+        "lines": [
+          {
+            "line": 14,
+            "raw_text": "# {{standard spelling of|en|apologize|from=non-Oxford}}."
+          }
+        ]
+      }
+    ],
+    "reason": "固定非Oxford英式拼写，承认过失表达歉意义。",
+    "citations": [
+      {
+        "line": 58,
+        "raw_text": "*: Mandarin: {{t+|cmn|道歉|tr=dàoqiàn}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|to make an apology or excuse}}"
+      }
+    ],
+    "page_text_sha256": "5e50dae90ad93599e250db665f498fe6e1f43b19ed26711db637a0f90441f8c0"
+  },
+  {
+    "word": "artefact",
+    "sequence": 5340,
+    "new_meanings": [
+      "人工制品"
+    ],
+    "source_file": "enwiktionary-zh_selection-5340.csv",
+    "source_title": "artifact",
+    "oldid": "92411633",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "artefact",
+        "oldid": 93058946,
+        "page_text_sha256": "66b6bc4d427135a699e7bb9b2ed55759fdec0a5dd87b76c9bb515f74ef82557c",
+        "lines": [
+          {
+            "line": 10,
+            "raw_text": "# {{stand sp|en|artifact|from=British}}."
+          }
+        ]
+      }
+    ],
+    "reason": "固定英式拼写对应人为制造物；不把手工艺品当全部考古对象。",
+    "citations": [
+      {
+        "line": 54,
+        "raw_text": "*: Mandarin: {{t|cmn|人工製品|tr=réngōng zhìpǐn}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|object made or shaped by human hand}}"
+      }
+    ],
+    "page_text_sha256": "8cc22ebec257cce5f87e49a9722d96b5b0d4b60959c0fab60ecc05e7fcca03c7"
+  },
+  {
+    "word": "franchise",
+    "sequence": 5385,
+    "new_meanings": [
+      "选举权；特许经营权"
+    ],
+    "source_file": "enwiktionary-translation-5385.csv",
+    "source_title": "franchise",
+    "oldid": "92323393",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "公民投票权与公司授予经销权两义分别翻译；不采用影视品牌或体育义。",
+    "citations": [
+      {
+        "line": 16,
+        "raw_text": "# The right to [[vote]] at a public [[election]] or [[referendum]]; see: [[suffrage]].",
+        "heading": "====Noun====",
+        "translation_sense": ""
+      },
+      {
+        "line": 21,
+        "raw_text": "# The [[authorization]] granted by a company to sell or [[distribute]] its goods or services in a certain area.",
+        "heading": "====Noun====",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "a33b48f2d8914ba642a6103484b226e760ff06bfc38b1785a86df4a0e8c5e774"
+  },
+  {
+    "word": "modernisation",
+    "sequence": 5432,
+    "new_meanings": [
+      "现代化"
+    ],
+    "source_file": "enwiktionary-zh_selection-5432.csv",
+    "source_title": "modernization",
+    "oldid": "91612956",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "modernisation",
+        "oldid": 87812648,
+        "page_text_sha256": "4bf9ca8529bd5d82271b205992a348e17a45ae154c01f76eef1e06bb034b6677",
+        "lines": [
+          {
+            "line": 12,
+            "raw_text": "# {{lb|en|British spelling}} {{alternative spelling of|en|modernization}}."
+          }
+        ]
+      }
+    ],
+    "reason": "英式词形关系；不选近代化这个范围不同的译词。",
+    "citations": [
+      {
+        "line": 46,
+        "raw_text": "*: Mandarin: {{t+|cmn|現代化|tr=xiàndàihuà}}, {{t+|cmn|近代化|tr=jìndàihuà}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|process of modernizing}}"
+      }
+    ],
+    "page_text_sha256": "394093126c09bcbc91a37695b994e1f633410724e7fcae93edd49f792d1210c4"
+  },
+  {
+    "word": "normalisation",
+    "sequence": 5436,
+    "new_meanings": [
+      "正常化；正规化"
+    ],
+    "source_file": "enwiktionary-zh_selection-5436.csv",
+    "source_title": "normalization",
+    "oldid": "89235304",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "normalisation",
+        "oldid": 90677778,
+        "page_text_sha256": "7f5f81d0146e072721bffc372e235980323280fe5a505b3786d38afd2330bc89",
+        "lines": [
+          {
+            "line": 10,
+            "raw_text": "# {{standard spelling of|en|from=non-Oxford British spelling|normalization}}."
+          }
+        ]
+      }
+    ],
+    "reason": "恢复或符合通常规则义，不以此声称归一化等所有数学义覆盖。",
+    "citations": [
+      {
+        "line": 58,
+        "raw_text": "*: Mandarin: {{t+|cmn|正常化|tr=zhèngchánghuà}}, {{t+|cmn|正規化|tr=zhèngguīhuà}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|any process that makes something more normal or regular}}"
+      }
+    ],
+    "page_text_sha256": "a42e98367d75b0ba776b226c9f39ae6ddb5f44b392d63446a8e26d56c0a83423"
+  },
+  {
+    "word": "owing to",
+    "sequence": 5446,
+    "new_meanings": [
+      "由于"
+    ],
+    "source_file": "enwiktionary-zh_selection-5446.csv",
+    "source_title": "owing to",
+    "oldid": "90757535",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "独立短语页的因果介词义，未拆为单词。",
+    "citations": [
+      {
+        "line": 25,
+        "raw_text": "*: Mandarin: , {{t+|cmn|由於}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|because of}}"
+      }
+    ],
+    "page_text_sha256": "4b2c8174e0d294c4e2a087b28addc11ba652160fa99e462b5912438a5d7a2c83"
+  },
+  {
+    "word": "proceedings",
+    "sequence": 5456,
+    "new_meanings": [
+      "诉讼程序；论文集"
+    ],
+    "source_file": "enwiktionary-zh_selection-5456.csv",
+    "source_title": "proceedings",
+    "oldid": "92523984",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "复数专门名词两义；不机械退回proceed动词。",
+    "citations": [
+      {
+        "line": 48,
+        "raw_text": "*: Mandarin: {{t|cmn|[[訴訟]][[程序]]}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|course of procedure}}"
+      },
+      {
+        "line": 62,
+        "raw_text": "*: Mandarin: {{t|cmn|論文集|tr=lùnwénjí}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|published record}}"
+      }
+    ],
+    "page_text_sha256": "2bf57b790cbf623952c77e7039cc95271232b48ed44e240edd6f4202f80f4643"
+  },
+  {
+    "word": "striking",
+    "sequence": 5494,
+    "new_meanings": [
+      "引人注目的"
+    ],
+    "source_file": "enwiktionary-translation-5494.csv",
+    "source_title": "striking",
+    "oldid": "90344738",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "形容词给人强烈印象，不以strike词根或正在罢工义替代。",
+    "citations": [
+      {
+        "line": 11,
+        "raw_text": "# Making a strong [[impression]].",
+        "heading": "===Adjective===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "8fe0f3e6354879f0ee48130b9fe1f4b9538786679c8a5b46370eaa7d6893146d"
+  },
+  {
+    "word": "sympathise",
+    "sequence": 5498,
+    "new_meanings": [
+      "同情"
+    ],
+    "source_file": "enwiktionary-zh_selection-5498.csv",
+    "source_title": "sympathize",
+    "oldid": "92225668",
+    "content_kind": "zh_selection",
+    "form_relation": [
+      {
+        "title": "sympathise",
+        "oldid": 85184736,
+        "page_text_sha256": "374a370edac093afe86d238a857b3ba122f2e4645a835f21c09d45f86bfe3339",
+        "lines": [
+          {
+            "line": 10,
+            "raw_text": "# {{standard spelling of|en|from=non-Oxford British spelling|sympathize}}."
+          }
+        ]
+      }
+    ],
+    "reason": "英式拼写关系确认，只取同情义。",
+    "citations": [
+      {
+        "line": 65,
+        "raw_text": "*: Mandarin: {{t+|cmn|同情|tr=tóngqíng}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top|to show sympathy}}"
+      }
+    ],
+    "page_text_sha256": "92f4f7c72ea71722a0761bab06b3d34b7c6ba0ae5b8a46c0bb7f788ef2d1975c"
+  },
+  {
+    "word": "tanker",
+    "sequence": 5499,
+    "new_meanings": [
+      "油船；液货船"
+    ],
+    "source_file": "enwiktionary-zh_selection-5499.csv",
+    "source_title": "tanker",
+    "oldid": "92058577",
+    "content_kind": "zh_selection",
+    "form_relation": [],
+    "reason": "运输液体船只表，液货船覆盖非石油，不引入油车或加油飞机义。",
+    "citations": [
+      {
+        "line": 72,
+        "raw_text": "*: Mandarin: {{t+|cmn|油船|tr=yóuchuán}}, {{t|cmn|液貨船|tr=yèhuòchuán}}",
+        "heading": "====Translations====",
+        "translation_sense": "{{trans-top-see|vessel|oil tanker}}"
+      }
+    ],
+    "page_text_sha256": "eff371ce70678f1420c66d4e968343ffffb261dd6513e7fef5165610d150b351"
+  },
+  {
+    "word": "trousers",
+    "sequence": 5507,
+    "new_meanings": [
+      "裤子（通常用复数）"
+    ],
+    "source_file": "enwiktionary-translation-5507.csv",
+    "source_title": "trousers",
+    "oldid": "92199544",
+    "content_kind": "translation",
+    "form_relation": [],
+    "reason": "固定英语plural-only名词、左右裤腿服装定义；保留词形并注明复数用法。",
+    "citations": [
+      {
+        "line": 31,
+        "raw_text": "# An [[article]] of [[clothing]] that covers the part of the body between the [[waist]] and the [[ankle]]s or [[knee]]s, and is [[divide]]d into a separate part for each [[leg]].",
+        "heading": "===Noun===",
+        "translation_sense": ""
+      }
+    ],
+    "page_text_sha256": "13b74ec15e519a1ce8be258379622553ef75eea846532fc89d6fdf5066f0034a"
+  }
+]

@@ -1,0 +1,160 @@
+{
+  "required_fields": [],
+  "sources": [
+    {
+      "id": "netem",
+      "role": "primary",
+      "file": "netem-words.csv",
+      "columns": {
+        "word": "word"
+      },
+      "sense_key_column": "source_position",
+      "revision": {
+        "value": "70dc6b68c855f21e666a7a291ff8ead5ca1f7b44",
+        "url_template": "https://github.com/exam-data/NETEMVocabulary/commit/{revision}"
+      },
+      "provenance": {
+        "publisher": "exam-data/NETEMVocabulary 项目及其贡献者",
+        "version": "70dc6b68c855f21e666a7a291ff8ead5ca1f7b44",
+        "obtained_at_utc": "2026-10-05T00:00:00Z",
+        "license_id": "CC-BY-NC-SA-4.0",
+        "use_scope": "负责人确认：个人与朋友学习，不超过 10 人，不商用；用户数据不对外共享。",
+        "display_scope": "网页学习、词条及来源说明；允许词库下载与导出，随文件保留来源声明和各自许可。人数为本服务首发范围，不是对接收者许可权利的额外限制。",
+        "storage_locator": "pinned NETEM JSON sha256:6d71a301321056291902bc4804e223c6926dca0d629a45076a6ca5adab185f62"
+      },
+      "attribution": {
+        "creators": "exam-data/NETEMVocabulary 项目及其贡献者",
+        "license_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+        "source_url": "https://github.com/exam-data/NETEMVocabulary/tree/70dc6b68c855f21e666a7a291ff8ead5ca1f7b44",
+        "snapshot_label": "提交 70dc6b68c855f21e666a7a291ff8ead5ca1f7b44 的 netem_full_list.json",
+        "snapshot_url": "https://raw.githubusercontent.com/exam-data/NETEMVocabulary/70dc6b68c855f21e666a7a291ff8ead5ca1f7b44/netem_full_list.json",
+        "snapshot_sha256": "6d71a301321056291902bc4804e223c6926dca0d629a45076a6ca5adab185f62",
+        "modifications": "只取单词与序号；按 strip().casefold() 首见去重，5530 行保留 5528 词及原顺序。上游排序使用词形还原；本项目未取上游释义、词频、其他拼写或英英义。词头文件及其选择排列的本项目改编以 CC BY-NC-SA 4.0 提供。",
+        "disclaimer": "来源按原样及可用状态提供，无准确性等保证，详见许可证第 5 节。署名不表示来源方认可本项目。",
+        "links": [
+          {
+            "label": "固定 README",
+            "url": "https://github.com/exam-data/NETEMVocabulary/blob/70dc6b68c855f21e666a7a291ff8ead5ca1f7b44/README.md"
+          },
+          {
+            "label": "固定数据许可证",
+            "url": "https://github.com/exam-data/NETEMVocabulary/blob/70dc6b68c855f21e666a7a291ff8ead5ca1f7b44/LICENSE"
+          },
+          {
+            "label": "固定提交以前的文件历史与贡献者",
+            "url": "https://github.com/exam-data/NETEMVocabulary/commits/70dc6b68c855f21e666a7a291ff8ead5ca1f7b44/netem_full_list.json"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wikdict",
+      "role": "meaning",
+      "file": "wikdict.csv",
+      "columns": {
+        "word": "word",
+        "meaning": "meaning"
+      },
+      "sense_key_column": "source_position",
+      "provenance": {
+        "publisher": "Karl Bartel；WikDict / FreeDict；DBnary；Wiktionary 各语言版本贡献者",
+        "version": "wikdict-en-zh-2026-06-23",
+        "obtained_at_utc": "2026-10-05T00:00:00Z",
+        "license_id": "CC-BY-SA-4.0",
+        "use_scope": "负责人确认：个人与朋友学习，不超过 10 人，不商用；用户数据不对外共享。",
+        "display_scope": "网页学习、词条及来源说明；允许词库下载与导出，随文件保留来源声明和各自许可。人数为本服务首发范围，不是对接收者许可权利的额外限制。",
+        "storage_locator": "pinned WikDict ZIP sha256:62d6d4a8ccf28c28bbe4ec82ac65fa67fd52c0f34d71294ab1d9d95fa3233830"
+      },
+      "attribution": {
+        "creators": "Karl Bartel；WikDict / FreeDict；DBnary；Wiktionary 各语言版本贡献者",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_url": "https://www.wikdict.com/page/about",
+        "snapshot_label": "English–中文 FreeDict+WikDict StarDict ZIP，包内日期 2026-06-23",
+        "snapshot_url": "https://download.wikdict.com/dictionaries/stardict/wikdict-en-zh.zip",
+        "snapshot_sha256": "62d6d4a8ccf28c28bbe4ec82ac65fa67fd52c0f34d71294ab1d9d95fa3233830",
+        "modifications": "WikDict 在 DBnary 抽取上整理格式、组合多语言译文、排序和去重，包内声明 CC BY-SA 4.0；DBnary 声明 3.0，改编的同要素后续版本路径见 3.0 第 4(b) 节。本项目按词头大小写折叠精确匹配，仅提取含中文 HTML 译文片段、去标签、同串去重并用分号拼接，剔除已知问题释义；无逐词修订号，以 ZIP 指纹及 StarDict 索引和正文偏移定位。下载直链可能更新，字节不匹配该指纹即不是本版本。本项目抽取改编以 CC BY-SA 4.0 提供。",
+        "disclaimer": "来源按原样及可用状态提供，无准确性等保证，详见许可证第 5 节。署名不表示来源方认可本项目。",
+        "links": [
+          {
+            "label": "WikDict 来源与上游修改",
+            "url": "https://www.wikdict.com/page/about"
+          },
+          {
+            "label": "WikDict 下载",
+            "url": "https://www.wikdict.com/page/download"
+          },
+          {
+            "label": "DBnary 来源、署名与 3.0 声明",
+            "url": "https://kaiko.getalp.org/about-dbnary/"
+          },
+          {
+            "label": "CC BY-SA 3.0 第 4(b) 节",
+            "url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode#s4b"
+          },
+          {
+            "label": "Wiktionary 各语言版本",
+            "url": "https://www.wiktionary.org/"
+          },
+          {
+            "label": "FreeDict",
+            "url": "https://freedict.org/"
+          }
+        ]
+      }
+    },
+    {
+      "id": "zhwiktionary",
+      "role": "meaning",
+      "file": "zhwiktionary.csv",
+      "columns": {
+        "word": "word",
+        "meaning": "meaning"
+      },
+      "sense_key_column": "source_position",
+      "revision": {
+        "column": "source_revision",
+        "url_template": "https://zh.wiktionary.org/w/index.php?oldid={revision}"
+      },
+      "provenance": {
+        "publisher": "中文维基词典贡献者；逐词固定页面及其历史列出贡献者",
+        "version": "pinned oldid per row / v2 gap snapshot; section-boundary-repair-20261005",
+        "obtained_at_utc": "2026-10-05T00:00:00Z",
+        "license_id": "CC-BY-SA-4.0",
+        "use_scope": "负责人确认：个人与朋友学习，不超过 10 人，不商用；用户数据不对外共享。",
+        "display_scope": "网页学习、词条及来源说明；允许词库下载与导出，随文件保留来源声明和各自许可。人数为本服务首发范围，不是对接收者许可权利的额外限制。",
+        "storage_locator": "v2 candidate provenance sha256:fb9b943c36abce1e6441e41f2b3485e1f0fbdd017af47713134c9b1fdc37a9e9; isolated repaired candidate sha256:81298e032abef221cb3033459cedfc0ebf257d6181ee5211310e800eb818611f"
+      },
+      "attribution": {
+        "creators": "中文维基词典贡献者；逐词固定页面及其历史列出贡献者",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_url": "https://zh.wiktionary.org/",
+        "snapshot_label": "逐词 oldid 固定旧修订；原始许可路径随下载归属表逐词列出",
+        "history_url_template": "https://zh.wiktionary.org/w/index.php?oldid={revision}&action=history",
+        "modifications": "仅在整词无 WikDict 时采用固定英语小节中文释义，去模板及标记、去重并以分号拼接。原缓存每词最多前 12 段；已删除 17 词 29 段非释义小节，剔除 CC-CEDICT 标记及已知问题整词释义；不补入截断以外内容。cache:def 是旧清洗缓存定义序号，不是原文行号；wikitext:line 才是原文行。2023-06-07 前旧修订依当时 BY-SA 3.0，依 3.0 第 4(b) 节及旧使用条款第 7(h) 的后续版本路径，将本项目清洗、选择、拼接的改编以 BY-SA 4.0 提供；此后依 4.0。并非把未改动的旧原文重新许可为 4.0。",
+        "disclaimer": "来源按原样及可用状态提供，无准确性等保证，详见许可证第 5 节。署名不表示来源方认可本项目。",
+        "links": [
+          {
+            "label": "固定站点版权信息",
+            "url": "https://zh.wiktionary.org/w/index.php?oldid=8368252"
+          },
+          {
+            "label": "Wikimedia 使用条款第 7 节",
+            "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use#7._Licensing_of_Content"
+          },
+          {
+            "label": "2014–2023 使用条款",
+            "url": "https://foundation.wikimedia.org/w/index.php?oldid=98524&title=Policy:Terms_of_Use"
+          },
+          {
+            "label": "原许可 CC BY-SA 3.0",
+            "url": "https://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          {
+            "label": "Wikimedia 版本升级说明",
+            "url": "https://meta.wikimedia.org/wiki/Terms_of_use/Creative_Commons_4.0/Legal_note#Mechanism_for_the_upgrade"
+          }
+        ]
+      }
+    }
+  ]
+}

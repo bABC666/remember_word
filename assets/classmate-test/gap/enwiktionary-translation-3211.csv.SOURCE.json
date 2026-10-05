@@ -1,0 +1,22 @@
+{
+  "creators": "English Wiktionary contributors（qualify词条及其历史列出的贡献者）；中文选择或翻译整理：拾词项目 / Codex（AI）。",
+  "modifications": "本项目由Codex根据固定英语释义翻译整理中文；不是词典中文原文，不是人工确认短义，未经人工逐词核准。 使某人合格、成为合格、加条件限定各有独立英英依据。",
+  "copyright_notice": "上游文字依Wikimedia社区贡献条款；选择CC路径；本项目改编CC BY-SA 4.0。",
+  "disclaimer": "来源及改编按现状提供，无准确性保证；核心义选取不代表全部义项。",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.en",
+  "source_url": "https://en.wiktionary.org/w/index.php?title=qualify&oldid=91639207",
+  "snapshot_label": "qualify / oldid 91639207 / wikitext lines 25,27,30",
+  "snapshot_sha256": "ddac551fe359bc889a6cae4ef9f2e3a8c77200b120314b56b8ca316716fa88c9",
+  "snapshot_url": "https://en.wiktionary.org/w/index.php?title=qualify&oldid=91639207",
+  "history_url_template": "https://en.wiktionary.org/w/index.php?title=qualify&action=history&oldid={revision}",
+  "links": [
+    {
+      "label": "固定英文字典词条（qualify）",
+      "url": "https://en.wiktionary.org/w/index.php?title=qualify&oldid=91639207"
+    },
+    {
+      "label": "Wikimedia文字再利用条款 §7",
+      "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content"
+    }
+  ]
+}

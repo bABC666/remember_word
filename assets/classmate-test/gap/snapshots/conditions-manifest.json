@@ -1,0 +1,80 @@
+[
+  {
+    "file": "talk-00.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&titles=Talk%3Abit%7CTalk%3Abuild%7CTalk%3Acomplex%7CTalk%3Aset%7CTalk%3Abacteria%7CTalk%3Alocate%7CTalk%3Acollect%7CTalk%3Aoperation%7CTalk%3Aidentify%7CTalk%3Ashortage%7CTalk%3Aneighbor%7CTalk%3Aadmire%7CTalk%3Aapart%7CTalk%3Asuccessful%7CTalk%3Ahonor%7CTalk%3Acarrier%7CTalk%3Aqualify%7CTalk%3Aambitious%7CTalk%3Afatal%7CTalk%3Atemporary",
+    "sha256": "460f72556215a701c97c42a943bc8c504c0d506f91e0c30f03bd0092591947ff",
+    "obtained_at_utc": "2026-10-05T04:08:26.677194+00:00"
+  },
+  {
+    "file": "history-head-00.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Cuser%7Ccomment&titles=bit%7Cbuild%7Ccomplex%7Cset%7Cbacteria%7Clocate%7Ccollect%7Coperation%7Cidentify%7Cshortage%7Cneighbor%7Cadmire%7Capart%7Csuccessful%7Chonor%7Ccarrier%7Cqualify%7Cambitious%7Cfatal%7Ctemporary",
+    "sha256": "e3741e92ee47a1a3c2fe513e5016dacf6c5bc69c216dc24f5d28bb1b9496ed7b",
+    "obtained_at_utc": "2026-10-05T04:08:27.456041+00:00"
+  },
+  {
+    "file": "talk-01.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&titles=Talk%3Aprogressive%7CTalk%3Aartistic%7CTalk%3Atransmission%7CTalk%3Aconsistent%7CTalk%3Aexciting%7CTalk%3Atolerant%7CTalk%3Ascrutiny%7CTalk%3Aseemingly%7CTalk%3Atolerance%7CTalk%3Aadvisable%7CTalk%3Atonight%7CTalk%3Apitch%7CTalk%3Atechnician%7CTalk%3Asunrise%7CTalk%3Apermeate%7CTalk%3Atriple%7CTalk%3Aadverse%7CTalk%3Ainhabit%7CTalk%3Aforge%7CTalk%3Aoutward",
+    "sha256": "dcbd9692a64ed33ca6521ebb8acbe99ab235eb57725881c65f6a81438b58bf46",
+    "obtained_at_utc": "2026-10-05T04:08:28.907303+00:00"
+  },
+  {
+    "file": "history-head-01.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Cuser%7Ccomment&titles=progressive%7Cartistic%7Ctransmission%7Cconsistent%7Cexciting%7Ctolerant%7Cscrutiny%7Cseemingly%7Ctolerance%7Cadvisable%7Ctonight%7Cpitch%7Ctechnician%7Csunrise%7Cpermeate%7Ctriple%7Cadverse%7Cinhabit%7Cforge%7Coutward",
+    "sha256": "3d371c52f7286ca62ab9bd4b2c51d5b496699ff4709c3d81e627fbb81588d121",
+    "obtained_at_utc": "2026-10-05T04:08:29.679563+00:00"
+  },
+  {
+    "file": "talk-02.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&titles=Talk%3Atemperament%7CTalk%3Atribute%7CTalk%3Athoughtful%7CTalk%3Aspokesman%7CTalk%3Afruitful%7CTalk%3Acivilisation%7CTalk%3Asmog%7CTalk%3Afertiliser%7CTalk%3Aanyhow%7CTalk%3Atranscend%7CTalk%3Askilful%7CTalk%3Ashatter%7CTalk%3Aslam%7CTalk%3Asolo%7CTalk%3Aashore%7CTalk%3Aformidable%7CTalk%3Acharacterise%7CTalk%3Aspeciality%7CTalk%3Aafterward%7CTalk%3Aminimise",
+    "sha256": "4d027ad2058565613b9e19ad6da89aec9f2df484736254256ec8973b10e6e652",
+    "obtained_at_utc": "2026-10-05T04:08:30.917395+00:00"
+  },
+  {
+    "file": "history-head-02.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Cuser%7Ccomment&titles=temperament%7Ctribute%7Cthoughtful%7Cspokesman%7Cfruitful%7Ccivilisation%7Csmog%7Cfertiliser%7Canyhow%7Ctranscend%7Cskilful%7Cshatter%7Cslam%7Csolo%7Cashore%7Cformidable%7Ccharacterise%7Cspeciality%7Cafterward%7Cminimise",
+    "sha256": "2003955d9816b36c85e5e6afadddbd1a4451981a044f39c452c3cd9646e882ae",
+    "obtained_at_utc": "2026-10-05T04:08:31.709814+00:00"
+  },
+  {
+    "file": "talk-03.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&titles=Talk%3Atempo%7CTalk%3Aapologise%7CTalk%3Amanoeuvre%7CTalk%3Atemporal%7CTalk%3Astriking%7CTalk%3Asummarise%7CTalk%3Aartefact%7CTalk%3Aowing+to%7CTalk%3Aappal%7CTalk%3Aproceedings%7CTalk%3Amodernisation%7CTalk%3Afranchise%7CTalk%3Aesthetic%7CTalk%3Asympathise%7CTalk%3Anormalisation%7CTalk%3Askillful%7CTalk%3Atrousers%7CTalk%3Aaesthetic%7CTalk%3Acivilization%7CTalk%3Afertilizer",
+    "sha256": "2abb693064cd4515a7a8c5d59a3b6fefce10257d4f571effb9db7486adb51f6a",
+    "obtained_at_utc": "2026-10-05T04:08:33.262685+00:00"
+  },
+  {
+    "file": "history-head-03.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Cuser%7Ccomment&titles=tempo%7Capologise%7Cmanoeuvre%7Ctemporal%7Cstriking%7Csummarise%7Cartefact%7Cowing+to%7Cappal%7Cproceedings%7Cmodernisation%7Cfranchise%7Cesthetic%7Csympathise%7Cnormalisation%7Cskillful%7Ctrousers%7Caesthetic%7Ccivilization%7Cfertilizer",
+    "sha256": "ba2dde9f80edf9e56acf870e6687b1ea9e8381272fc458ac5293fbde333df28f",
+    "obtained_at_utc": "2026-10-05T04:08:34.055324+00:00"
+  },
+  {
+    "file": "talk-04.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&titles=Talk%3Amaneuver%7CTalk%3Aapologize%7CTalk%3Aappall%7CTalk%3Asummarize%7CTalk%3Aartifact%7CTalk%3Atanker%7CTalk%3Aspecialty%7CTalk%3Acharacterize%7CTalk%3Amodernization%7CTalk%3Aminimize%7CTalk%3Abacterium%7CTalk%3Aneighbour%7CTalk%3Aafterwards%7CTalk%3Ahonour%7CTalk%3Anormalization%7CTalk%3Asympathize",
+    "sha256": "817da7691c365858c153bb2d931ae9c09f37efd9a0030bda6b77b20211eb2d39",
+    "obtained_at_utc": "2026-10-05T04:08:35.249880+00:00"
+  },
+  {
+    "file": "history-head-04.json",
+    "url": "https://en.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Cuser%7Ccomment&titles=maneuver%7Capologize%7Cappall%7Csummarize%7Cartifact%7Ctanker%7Cspecialty%7Ccharacterize%7Cmodernization%7Cminimize%7Cbacterium%7Cneighbour%7Cafterwards%7Chonour%7Cnormalization%7Csympathize",
+    "sha256": "b62e0c79b0a671236b907265e4ecb40f87fbdc88513c34ef4d3aae806a6cd4ff",
+    "obtained_at_utc": "2026-10-05T04:08:36.141798+00:00"
+  },
+  {
+    "file": "terms-of-use.html",
+    "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en",
+    "sha256": "2ce01d759bdf07046f165a173b7fffbfa1fc7646742613f15b39b2268d67ce4f",
+    "obtained_at_utc": "2026-10-05T04:08:38.423843+00:00"
+  },
+  {
+    "file": "cc-by-sa-4.html",
+    "url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.en",
+    "sha256": "47c0a954c88d793bdefe92fb007ae3c038fb3807f1a27083433d01aa7542c0d8",
+    "obtained_at_utc": "2026-10-05T04:08:38.997522+00:00"
+  },
+  {
+    "file": "cc-by-sa-3.html",
+    "url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode",
+    "sha256": "c33d7ebdbcc5c8db073e69a794b2ac44805f5d7d9edcfb8b5181a71869a9b7d5",
+    "obtained_at_utc": "2026-10-05T04:08:40.096720+00:00"
+  }
+]
