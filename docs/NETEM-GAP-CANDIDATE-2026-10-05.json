@@ -1,6 +1,6 @@
 {
   "candidate_sha256": "5fcc8dfa504ab1d008ce9f015ab2848a6c65f75cf64474eb8d56188cb42ae146",
-  "superseded_initial_candidate_sha256": "5fcc8dfa504ab1d008ce9f015ab2848a6c65f75cf64474eb8d56188cb42ae146",
+  "superseded_initial_candidate_sha256": "dc419c118b056fdebc828fbaa71bbbbf387e16d278d1f77bdbb6fe631942f784",
   "candidate_directory": "test-artifacts/netem-gap-20261005/candidate",
   "baseline_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
   "target_lexicon_id": 5,
