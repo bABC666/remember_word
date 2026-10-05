@@ -1,17 +1,21 @@
 # 拾词 · 项目当前状态（PROJECT_STATUS_CURRENT）
 
-> **2026-10-05 当前交接状态（优先于下方旧快照）**：私有 TXT／CSV 自导已上线；NETEM仅完成生产副本验收，**尚待生产导入**。运行代码提交 `8960395f47248e5acf774214d28d94b95315da5a`，副本、CLI及界面验收与该提交绑定；最终交付提交只更新文档，完整SHA由 `git log -1 -- docs/NETEM-PRODUCTION-COPY-EVIDENCE-2026-10-05.json` 取得。
+> **2026-10-05 当前生产状态（优先于下方旧快照）**：私有 TXT／CSV 自导已上线；NETEM **已生产导入并通过限定试用验收**，系统词库 ID **5**、导入记录 ID **1**。实际发布 SHA `0c6da30b818fc878f048dfa8b1264a5bae4c1bf0`；本片只提交生产报告和交接文档，运行代码未变，交付 SHA 用 `git log -1 -- docs/NETEM-PRODUCTION-IMPORT-EVIDENCE-2026-10-05.json` 取得。
 
 | 当前项目 | 核对事实 |
 |---|---|
-| 生产数据库／revision | `D:\背单词web\data\vocab.db`，`0015_session_autoincrement`；不再执行旧迁移流程 |
-| NETEM唯一候选 | 集合指纹 `0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab`；5528词，WikDict4814／中文维基词典637／77空义 |
-| 本片验收 | SQLite online backup生产副本、真实管理员CLI首次／重复、16430证据、45既有私有同词及全部原行保全、异常／硬中断／撤下通过；桌面手机63项＋重启6项通过 |
-| 当前完整门禁 | 后端1029 passed／1 skipped／2 warnings；前端199 passed；Ruff／typecheck／lint／build及42405文件隔离证明通过 |
-| 实例与边界 | 本片只使用8772副本并已停止；8000核对前后未监听，未改变生产服务。未写生产库／未推送／未启动全库词义合并 |
-| 下一步 | 负责人安排生产导入窗口，锁代码与候选、做当次在线备份，按runbook执行；产生新数据后只撤下公共供给，禁止恢复旧整库 |
+| 生产数据库／revision | `D:\背单词web\data\vocab.db`，`0015_session_autoincrement`；本片未迁移 |
+| NETEM唯一候选 | 集合指纹 `0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab`；5528词，WikDict4814／中文维基词典637／77空义，16430证据，原顺序一致 |
+| 纯导入保全 | 仅六张表预期新增；全部既有业务行不变，私有词条／释义、学习进度与主动选择未被覆盖 |
+| 生产用户验收 | 普通冒烟账号ID2与新增普通测试账号ID3；桌面手机30项、重启11项、最终服务11项通过；私有Compass进度不变、公共同词独立，ID2最终选库4，ID3仍以NULL接受推荐 |
+| 验收新增数据 | user／settings各1、状态30、成员1、复习2、会话10、登录历史10；仅原settings ID2 updated_at因主动切换／恢复改变，其他字段相同 |
+| 同计划重复执行 | 在验收后新快照上返回already_applied；26张业务表逐行一致，无重复库或证据 |
+| 当次保护备份 | `test-artifacts/netem-production-import-20261005/baseline/protected-before.db`；SHA `a7ad830ff2232ee5afea465878c1087f7394392795995a91214618da956dd4bb`，2026-10-05T03:27:33Z创建，只读 |
+| 当前完整门禁 | 运行代码与8960395f47248e5acf774214d28d94b95315da5a相同，复用其后端1029 passed／1 skipped／2 warnings、前端199 passed及Ruff／typecheck／lint／build、42405文件隔离证据 |
+| 最终服务与范围 | 127.0.0.1:8000运行，健康ok、真实学习可用；父PID297012／监听PID286948（接手时复核）。个人与朋友、不超过10人、不商用；当前活跃账号3，用户数据不对外共享 |
+| 下一步与回退 | 开始获准范围内的本机试用；已经产生新数据，不得恢复导入前旧整库。如需撤下先做最新备份，仅撤下对应公共供给，保留用户数据 |
 
-优先阅读：[副本验收报告](V1.2-NETEM-PRODUCTION-COPY-ACCEPTANCE-2026-10-05.md)、[生产导入执行包](V1.2-NETEM-PRODUCTION-IMPORT-RUNBOOK-2026-10-05.md)、[证据索引](NETEM-PRODUCTION-COPY-EVIDENCE-2026-10-05.json)。来源事实与许可路径继续使用[首发候选定稿](V1.2-NETEM-FINAL-LAUNCH-CANDIDATE-2026-10-05.md)。
+优先阅读：[生产结果与限定试用报告](V1.2-NETEM-PRODUCTION-IMPORT-ACCEPTANCE-2026-10-05.md)、[当次机器证据索引](NETEM-PRODUCTION-IMPORT-EVIDENCE-2026-10-05.json)、[执行与回退runbook](V1.2-NETEM-PRODUCTION-IMPORT-RUNBOOK-2026-10-05.md)。来源事实与许可继续按[首发候选定稿](V1.2-NETEM-FINAL-LAUNCH-CANDIDATE-2026-10-05.md)。副本报告保留为历史证据；本片未推送、未扩访问、未开展全库词义合并，三份原未跟踪文档保持原样。
 
 **以下为旧版本／历史交接快照；其中0007、0014、私有自导未上线或未验收的状态不代表当前生产数据库，也不得作为本次迁移或上线指令。**
 
