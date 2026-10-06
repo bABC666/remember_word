@@ -1127,6 +1127,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    from app.services.backup import configure_parser
+
+    configure_parser(sub.add_parser("backup", help="校验备份及每日备份保留策略"))
+
     list_parser = sub.add_parser("list-users", help="列出所有用户")
     list_parser.set_defaults(func=command_list_users)
 

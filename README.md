@@ -112,4 +112,9 @@ AI 不会更新 `source_raw`、`source_meanings` 或 OCR 原始结果。未经�
 
 ## 项目交接
 
+每日自动备份的本地实现与 Linux systemd 部署模板见
+[`deployment/backup/`](deployment/backup/README.md) 和
+[`docs/DAILY-BACKUP-RUNBOOK.md`](docs/DAILY-BACKUP-RUNBOOK.md)。
+**本地功能已验收，尚未在服务器安装或启用**；服务器执行清单随操作手册交付。
+
 需要把项目交给另一个开发者或 AI 时，先阅读 [`docs/PROJECT_HANDOFF.md`](docs/PROJECT_HANDOFF.md)。该文档汇总当前版本、架构边界、数据库状态、已完成能力、测试证据、已知限制和后续建议。

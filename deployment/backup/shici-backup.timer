@@ -1,0 +1,12 @@
+[Unit]
+Description=Shici daily backup at 03:30 Asia/Shanghai
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Shanghai
+Persistent=true
+AccuracySec=1s
+RandomizedDelaySec=0
+Unit=shici-backup.service
+
+[Install]
+WantedBy=timers.target
