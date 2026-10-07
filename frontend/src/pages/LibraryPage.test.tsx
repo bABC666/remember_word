@@ -295,7 +295,7 @@ describe('mobile library detail', () => {
     expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(0)
     expect(window.scrollY).toBe(0)
     expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
-      .toBe('/api/words?search=&status=&view=')
+      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0')
   })
 
   it('clears A filters and position after a library 401, including browser back under B', async () => {
@@ -347,7 +347,7 @@ describe('mobile library detail', () => {
       expect(screen.getByRole('link', { name: /beta/ })).not.toHaveFocus()
     })
     expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
-      .toBe('/api/words?search=&status=&view=')
+      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0')
   })
 
   it.each(['/library/', '/Library'])('clears A filters after a 401 at %s', async (path) => {
@@ -372,7 +372,7 @@ describe('mobile library detail', () => {
     expect(await screen.findByRole('textbox', { name: '搜索单词' })).toHaveValue('')
     expect(window.location.pathname + window.location.search).toBe('/library')
     expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
-      .toBe('/api/words?search=&status=&view=')
+      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0')
   })
 
   it('keeps a filtered library URL through a normal refresh of the same account', async () => {
@@ -427,6 +427,7 @@ describe('mobile library detail', () => {
     expect(await screen.findByText('琥珀；一种由古代树脂形成的黄色物质')).toBeInTheDocument()
     // The right-hand panel is the other entry that reuses the detail component, so the
     // source record has to appear there too.
+    await userEvent.click(await screen.findByText('查看来源说明'))
     expect(await screen.findByRole('region', { name: '来源记录' })).toBeInTheDocument()
   })
 
@@ -435,6 +436,7 @@ describe('mobile library detail', () => {
     mockApi()
     render(<App />)
 
+    await userEvent.click(await screen.findByText('查看来源说明'))
     const record = await screen.findByRole('region', { name: '来源记录' })
     const wordRows = within(record).getByRole('list', { name: '单词：已采用的来源' })
     const meaningRows = within(record).getByRole('list', { name: '释义：已采用的来源' })

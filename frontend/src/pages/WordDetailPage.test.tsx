@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { WordDetailContent } from './WordDetailPage'
@@ -90,6 +91,29 @@ function renderDetail(word: WordDetail) {
 }
 
 describe('the word detail page and grouped short meanings', () => {
+  it('keeps meanings visible and folds source explanation at the bottom', async () => {
+    const { container } = renderDetail(detail({ anchor: '', semantic_note: '' }))
+    const toggle = screen.getByText('查看来源说明')
+    const fold = toggle.closest('details')!
+    expect(fold).not.toHaveAttribute('open')
+    expect(container.lastElementChild).toBe(fold)
+    expect(screen.getByText('農村的')).toBeVisible()
+    expect(screen.queryByText('暂无已确认的核心释义')).not.toBeInTheDocument()
+    expect(screen.queryByText('最小语义锚点')).not.toBeInTheDocument()
+    expect(screen.getByText('来源记录')).not.toBeVisible()
+    await userEvent.click(toggle)
+    expect(fold).toHaveAttribute('open')
+    expect(screen.getByRole('region', { name: '来源记录' })).toBeVisible()
+    expect(screen.getByText('rural adj. 農村的')).toBeInTheDocument()
+  })
+
+  it('closes source explanation when another word is selected', async () => {
+    const { rerender } = renderDetail(detail())
+    await userEvent.click(screen.getByText('查看来源说明'))
+    expect(screen.getByText('查看来源说明').closest('details')).toHaveAttribute('open')
+    rerender(<MemoryRouter><WordDetailContent word={detail({ lexicon_entry_id: 8, word: 'urban' })} /></MemoryRouter>)
+    expect(screen.getByText('查看来源说明').closest('details')).not.toHaveAttribute('open')
+  })
   it('shows play’s three verb senses then its noun sense, marking the judged group', () => {
     const { container } = renderDetail(detail({
       word: 'play',
@@ -208,7 +232,7 @@ describe('the word detail page and grouped short meanings', () => {
     expect(screen.queryByRole('region', { name: '核心释义' })).toBeNull()
     expect(screen.getByText('農村的')).toBeTruthy()
     expect(screen.getByText('词典释义 · 抽取片段，未做全库逐词语义校订')).toBeTruthy()
-    expect(screen.getByText('暂无已确认的核心释义')).toBeTruthy()
+    expect(screen.queryByText('暂无已确认的核心释义')).toBeNull()
   })
 
   it('marks uploaded text as user provided and unverified', () => {

@@ -1,6 +1,11 @@
 import type { EntrySources, Word } from '../types'
 
-export type WordDetail = Word & {
+export type LibraryWord = Omit<Word, 'word_state_id' | 'first_seen'> & {
+  word_state_id: number | null
+  first_seen: string | null
+}
+
+export type WordDetail = LibraryWord & {
   review_history: Array<{
     id: number
     timestamp: string
@@ -27,7 +32,8 @@ export type WordDetail = Word & {
 export type LibraryPosition = {
   listTop: number
   pageY: number
-  focusedId: number
+  focusedId: number | null
+  focusedEntryId?: number
 }
 
 export const statusLabels: Record<string, string> = {

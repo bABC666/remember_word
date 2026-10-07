@@ -37,7 +37,13 @@ export function SettingsPage() {
       return personalFields.includes(key)
     }))
     return api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) })
-  }, onSuccess: () => client.invalidateQueries({ queryKey: ['settings'] }) })
+  }, onSuccess: async () => {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: ['settings'] }),
+      client.invalidateQueries({ queryKey: ['study-today'] }),
+      client.invalidateQueries({ queryKey: ['dashboard'] }),
+    ])
+  } })
   const backup = useMutation({ mutationFn: () => api<{ filename: string }>('/api/settings/backup', { method: 'POST' }) })
   const isAdmin = Boolean(query.data?.can_manage_instance_settings)
   const set = (key: string, value: string | number | boolean) => setForm((current) => ({ ...current, [key]: value }))
@@ -94,7 +100,7 @@ export function SettingsPage() {
         <section className="settings-section">
           <header><ScanLine size={20} /><div><h2>学习与 OCR</h2><p>学习目标属于你个人；OCR 引擎由管理员配置，这里仅显示状态。</p></div></header>
           <div className="form-grid">
-            <label>每日新词目标<input type="number" min="1" max="100" value={Number(form.daily_new_words ?? 15)} onChange={(event) => set('daily_new_words', Number(event.target.value))} /></label>
+            <label>每日新词目标<input type="number" min="1" max="500" value={Number(form.daily_new_words ?? 15)} onChange={(event) => set('daily_new_words', Number(event.target.value))} /></label>
             <label>默认文章长度<input type="number" min="300" max="1200" value={Number(form.article_length ?? 650)} onChange={(event) => set('article_length', Number(event.target.value))} /></label>
             {isAdmin ? (
               <>

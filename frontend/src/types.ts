@@ -96,7 +96,43 @@ export interface ConciseMeaningGroup {
   meanings: ConciseMeaning[]
 }
 
+export interface DictionaryExtractionValue {
+  text: string
+  pos_key?: string
+  pos_label?: string
+  language: string
+  locator: string
+  status: string
+  raw_text?: string
+  reason?: string
+  pos_raw?: string
+  pos_locator?: string
+  source: {
+    publisher: string
+    license_id?: string
+    version?: string
+    original_file_sha256?: string
+    body_sha256?: string
+    revision?: string
+    mapping_json?: string
+    attribution?: PublicAttribution
+    extraction_modifications?: string
+  }
+}
+
+export interface DictionaryExtraction {
+  parser_version: string
+  status: 'unconfirmed_source_extraction'
+  senses: DictionaryExtractionValue[]
+  pronunciations: DictionaryExtractionValue[]
+  pending_count: number
+  pending_reasons: string[]
+  pending_values?: DictionaryExtractionValue[]
+  originals?: Array<{ raw_text: string; source: DictionaryExtractionValue['source'] }>
+}
+
 export interface Word {
+  dictionary_extraction?: DictionaryExtraction | null
   /**
    * The V1.1 `word.id`, or null for a word added in V1.2 (one added from an
    * article has no `word` row). It is not interchangeable with `word_state_id`:

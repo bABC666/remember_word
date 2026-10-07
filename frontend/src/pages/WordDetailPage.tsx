@@ -4,6 +4,7 @@ import { ArrowLeft, Clock3, TriangleAlert } from 'lucide-react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { ConciseMeaningList } from '../components/ConciseMeaningList'
+import { DictionaryExtractionList } from '../components/DictionaryExtractionList'
 import { EntrySourceList } from '../components/EntrySourceList'
 import { MeaningList } from '../components/MeaningList'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
@@ -41,33 +42,24 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
           <h2>{word.word}</h2>
           <p className="phonetic">{word.phonetic || '暂无音标'}{!hasGroups && word.part_of_speech && <> · {word.part_of_speech}</>}</p>
         </div>
-        <span className={`status status-${word.status}`}>{statusLabels[word.status]}</span>
+        <span className={`status status-${word.status}`}>{word.status === 'new' ? '未学习' : statusLabels[word.status]}</span>
       </header>
       {/* The component supplies its own labelled section, so a word with nothing
           confirmed renders no empty "核心释义" block at all. */}
       <ConciseMeaningList groups={word.concise_meanings} />
-      {!hasGroups && <p className="muted">{hasSource ? '暂无已确认的核心释义' : '暂无可用释义'}</p>}
-      <section>
-        <span>最小语义锚点</span>
-        <h3>{word.anchor || '—'}</h3>
+      {hasGroups && word.dictionary_extraction ? <details className="source-raw">
+        <summary>查看完整来源义项（未核实）</summary>
+        <DictionaryExtractionList value={word.dictionary_extraction} />
+      </details> : <DictionaryExtractionList value={word.dictionary_extraction} />}
+      {!hasGroups && !hasSource && <p className="muted">暂无可用释义</p>}
+      {(word.anchor.trim() || word.semantic_note.trim()) && <section>
+        {word.anchor.trim() && <><span>最小语义锚点</span><h3>{word.anchor}</h3></>}
         {word.semantic_note && <p>{word.semantic_note}</p>}
-      </section>
-      {hasSource && <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : sourceNames.some(name => name.startsWith('enwiktionary-translation-')) ? '翻译整理的释义' : '来源原文'}>
-        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : dictionaryMeaningNotice(sourceNames)}</span>
-        {word.meaning_origin !== 'user_provided' && <p className="muted">{rawIsFallback
-          ? '原始记录行 · 来源未单独标注'
-          : `释义采用来源：${meaningSources.join('、') || '未记录（见下方来源记录）'}`}</p>}
-        <MeaningList values={word.source_meanings} fallback={word.source_raw} />
-        {word.source_raw && !rawIsFallback && (
-          <details className="source-raw"><summary>{word.meaning_origin === 'user_provided' ? '查看用户提供的原始记录行' : '查看原始记录行（来源可能不同）'}</summary><pre>{word.source_raw}</pre></details>
-        )}
       </section>}
-      {/* Placed after the source's own text, so a reader who doubts a value meets the
-          record of where it came from next. The concise blocks above keep their own
-          labels: a rewritten or self-authored short value is never presented as the
-          source's words, and this block does not change that. The lexicon is passed in
-          because the entry's own lexicon is what makes the card anchor unambiguous. */}
-      <EntrySourceList sources={word.sources} lexiconId={word.lexicon_id} />
+      {hasSource && !word.dictionary_extraction && <section aria-label={word.meaning_origin === 'user_provided' ? '用户提供的释义' : sourceNames.some(name => name.startsWith('enwiktionary-translation-')) ? '翻译整理的释义' : '来源原文'}>
+        <span>{word.meaning_origin === 'user_provided' ? '用户提供的释义 · 未核实' : dictionaryMeaningNotice(sourceNames)}</span>
+        <MeaningList values={word.source_meanings} fallback={word.source_raw} />
+      </section>}
       <div className="detail-stats">
         <div><strong>{word.recall_success}</strong><span>成功回忆</span></div>
         <div><strong>{word.recall_fail}</strong><span>回忆失败</span></div>
@@ -100,19 +92,34 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
       {word.possible_issue && (
         <div className="detail-warning"><TriangleAlert size={17} />这个词条在导入时被标记为可能有疑点。</div>
       )}
+      <details className="word-source-explanation" key={word.lexicon_entry_id}>
+        <summary>查看来源说明</summary>
+        {word.dictionary_extraction && <section aria-label="原导入释义（未核实）">
+          <span>原导入释义 · 未核实</span>
+          <MeaningList values={word.source_meanings} />
+        </section>}
+        {hasSource && word.meaning_origin !== 'user_provided' && <p className="muted">{rawIsFallback
+          ? '原始记录行 · 来源未单独标注'
+          : `释义采用来源：${meaningSources.join('、') || '未记录（见下方来源记录）'}`}</p>}
+        {hasSource && word.source_raw && !rawIsFallback && (
+          <details className="source-raw"><summary>{word.meaning_origin === 'user_provided' ? '查看用户提供的原始记录行' : '查看原始记录行（来源可能不同）'}</summary><pre>{word.source_raw}</pre></details>
+        )}
+        <EntrySourceList sources={word.sources} lexiconId={word.lexicon_id} />
+      </details>
     </>
   )
 }
 
 export function WordDetailPage({ positions }: { positions: Map<string, LibraryPosition> }) {
-  const { wordStateId } = useParams()
+  const { wordStateId, entryId } = useParams()
   const location = useLocation()
   useLayoutEffect(() => { window.scrollTo(0, 0) }, [location.key])
-  const stateId = wordStateId && /^[1-9]\d*$/.test(wordStateId) && Number.isSafeInteger(Number(wordStateId))
-    ? Number(wordStateId) : null
+  const rawId = entryId ?? wordStateId
+  const stateId = rawId && /^[1-9]\d*$/.test(rawId) && Number.isSafeInteger(Number(rawId))
+    ? Number(rawId) : null
   const detail = useQuery({
-    queryKey: ['word', stateId],
-    queryFn: () => api<WordDetail>(`/api/words/state/${stateId}`),
+    queryKey: [entryId !== undefined ? 'entry-word' : 'word', stateId],
+    queryFn: () => api<WordDetail>(`/api/words/${entryId !== undefined ? 'entry' : 'state'}/${stateId}`),
     enabled: stateId !== null,
     retry: false,
   })

@@ -40,6 +40,34 @@ beforeEach(() => {
 })
 
 describe('App shell', () => {
+  it('refreshes an exhausted study queue immediately after saving a higher daily target', async () => {
+    let target = 15
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/settings') {
+        if (init?.method === 'PUT') target = JSON.parse(String(init.body)).daily_new_words
+        return json({ ...settingsPayload(), daily_new_words: target })
+      }
+      if (url.startsWith('/api/study/today')) {
+        return json({ total: target > 15 ? 1 : 0, words: target > 15 ? [{
+          word: 'banana', word_state_id: 51, source_meanings: [], source_raw: '', concise_meanings: [],
+        }] : [] })
+      }
+      return signedInRoutes(url)
+    })
+    window.history.pushState({}, '', '/study')
+    render(<App />)
+    await screen.findByText('今天暂时没有待学习的单词')
+    await userEvent.click(screen.getByRole('link', { name: '设置' }))
+    const targetInput = await screen.findByRole('spinbutton', { name: '每日新词目标' })
+    expect(targetInput).toHaveAttribute('max', '500')
+    await userEvent.clear(targetInput)
+    await userEvent.type(targetInput, '500')
+    await userEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await screen.findByText('设置已保存')
+    await userEvent.click(screen.getByRole('link', { name: '今日学习' }))
+    expect(await screen.findByRole('heading', { name: 'banana' })).toBeInTheDocument()
+  })
   it('keeps a chosen lexicon after leaving study through home and the navigation', async () => {
     let selected: number | null = null
     const requests: string[] = []
@@ -59,10 +87,12 @@ describe('App shell', () => {
       ])
       if (url === '/api/lexicons/selection') return json({ lexicon_id: selected, source: selected ? 'explicit' : 'none' })
       if (url === '/api/lexicons/2/select') { selected = 2; return json({ lexicon_id: 2 }) }
+      if (url === '/api/lexicons/3/select') { selected = 3; return json({ lexicon_id: 3 }) }
       if (url.startsWith('/api/study/today')) {
         const scope = new URL(url, 'http://testserver').searchParams.get('lexicon_id')
         const words = scope === '2' || (!scope && selected === 2)
-          ? [word('apple', 11, 2)] : [word('apple', 11, 2), word('banana', 12, 3)]
+          ? [word('apple', 11, 2)] : scope === '3' || (!scope && selected === 3)
+            ? [word('banana', 12, 3)] : [word('apple', 11, 2), word('banana', 12, 3)]
         return json({ total: words.length, words })
       }
       return signedInRoutes(url)
@@ -80,6 +110,16 @@ describe('App shell', () => {
     expect(await screen.findByRole('heading', { name: 'apple' })).toBeInTheDocument()
     expect(screen.getByText('1 / 1')).toBeInTheDocument()
     expect(requests.filter((url) => url.startsWith('/api/study/today')).length).toBeGreaterThanOrEqual(2)
+    await userEvent.click(screen.getByRole('link', { name: '切换词库' }))
+    await userEvent.click((await screen.findAllByRole('button', { name: '学习这个词库' }))[1])
+    expect(await screen.findByRole('heading', { name: 'banana' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'apple' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: '今日概览' }))
+    await userEvent.click(screen.getByRole('link', { name: '今日学习' }))
+    expect(await screen.findByRole('heading', { name: 'banana' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: '切换词库' }))
+    await userEvent.click((await screen.findAllByRole('button', { name: '学习这个词库' }))[0])
+    expect(await screen.findByRole('heading', { name: 'apple' })).toBeInTheDocument()
   })
 
   it('navigates through the six-page shell once signed in', async () => {

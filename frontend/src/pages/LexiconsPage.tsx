@@ -32,6 +32,7 @@ export function LexiconsPage() {
     mutationFn: (id: number) => api(`/api/lexicons/${id}/select`, { method: 'POST' }),
     onSuccess: async (_, id) => {
       queryClient.removeQueries({ queryKey: ['study-today'] })
+      await queryClient.invalidateQueries({ queryKey: ['words'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       await queryClient.invalidateQueries({ queryKey: ['lexicon-selection'] })
       navigate(`/study?lexicon_id=${id}`)

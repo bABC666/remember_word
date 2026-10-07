@@ -376,3 +376,13 @@ h1, h2, h3, p { margin-top: 0; }
 .dictionary-source-dialog > header { display: flex; justify-content: space-between; align-items: center; }
 .dictionary-source-dialog h2 { margin: 0; }
 .dictionary-source-dialog .source-attribution { font-size: 13px; line-height: 1.7; }
+.library-pagination { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; margin: 16px 0; }
+.library-pagination > span { color: var(--muted); font-size: 13px; }
+.word-source-explanation { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
+.word-source-explanation > summary { min-height: 28px; cursor: pointer; color: var(--indigo); font-size: 13px; font-weight: 600; }
+.word-source-explanation > summary:focus-visible { outline: 2px solid var(--indigo); outline-offset: 4px; }
+.word-source-explanation > p { overflow-wrap: anywhere; }
+.dictionary-extraction { margin-block: 1rem; }
+.dictionary-extraction-evidence { margin-top: 1rem; }
+.dictionary-extraction-evidence > div { margin-block: .75rem; }
+.extraction-hash { overflow-wrap: anywhere; }

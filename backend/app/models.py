@@ -481,6 +481,25 @@ class LexiconEntry(Base):
     )
 
     lexicon: Mapped[Lexicon] = relationship(back_populates="entries")
+    dictionary_extraction: Mapped[EntryDictionaryExtraction | None] = relationship(
+        lazy="selectin", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class EntryDictionaryExtraction(Base):
+    """Full, unconfirmed source extraction; never writes a concise meaning or user state.
+
+    Payload contains original text, per-sense language/POS positions, source hashes,
+    attribution, pronunciations and quarantined records. No confirmer is representable.
+    """
+
+    __tablename__ = "entry_dictionary_extraction"
+    lexicon_entry_id: Mapped[int] = mapped_column(
+        ForeignKey("lexicon_entry.id", ondelete="CASCADE"), primary_key=True
+    )
+    parser_version: Mapped[str] = mapped_column(String(64))
+    payload_sha256: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JSON)
 
 
 class UserLexicon(Base):

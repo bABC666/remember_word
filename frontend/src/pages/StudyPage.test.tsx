@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import type { ConciseMeaning, ConciseMeaningGroup, Word } from '../types'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Link, MemoryRouter } from 'react-router-dom'
+import { StudyPage } from './StudyPage'
 
 /**
  * What the study page shows for a word that has confirmed short meanings, and what it
@@ -113,6 +116,51 @@ async function reveal() {
 }
 
 describe('the study page and short confirmed meanings', () => {
+  it('loads the next batch after reviewing the last word without repeating reviewed words', async () => {
+    let reviewed = false
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/study/word-states/')) {
+        reviewed = true
+        return Promise.resolve(Response.json({ ok: true }))
+      }
+      const words = reviewed
+        ? [word(), word({ word: 'banana', word_state_id: 51 })]
+        : [word()]
+      return Promise.resolve(Response.json({ total: words.length, words }))
+    }))
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><StudyPage /></MemoryRouter>
+    </QueryClientProvider>)
+    await userEvent.click(await screen.findByRole('button', { name: /显示答案/ }))
+    await userEvent.click(screen.getByRole('button', { name: /3.*会/ }))
+    expect(await screen.findByRole('heading', { name: 'banana' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /显示答案/ })).toBeInTheDocument()
+  })
+  it('starts a changed lexicon at its first word with its answer hidden', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/study/word-states/')) return Promise.resolve(Response.json({ ok: true }))
+      const words = url.endsWith('lexicon_id=2')
+        ? [word({ word: 'banana', word_state_id: 51, lexicon_id: 2 })]
+        : [word(), word({ word: 'apple', word_state_id: 43 })]
+      return Promise.resolve(Response.json({ total: words.length, words }))
+    }))
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/study?lexicon_id=1']}>
+        <Link to="/study?lexicon_id=2">切到 B</Link>
+        <StudyPage />
+      </MemoryRouter>
+    </QueryClientProvider>)
+    await userEvent.click(await screen.findByRole('button', { name: /显示答案/ }))
+    await userEvent.click(screen.getByRole('button', { name: /3.*会/ }))
+    await screen.findByRole('heading', { name: 'apple' })
+    await userEvent.click(screen.getByRole('button', { name: /显示答案/ }))
+    await userEvent.click(screen.getByRole('link', { name: '切到 B' }))
+    expect(await screen.findByRole('heading', { name: 'banana' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /显示答案/ })).toBeInTheDocument()
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+  })
   it('shows the confirmed short value first and keeps the source reachable', async () => {
     mockApi([word({ concise_meanings: [group()] })])
     await reveal()

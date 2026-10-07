@@ -3,14 +3,22 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Query
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.models import Article, ArticleWordExposure, LexiconEntry, ReviewEvent, UserWordState
 from app.services.concise_meaning import entry_short_meanings
 from app.services.entry_provenance import entry_sources
-from app.services.userdata import WordView, load_user_word, load_user_word_state
+from app.services.lexicon_selection import effective_lexicon_selection
+from app.services.userdata import (
+    NOT_FOUND_WORD,
+    WordView,
+    load_readable_lexicon,
+    load_user_word,
+    load_user_word_state,
+    not_found,
+)
 
 router = APIRouter(prefix="/api/words", tags=["words"])
 
@@ -28,6 +36,9 @@ def list_words(
     status: str = "",
     view: str = "",
     limit: int = Query(default=100, ge=1, le=500),
+    catalog: bool = False,
+    offset: int = Query(default=0, ge=0),
+    lexicon_id: int | None = Query(default=None, ge=1),
 ) -> dict[str, object]:
     """List words **this user is learning**.
 
@@ -35,7 +46,12 @@ def list_words(
     users sharing one public lexicon never see each other's vocabulary or
     learning state. Every filter runs in SQL; nothing is filtered in Python after
     a global fetch.
+
+    ``catalog=true`` instead browses the selected readable lexicon's complete
+    content, with optional caller-owned progress, without creating learning state.
     """
+    if catalog:
+        return _list_catalog(user, session, search, status, view, limit, offset, lexicon_id)
     query = (
         select(UserWordState, LexiconEntry)
         .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
@@ -76,6 +92,78 @@ def list_words(
         "words": [
             word_dict_from_view(view, short.get(view.entry.id)) for view in views
         ],
+    }
+
+
+def _entry_view(state: UserWordState | None, entry: LexiconEntry) -> WordView:
+    if state is None:
+        # Display defaults only: never attach this transient object to the session.
+        state = UserWordState(
+            lexicon_entry_id=entry.id, status="new", anchor_override="",
+            semantic_note="", recall_success=0, recall_fail=0, context_exposure=0,
+            possible_issue=False, notes="",
+        )
+    return WordView(state=state, entry=entry)
+
+
+def _list_catalog(user, session, search, status, view, limit, offset, lexicon_id):
+    scope = lexicon_id
+    if scope is None:
+        scope, _ = effective_lexicon_selection(session, user)
+    if scope is None:
+        return {"total": 0, "words": [], "lexicon": None}
+    lexicon = load_readable_lexicon(session, user, scope)
+    query = select(UserWordState, LexiconEntry).select_from(LexiconEntry).outerjoin(
+        UserWordState, and_(
+            UserWordState.lexicon_entry_id == LexiconEntry.id,
+            UserWordState.user_id == user.id,
+        ),
+    ).where(LexiconEntry.lexicon_id == lexicon.id)
+    if search.strip():
+        pattern = f"%{search.strip()}%"
+        query = query.where(or_(
+            LexiconEntry.word.ilike(pattern), LexiconEntry.default_anchor.ilike(pattern),
+            LexiconEntry.source_raw.ilike(pattern),
+        ))
+    if status in ("new", "unstudied"):
+        query = query.where(or_(UserWordState.id.is_(None), UserWordState.status == "new"))
+    elif status:
+        query = query.where(UserWordState.status == status)
+    if view == "weak":
+        query = query.where(UserWordState.status == "weak")
+    elif view == "stale":
+        query = query.where(
+            UserWordState.id.is_not(None), UserWordState.status != "new",
+            or_(UserWordState.last_review.is_(None),
+                UserWordState.last_review < datetime.now(UTC) - timedelta(days=14)),
+        )
+    total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    if view == "recent":
+        query = query.order_by(UserWordState.first_seen.desc())
+    elif view == "stale":
+        query = query.order_by(UserWordState.last_review)
+    query = query.order_by(LexiconEntry.word, LexiconEntry.id)
+    views = [_entry_view(state, entry) for state, entry in
+             session.execute(query.offset(offset).limit(limit)).all()]
+    short = entry_short_meanings(session, (item.entry.id for item in views))
+    return {
+        "total": total, "lexicon": {"id": lexicon.id, "name": lexicon.name},
+        "words": [word_dict_from_view(item, short.get(item.entry.id)) for item in views],
+    }
+
+
+@router.get("/entry/{entry_id}")
+def get_catalog_entry(entry_id: int, user: CurrentUser, session: SessionDep):
+    entry = session.get(LexiconEntry, entry_id)
+    if entry is None:
+        raise not_found(NOT_FOUND_WORD)
+    load_readable_lexicon(session, user, entry.lexicon_id)
+    state = session.scalar(select(UserWordState).where(
+        UserWordState.user_id == user.id, UserWordState.lexicon_entry_id == entry.id,
+    ))
+    return {
+        **_word_detail(session, user, _entry_view(state, entry)),
+        "sources": entry_sources(session, entry.id),
     }
 
 
@@ -125,7 +213,7 @@ def _word_detail(session: SessionDep, user: CurrentUser, view: WordView) -> dict
     legacy ``word_id`` would compare against NULL for a word that has no legacy row,
     and ``word_id IS NULL`` matches unrelated rows instead of none.
     """
-    entry_id = view.state.lexicon_entry_id
+    entry_id = view.entry.id
 
     reviews = session.scalars(
         select(ReviewEvent)

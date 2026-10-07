@@ -424,7 +424,11 @@ def _lexicon_room(
     silently disappearing from the queue.
     """
     paces = {
-        row.lexicon_id: row.daily_new_words
+        # The legacy membership default is not a separately configured pace.
+        # It follows the personal goal, including increases made during the day.
+        row.lexicon_id: (
+            target if row.daily_new_words == DEFAULT_DAILY_NEW_WORDS else row.daily_new_words
+        )
         for row in session.scalars(
             select(UserLexicon).where(UserLexicon.user_id == user.id)
         )

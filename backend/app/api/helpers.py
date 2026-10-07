@@ -10,6 +10,7 @@ from app.models import (
     ImportImage,
     ReviewEvent,
 )
+from app.services.dictionary_extraction import display_extraction
 from app.services.userdata import WordView
 
 
@@ -65,6 +66,7 @@ def word_dict_from_view(
         "source_raw": entry.source_raw,
         "meaning_origin": "user_provided" if entry.lexicon.source_type == "user_file" else "platform",
         "concise_meanings": list(concise_meanings or []),
+        "dictionary_extraction": display_extraction(entry.dictionary_extraction),
         # The user's override wins; the reviewed lexicon anchor is the fallback.
         "anchor": view.anchor,
         "semantic_note": view.semantic_note,

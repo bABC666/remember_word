@@ -40,6 +40,7 @@ function AuthenticatedApp() {
         <Route path="/library" element={<LibraryPage positions={libraryPositions.current} />} />
         <Route path="/lexicons" element={<LexiconsPage />} />
         <Route path="/library/:wordStateId" element={<WordDetailPage positions={libraryPositions.current} />} />
+        <Route path="/library/entry/:entryId" element={<WordDetailPage positions={libraryPositions.current} />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* Read-only provenance page, reached from the settings section rather than
             from the navigation: the sidebar's six entries are already at the limit

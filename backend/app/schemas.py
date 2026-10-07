@@ -54,7 +54,7 @@ class SettingsUpdate(BaseModel):
     deepseek_api_key: str | None = Field(default=None, max_length=500)
     deepseek_base_url: str | None = Field(default=None, max_length=500)
     deepseek_model: str | None = Field(default=None, max_length=200)
-    daily_new_words: int | None = Field(default=None, ge=1, le=100)
+    daily_new_words: int | None = Field(default=None, ge=1, le=500)
     article_length: int | None = Field(default=None, ge=300, le=1200)
     ocr_language: str | None = Field(default=None, max_length=30)
     ocr_use_gpu: bool | None = None
