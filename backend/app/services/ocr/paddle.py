@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from threading import RLock
 from typing import Any
 from uuid import uuid4
 
@@ -23,6 +24,8 @@ from app.config import get_settings
 from app.services.ocr.base import OCRDocument, OCRLine, OCRProviderError
 
 logger = logging.getLogger(__name__)
+# Paddle engines are shared by requests and must not run concurrently.
+_OCR_LOCK = RLock()
 
 
 @contextmanager
@@ -291,9 +294,7 @@ def _model_cache_defect(model_dir: Path) -> str | None:
         defect = _config_file_defect(model_dir / filename)
         if defect is not None:
             return f"{filename} {defect}"
-    parameters = [
-        path for pattern in _MODEL_PARAMETER_GLOBS for path in model_dir.glob(pattern)
-    ]
+    parameters = [path for pattern in _MODEL_PARAMETER_GLOBS for path in model_dir.glob(pattern)]
     if not parameters:
         return "缺少模型参数文件"
     if not any(_is_usable_parameter_file(path) for path in parameters):
@@ -315,9 +316,7 @@ def _holds_model_materialization(model_dir: Path) -> bool:
     try:
         children = list(model_dir.iterdir())
     except OSError as error:
-        raise OCRProviderError(
-            f"无法读取 PaddleOCR 模型缓存 {model_dir.name}：{error}"
-        ) from error
+        raise OCRProviderError(f"无法读取 PaddleOCR 模型缓存 {model_dir.name}：{error}") from error
     if not children:
         return True
     return any(
@@ -538,8 +537,31 @@ class PaddleOCRProvider:
         self._engine: Any | None = None
 
     def _get_engine(self) -> Any:
+        with _OCR_LOCK:
+            return self._initialize_engine()
+
+    def _initialize_engine(self) -> Any:
         if self._engine is not None:
             return self._engine
+        profile = os.getenv("VOCAB_OCR_PROFILE", "default").strip().lower()
+        if profile not in {"default", "mobile"}:
+            raise OCRProviderError("VOCAB_OCR_PROFILE 必须为 default 或 mobile")
+        options: dict[str, Any] = {"lang": self.language}
+        if profile == "mobile":
+            if self.use_gpu or self.language not in {"en", "ch"}:
+                raise OCRProviderError("mobile OCR 配置仅支持 CPU 和 en/ch 语言")
+            # Explicit models prevent newer Paddle releases selecting larger defaults.
+            options = {
+                "text_detection_model_name": "PP-OCRv5_mobile_det",
+                "text_recognition_model_name": (
+                    "en_PP-OCRv5_mobile_rec" if self.language == "en" else "PP-OCRv5_mobile_rec"
+                ),
+                "cpu_threads": 1,
+                "enable_mkldnn": False,
+                "text_recognition_batch_size": 1,
+                "text_det_limit_type": "max",
+                "text_det_limit_side_len": 1024,
+            }
         cache_path = self._configure_model_cache()
         repair_incomplete_paddle_model_cache(cache_path)
         try:
@@ -551,17 +573,26 @@ class PaddleOCRProvider:
             ) from error
         try:
             self._engine = PaddleOCR(
-                lang=self.language,
+                **options,
                 device="gpu:0" if self.use_gpu else "cpu",
                 use_doc_orientation_classify=False,
                 use_doc_unwarping=False,
                 use_textline_orientation=False,
             )
-        except TypeError:
-            self._engine = PaddleOCR(
-                lang=self.language, use_angle_cls=True, show_log=False, use_gpu=self.use_gpu
-            )
         except Exception as error:
+            if isinstance(error, TypeError) and profile == "default":
+                try:
+                    self._engine = PaddleOCR(
+                        lang=self.language,
+                        use_angle_cls=True,
+                        show_log=False,
+                        use_gpu=self.use_gpu,
+                    )
+                    return self._engine
+                except Exception as legacy_error:
+                    raise OCRProviderError(
+                        f"PaddleOCR 初始化失败：{legacy_error}"
+                    ) from legacy_error
             raise OCRProviderError(f"PaddleOCR 初始化失败：{error}") from error
         return self._engine
 
@@ -571,9 +602,13 @@ class PaddleOCRProvider:
         return configure_paddle_environment()
 
     def extract(self, image_path: Path) -> OCRDocument:
-        engine = self._get_engine()
+        if not _OCR_LOCK.acquire(blocking=False):
+            raise OCRProviderError("OCR 正在处理另一张图片，请稍后重试")
         try:
-            with prepared_ocr_image(image_path) as prepared:
+            engine = self._get_engine()
+            mobile = os.getenv("VOCAB_OCR_PROFILE", "").strip().lower() == "mobile"
+            max_side = 1600 if mobile else 2200
+            with prepared_ocr_image(image_path, max_side=max_side) as prepared:
                 if hasattr(engine, "predict"):
                     result = list(engine.predict(str(prepared)))
                     return self._from_v3(result)
@@ -582,6 +617,8 @@ class PaddleOCRProvider:
             raise
         except Exception as error:
             raise OCRProviderError(f"PaddleOCR 识别失败：{error}") from error
+        finally:
+            _OCR_LOCK.release()
 
     def _from_v3(self, result: list[Any]) -> OCRDocument:
         lines: list[OCRLine] = []
@@ -622,7 +659,7 @@ class PaddleOCRProvider:
         return OCRDocument(provider=self.name, lines=lines, raw=result or [])
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=1)
 def get_paddle_provider(language: str = "en", use_gpu: bool = False) -> PaddleOCRProvider:
-    """Keep one lazily initialized Paddle engine per runtime configuration."""
+    """Cache the latest runtime configuration without retaining unused engines."""
     return PaddleOCRProvider(language=language, use_gpu=use_gpu)
