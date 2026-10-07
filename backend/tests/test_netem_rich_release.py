@@ -84,6 +84,8 @@ def test_local_credential_decryption_is_captured_not_printed(monkeypatch):
     def decrypt(args, **kwargs):
         assert kwargs['capture_output'] is True
         assert kwargs['env']['NETEM_LOCAL_CREDENTIAL'] == str(path.resolve())
+        assert kwargs['env']['PSModulePath'].replace('\\', '/').lower().endswith(
+            '/system32/windowspowershell/v1.0/modules')
         calls.append(args)
         return subprocess.CompletedProcess(args, 0, 'test-only-password', '')
     monkeypatch.setattr(release.subprocess, 'run', decrypt)

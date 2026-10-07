@@ -89,6 +89,10 @@ try { [Console]::Write([Runtime.InteropServices.Marshal]::PtrToStringBSTR($point
 finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
 '''
     env = dict(os.environ, NETEM_LOCAL_CREDENTIAL=str(path))
+    # The desktop harness uses PowerShell 7; Windows PowerShell 5.1 must load
+    # its own built-in Security module rather than inherit the host module path.
+    env['PSModulePath'] = str(Path(os.environ.get('SystemRoot', 'C:/Windows')) /
+                              'System32/WindowsPowerShell/v1.0/Modules')
     result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
                             env=env, capture_output=True, text=True, encoding='utf-8', check=False)
     if result.returncode or not result.stdout:

@@ -1,6 +1,7 @@
 # Explicit local input only. No plaintext password is written or printed.
 param([Parameter(Mandatory=$true)][string]$Output)
 $ErrorActionPreference = 'Stop'
+$env:PSModulePath = Join-Path $PSHOME 'Modules'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $artifactRoot = [IO.Path]::GetFullPath((Join-Path $root 'test-artifacts')).TrimEnd('\') + '\'
 $target = [IO.Path]::GetFullPath($Output)
