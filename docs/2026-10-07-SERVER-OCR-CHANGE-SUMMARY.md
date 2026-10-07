@@ -7,9 +7,30 @@
 这次修改现有适配器以支持小内存 CPU 实例，并新增服务器自检脚本、测试和部署说明。
 没有另建一个 OCR 微服务，也没有重写整套应用。
 
-本次 GitHub 提交只归档这份总结。下面的代码和部署文件记录对应已经交付的本地
-OCR 增量包；提交总结本身不表示这些实现已经合入 GitHub main，也不表示服务器
-已经安装或验收成功。服务器上的最终部署状态须由实际操作记录确认。
+最初的 GitHub 提交仅归档总结，未包含实际代码。负责人核对后要求落实实现补交，
+截至本次更新，OCR 适配器、回归测试和下述 7 个部署文件已补交到 GitHub `main`。
+已核对远端适配器包含 `VOCAB_OCR_PROFILE`，代码和测试正文与本地已验证版本一致。
+本文同步记录实现补交范围。服务器安装、重启和上线验收仍是独立步骤，本对话
+没有服务器上线成功的实测证据。
+
+远端核对入口：[OCR 代码](../backend/app/services/ocr/paddle.py)、
+[回归测试](../backend/tests/test_ocr_optimization.py)、[部署目录](../deploy/)、
+[公网 2GB ECS 部署说明](../deploy/OCR-2GB-WORKBENCH.md)。
+
+补交文件清单（相对于仓库根目录）：
+
+```text
+backend/app/services/ocr/paddle.py
+backend/tests/test_ocr_optimization.py
+deploy/OCR-2GB-WORKBENCH.md
+deploy/ocr-2gb.env.example
+deploy/OCR.md
+deploy/README.md
+deploy/shici.env.example
+deploy/shici.service
+deploy/verify-ocr.py
+docs/2026-10-07-SERVER-OCR-CHANGE-SUMMARY.md
+```
 
 ## 1. 服务器环境与当时的问题
 
@@ -123,9 +144,10 @@ MKL_NUM_THREADS=1
 Cookie 和公网设置；不直接用示例覆盖现有文件。CPU 服务器的 GPU 选项应关闭，
 中英文单词书选择 `ch`。
 
-同时修正 `.env.example`、`backend/app/config.py` 和
+此前本地还修正 `.env.example`、`backend/app/config.py` 和
 `backend/app/api/imports.py` 中“只能本地使用 / 云端应停用 OCR”等说明性文字。
-这些注释修正不改变权限判断或导入数据归属逻辑。
+这些注释修正不改变权限判断或导入数据归属逻辑，未列入本次实现补交清单，避免
+将这些文件中其他后续功能改动混入 OCR 提交。
 
 ## 4. 已交付的增量包
 
