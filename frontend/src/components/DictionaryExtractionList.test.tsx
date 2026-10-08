@@ -76,3 +76,16 @@ it('keeps complete source senses grouped, labelled unconfirmed and evidence coll
   expect(toggle.closest('details')).toHaveAttribute('open')
   expect(screen.getByText('# 剧')).toBeInTheDocument()
 })
+it('keeps third-party source and original licence links in collapsed evidence', async () => {
+  render(<DictionaryExtractionList value={{parser_version:'netem-rich-v1',status:'unconfirmed_source_extraction',
+    audit_status:'automated_source_verified',pending_count:0,pending_reasons:[],pronunciations:[],
+    senses:[{text:'高声',language:'en',status:'source_verified',locator:'zh:1:2',source:{publisher:'维基词典',
+      attribution:{creators:'维基与 CC-CEDICT 贡献者',modifications:'保留原 3.0；改编 4.0',
+        license_url:'https://creativecommons.org/licenses/by-sa/4.0/',
+        links:[{label:'CC-CEDICT 原料来源',url:'https://cc-cedict.org/wiki/'}]}}}]}} />)
+  const link=screen.getByRole('link',{name:'CC-CEDICT 原料来源',hidden:true})
+  expect(link).not.toBeVisible()
+  await userEvent.click(screen.getByText('查看词典来源'))
+  expect(link).toBeVisible()
+  expect(link).toHaveAttribute('href','https://cc-cedict.org/wiki/')
+})

@@ -84,6 +84,8 @@ export function DictionaryExtractionList({ value }: { value: DictionaryExtractio
           <p className="muted">{item.source.attribution.disclaimer}</p>
           <a href={item.source.attribution.license_url} target="_blank" rel="noreferrer">改编许可</a>
           {item.source.attribution.source_url && <> · <a href={item.source.attribution.source_url} target="_blank" rel="noreferrer">来源</a></>}
+          {item.source.attribution.links?.filter(link => /^https?:\/\//.test(link.url)).map(link =>
+            <span key={`${link.label}-${link.url}`}> · <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></span>)}
         </div>}
         {item.source.extraction_modifications && <p className="muted">{item.source.extraction_modifications}</p>}
         <p className="muted">{item.locator}</p>

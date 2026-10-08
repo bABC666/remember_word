@@ -143,3 +143,99 @@ def test_review_correction_requires_exact_previous_decision_and_complete_coverag
         audit.load_reviews([review], [record], correction)
     with pytest.raises(ValueError, match='coverage'):
         audit.load_reviews([review], [], None)
+
+
+def test_language_boundary_recheck_prevents_an_accepted_foreign_definition():
+    sense=candidate('菜单','noun','名詞')
+    sense.update(sense_path='5',source=dict(sense['source'],family='zhwiktionary'),status='source_verified')
+    original={'text':'==英语==\n菜单\n{{-mnc-}}\n{{-pt-}}\n菜单',
+              'body_sha256':sense['source']['body_sha256']}
+    result=audit.enforce_source_language(sense,[original])
+    assert result['status']=='pending'
+    assert result['language']=='pt'
+    assert result['reason']=='source_language_boundary_conflict'
+
+
+@pytest.mark.parametrize('raw,key',[('n.','noun'),('adj.','adj'),('{{-n-}}','noun'),('{{-v-}}','verb')])
+def test_recovered_explicit_pos_codes_are_recognized(raw,key):
+    assert audit.declared_pos(raw)==key
+
+
+def fetched_fixture():
+    directory = ROOT/'test-artifacts/netem-source-audit-tests'/uuid.uuid4().hex
+    directory.mkdir(parents=True)
+    raw = {'query':{'pages':[{'title':'April','revisions':[{'revid':42,
+            'slots':{'main':{'content':'==英语==\n四月'}}}]}]}}
+    response = directory/'response.json'
+    response.write_text(json.dumps(raw,ensure_ascii=False),encoding='utf-8')
+    checksum=audit.rich.sha(response.read_bytes())
+    relative=response.relative_to(ROOT).as_posix()
+    body=audit.rich.sha('==英语==\n四月'.encode())
+    original={'text':'==英语==\n四月','headword':'April','revision':'42',
+              'file':relative,'file_sha256':checksum,'body_sha256':body,
+              'source':{'family':'zhwiktionary','revision':'42','file':relative,
+                        'body_sha256':body,'original_file_sha256':checksum}}
+    (directory/'manifest.json').write_text(json.dumps({'publisher':'Chinese Wiktionary contributors',
+        'license':'CC-BY-SA-4.0','responses':[{'file':'response.json','sha256':checksum}]}),encoding='utf-8')
+    originals=directory/'originals.json'
+    originals.write_text(json.dumps({'123':[original]},ensure_ascii=False),encoding='utf-8')
+    return directory,originals,original
+
+
+def test_fetched_sources_bind_actual_page_revision_and_metadata():
+    directory,path,original=fetched_fixture()
+    rows,ledger=audit.validate_fetched_sources([{'entry_id':123,'word':'April'}],directory,path)
+    assert rows['123'][0]==original and len(ledger)==3
+    original['source']['revision']='43'
+    path.write_text(json.dumps({'123':[original]},ensure_ascii=False),encoding='utf-8')
+    with pytest.raises(ValueError,match='binding'):
+        audit.validate_fetched_sources([{'entry_id':123,'word':'April'}],directory,path)
+
+
+def test_fetched_raw_file_tampering_refuses():
+    directory,path,_original=fetched_fixture()
+    (directory/'response.json').write_text('{}',encoding='utf-8')
+    with pytest.raises(ValueError,match='fingerprint'):
+        audit.validate_fetched_sources([{'entry_id':123,'word':'April'}],directory,path)
+
+
+def test_recovered_source_review_cannot_invent_pos_or_skip_a_candidate():
+    directory,_originals_path,original=fetched_fixture()
+    from app.services.rich_dictionary_parser import recover_wikitext_candidates
+    sense=recover_wikitext_candidates(original['text'])[0]
+    sense.update(entry_id=123,word='April',i=0,locator='zhwiktionary:42:2',
+                 body_sha256=original['body_sha256'],source=original['source'])
+    record={'entry_id':123,'word':'April','payload':{'originals':[original]}}
+    snapshot=directory/'snapshot.json'
+    review=directory/'review.json'
+    snapshot.write_text(json.dumps([sense],ensure_ascii=False),encoding='utf-8')
+    review.write_text(json.dumps({'review_kind':audit.REVIEW_KIND,'core_confirmation':False,
+                                 'decisions':[decision(sense)]},ensure_ascii=False),encoding='utf-8')
+    result,_=audit.recovered_reviews([record],snapshot,[review],fetched=True)
+    assert result[123][0]['status']=='source_verified' and result[123][0]['pos_key']==''
+    sense.update(pos_raw='noun',pos_key='noun')
+    snapshot.write_text(json.dumps([sense],ensure_ascii=False),encoding='utf-8')
+    with pytest.raises(ValueError,match='POS'):
+        audit.recovered_reviews([record],snapshot,[review],fetched=True)
+    review.write_text(json.dumps({'review_kind':audit.REVIEW_KIND,'core_confirmation':False,
+                                 'decisions':[]}),encoding='utf-8')
+    with pytest.raises(ValueError,match='coverage'):
+        audit.recovered_reviews([record],snapshot,[review],fetched=True)
+
+
+def test_license_attribution_cannot_release_a_semantic_rejection_or_unknown_template():
+    sense=candidate()
+    sense['source']['family']='zhwiktionary'
+    sense.update(status='pending',reason='license_marker_requires_review')
+    sense['quality_review']={'meaning_result':'accept'}
+    original={'body_sha256':sense['source']['body_sha256'],'text':'==英语==\n四月\n{{CC-CEDICT}}'}
+    sense['source']['attribution']={'creators':'维基贡献者','modifications':'旧处理'}
+    result=audit.with_cedict_attribution(sense,[original],{'evidence_sha256':'f'*64})
+    assert result['status']=='source_verified'
+    assert 'CC-CEDICT' in result['source']['attribution']['creators']
+    assert result['source']['license_id']=='CC-BY-SA-3.0 (CC-CEDICT original); CC-BY-SA-4.0 (adaptation)'
+    sense['quality_review']['meaning_result']='reject'
+    assert audit.with_cedict_attribution(sense,[original],{})['status']=='pending'
+    sense['quality_review']['meaning_result']='accept'
+    sense['text']='{{unknown}}四月'
+    assert audit.with_cedict_attribution(sense,[original],{})['status']=='pending'

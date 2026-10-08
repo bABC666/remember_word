@@ -7,6 +7,16 @@ const url = process.env.NETEM_SOURCE_AUDIT_URL || 'http://127.0.0.1:5198';
 const credentials = JSON.parse(fs.readFileSync(process.env.NETEM_RICH_QA_CREDENTIALS, 'utf8'));
 const shots = process.env.NETEM_RICH_QA_SHOTS;
 const output = process.env.NETEM_RICH_QA_REPORT;
+const extended = process.env.NETEM_RICH_QA_PHASE === 'pilot' ? [] : ['administer','whisky','pop','rebellion','mean','grown-up'];
+const missing = ['certify','snobbish','mountain'];
+async function navigate(page, pathname) {
+  // Reuse the app's SPA routes as ordinary in-app navigation does. Repeated
+  // full Vite reloads exhausted Windows socket buffers during the larger run.
+  await page.evaluate(target => {
+    history.pushState(null, '', target);
+    dispatchEvent(new PopStateEvent('popstate'));
+  }, pathname);
+}
 assert(shots && output && url === 'http://127.0.0.1:5198', 'Explicit isolated QA target required');
 const report = {browser: 'Browser plugin not available; bundled Playwright and installed Chrome',
   target: url, checks: [], errors: [], failedResponses: [], screenshots: [], consoleDetails: [], nonApplicationWarnings: []};
@@ -38,7 +48,8 @@ const check = (name, value) => {assert(value, name); report.checks.push(name);};
         await page.getByRole('dialog', {name:'欢迎使用拾词'}).waitFor({state:'hidden'});
       }
       const ids = {...credentials.entry_ids};
-      for (const word of ['August','Bible','Christmas','December','Catholic','a','about','compass']) {
+      for (const word of ['August','Bible','Christmas','December','Catholic','a','about','compass',
+          'against','ability','aboard','accompany','absolute','aeroplane',...extended,...missing]) {
         const response = await context.request.get(url+'/api/words?catalog=true&lexicon_id='+credentials.lexicon_id+'&search='+encodeURIComponent(word));
         const entry = (await response.json()).words.find(item => item.word === word);
         assert(entry, 'target word missing: '+word);
@@ -50,8 +61,9 @@ const check = (name, value) => {assert(value, name); report.checks.push(name);};
         await page.getByRole('heading', {name:'April',exact:true}).waitFor();
         check('desktop screenshot user flow has April meaning', (await page.locator('body').innerText()).includes('四月'));
       }
-      for (const word of ['April','August','Bible','Christmas','December','play','set','run','abundant','above','Catholic','a','about','compass']) {
-        await page.goto(url+'/library/entry/'+ids[word]);
+      for (const word of ['April','August','Bible','Christmas','December','play','set','run','abundant','above','Catholic','a','about','compass',
+          'against','ability','aboard','accompany','absolute','aeroplane',...extended,...missing]) {
+        await navigate(page,'/library/entry/'+ids[word]);
         await page.getByRole('heading',{name:word,exact:true}).waitFor();
         const region = page.getByRole('region',{name:'来源义项'});
         const text = await region.innerText();
@@ -81,11 +93,18 @@ const check = (name, value) => {assert(value, name); report.checks.push(name);};
         }
         if (word==='run') check(device+' run shared translation retained', text.includes('跑'));
         if (word==='above') check(device+' above acid withheld', !text.includes('酸'));
-        if (word==='Catholic') check(device+' Catholic unsupported legacy not restored', text.includes('暂缺可用')&&!text.includes('常用'));
+        if (word==='Catholic') check(device+' Catholic pinned meaning restored', text.includes('天主教的')&&!text.includes('常用'));
+        const recovered = {against:'針對',ability:'能力',aboard:'船',accompany:'陪',absolute:'绝',aeroplane:'飛機',administer:'管理',whisky:'威士忌'};
+        if (recovered[word]) check(device+' '+word+' recovered original meaning',text.includes(recovered[word])||(word==='absolute'&&text.includes('絕')));
+        if (word==='pop') check(device+' pop private block withheld',!text.includes('私人的')&&!text.includes('阴部'));
+        if (word==='rebellion') check(device+' rebellion wrong response block withheld',!text.includes('答覆')&&text.includes('叛乱'));
+        if (word==='mean') check(device+' mean direct bilingual meaning restored',text.includes('卑鄙'));
+        if (word==='grown-up') check(device+' grown-up meaning independent of defective POS',text.includes('成人')&&!text.includes('名词'));
+        if (missing.includes(word)) check(device+' '+word+' missing/erroneous/third-party source remains honest',text.includes('暂缺可用')&&!text.includes('草莓'));
         if (word==='a') check(device+' a original article POS retained', text.includes('冠词')&&!text.includes('然后'));
         if (word==='about') check(device+' about upstream bee withheld', !text.includes('蜜蜂'));
         if (word==='compass') check(device+' compass original meaning now visible', text.includes('指南针'));
-        if (['April','play','set'].includes(word)) {
+        if (['April','play','set','Catholic','against'].includes(word)) {
           const file = path.join(shots, 'audit-'+device+'-'+word+'.png');
           await page.screenshot({path:file,fullPage:false});
           report.screenshots.push(file);
@@ -96,7 +115,7 @@ const check = (name, value) => {assert(value, name); report.checks.push(name);};
           check(device+' all review provenance visible', (await region.innerText()).includes('文件 SHA-256'));
         }
       }
-      await page.goto(url+'/study?lexicon_id='+credentials.lexicon_id);
+      await navigate(page,'/study?lexicon_id='+credentials.lexicon_id);
       await page.getByRole('button',{name:/显示答案/}).waitFor();
       check(device+' study answer hidden', await page.getByRole('region',{name:'来源义项'}).count()===0);
       await page.getByRole('button',{name:/显示答案/}).click();

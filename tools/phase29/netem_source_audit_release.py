@@ -19,8 +19,8 @@ import netem_rich_release as protected
 import netem_source_audit as audit
 
 ROOT = protected.ROOT
-PLAN = ROOT / 'test-artifacts/netem-source-audit-20261008/full-candidate/plan.json'
-PLAN_SHA = '6ff4887afeaaa22d293937c4ae44373c4981e637c0e09ad131a606d77cb3a83b'
+PLAN = ROOT / 'test-artifacts/netem-source-audit-20261008/full-recovery-locked/plan.json'
+PLAN_SHA = '29e90f367ea571773b64aedeb639bd59d01ac1c073088b0de2a4e53a3a11cb10'
 
 
 def check_code(code_sha):

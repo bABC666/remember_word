@@ -20,3 +20,15 @@
 Results: `docs/NETEM-SOURCE-AUDIT-VALIDATION-2026-10-08.md`; full candidate SHA `6ff4887afeaaa22d293937c4ae44373c4981e637c0e09ad131a606d77cb3a83b`. Production remains unchanged pending the user's explicit final confirmation of this new candidate.
 
 Review artifacts and temporary databases belong under `test-artifacts/netem-source-audit-20261008/`; the four existing history drafts remain untouched.
+
+## Continued source recovery after the user's missing-word review
+
+- [x] Recover skipped source formats and preserve716 previously recorded revisions as actual raw API bodies.
+- [x] Finish fingerprint-bound semantic decisions for all additional candidates; normalize only explicit annotations and keep earlier decisions/evidence.
+- [x] Check CC-CEDICT's actual old licence notice, retain its credit/conditions, and separate that check from semantic/POS acceptance.
+- [x] Rehearse a diverse100-word pilot and full5528-row update, repeat, local rollback and repeat; preserve every original business table.
+- [x] Verify current API/parser/release guards, frontend regression/build, desktop/mobile render and three real negative-source cases.
+- [x] Deliver5437 usable words,979 restored words,91 concrete gaps and final plan `29e90f…cb10`, with replay/rollback commands and frozen code.
+- [ ] Publish this changed candidate only after the user's new final publication confirmation.
+
+Current validation: `docs/NETEM-SOURCE-RECOVERY-VALIDATION-2026-10-08.md`. The prior6ff488 candidate remains preserved but is superseded.

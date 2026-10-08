@@ -20,25 +20,212 @@ import netem_rich_import as rich
 from app.services.rich_dictionary_parser import (
     HAN,
     HEADING,
-    POS,
+    LEGACY_POS_CODES,
     POS_LABELS,
+    RECOVERY_POS,
     Node,
     Tree,
     parse_wikitext,
+    recover_wikitext_candidates,
+    render_definition_markup,
     valid_ipa,
+    wikitext_language_map,
 )
 
 AUDIT_VERSION = 'netem-source-audit-v1'
 REVIEW_KIND = 'automated_source_semantic_comparison'
-SOURCE_POS = {**POS, 'article': 'det', '冠詞': 'det', '冠词': 'det'}
+SOURCE_POS = {**RECOVERY_POS, 'article': 'det', '冠詞': 'det', '冠词': 'det'}
+
+
+def verified_cedict_conditions(directory):
+    directory=directory.resolve()
+    if not directory.is_relative_to(ROOT/'test-artifacts'):
+        raise ValueError('licence evidence must stay under test-artifacts')
+    manifest_path=directory/'manifest.json'
+    manifest=json.loads(manifest_path.read_bytes())
+    expected=['https://cc-cedict.org/wiki/',
+              'https://creativecommons.org/licenses/by-sa/3.0/legalcode',
+              'https://zh.wiktionary.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&revids=5583383&rvprop=ids%7Ccontent&rvslots=main']
+    if [r['url'] for r in manifest['files']]!=expected:
+        raise ValueError('unrecognized CC-CEDICT conditions')
+    ledger={};bodies=[]
+    for record in manifest['files']:
+        path=(directory/record['file']).resolve()
+        if not path.is_relative_to(directory) or rich.sha(path.read_bytes())!=record['sha256']:
+            raise ValueError('licence fingerprint mismatch')
+        bodies.append(path.read_bytes())
+        ledger[path.relative_to(ROOT).as_posix()]={'sha256':record['sha256'],'bytes':path.stat().st_size}
+    page=json.loads(bodies[2])['query']['pages'][0]
+    revision=page['revisions'][0]
+    licence_tree=Tree()
+    licence_tree.feed(bodies[1].decode('utf-8'))
+    licence_text=' '.join(licence_tree.root.text().split())
+    if (page['title']!='Template:CC-CEDICT' or revision['revid']!=5583383
+            or 'cc-by-sa-3.0' not in revision['slots']['main']['content']
+            or 'a later version of this License' not in licence_text):
+        raise ValueError('CC-CEDICT legacy licence path not established')
+    checksum=rich.sha(manifest_path.read_bytes())
+    ledger[manifest_path.relative_to(ROOT).as_posix()]={'sha256':checksum,'bytes':manifest_path.stat().st_size}
+    return {'evidence_sha256':checksum,'legacy_license':'CC-BY-SA-3.0','adapter_license':'CC-BY-SA-4.0'},ledger
+
+
+def with_cedict_attribution(item, originals, conditions):
+    if (item.get('reason')!='license_marker_requires_review'
+            or item.get('language')!='en' or item.get('source',{}).get('family')!='zhwiktionary'
+            or item.get('quality_review',{}).get('meaning_result')!='accept'
+            or re.search(r'\{\{|\}\}|-\{|<[^>]+>',item['text'])):
+        return item
+    original=next((o for o in originals if o['body_sha256']==item['source']['body_sha256']),None)
+    if not original or '{{CC-CEDICT}}' not in original['text']:
+        return item
+    result=copy.deepcopy(item)
+    result['source_before_licence_review']=copy.deepcopy(item['source'])
+    source=result['source'];attribution=source['attribution']
+    source['license_id']='CC-BY-SA-3.0 (CC-CEDICT original); CC-BY-SA-4.0 (adaptation)'
+    attribution['creators']+='；CC-CEDICT 项目贡献者与编辑团队（通过该固定维基修订引用）'
+    attribution['links']=[*attribution.get('links',[]),
+        {'label':'CC-CEDICT 原料来源与贡献者','url':'https://cc-cedict.org/wiki/'},
+        {'label':'CC-CEDICT 原料许可 3.0','url':'https://creativecommons.org/licenses/by-sa/3.0/'},
+        {'label':'固定许可标记','url':'https://zh.wiktionary.org/w/index.php?oldid=5583383'}]
+    attribution['modifications']+=' 本轮补齐 CC-CEDICT 原料署名和原 3.0 许可；原文不重新许可。仅本项目格式整理、选择及标注的改编依 3.0 第4(b)节后续版本路径按 BY-SA 4.0 提供。'
+    result.update(status='source_verified',reason='',license_review=conditions)
+    return result
 
 
 def declared_pos(raw):
+    abbreviations={'n.':'noun','v.':'verb','vt.':'verb','vi.':'verb','adj.':'adj','adv.':'adv',
+                   'prep.':'prep','pron.':'pron','conj.':'conj','interj.':'interj'}
+    if raw in abbreviations:
+        return abbreviations[raw]
+    inline_codes={'[副]':'adv','[介]':'prep','[名]':'noun','[动]':'verb','[動]':'verb',
+                  '[形]':'adj','[代]':'pron','[连]':'conj','[連]':'conj'}
+    if raw in inline_codes:
+        return inline_codes[raw]
     direct = SOURCE_POS.get(raw, SOURCE_POS.get(raw.lower(), ''))
     marker = re.fullmatch(r'\{\{=(n|v|a|adj|adv)=\|(?:英|en)(?:\|[^{}]*)?\}\}', raw)
     if marker:
         return {'n': 'noun', 'v': 'verb', 'a': 'adj', 'adj': 'adj', 'adv': 'adv'}[marker[1]]
+    simple=re.fullmatch(r'\{\{-(\w+)-\}\}',raw)
+    if simple:
+        return LEGACY_POS_CODES.get(simple[1],'')
     return direct
+
+
+def enforce_source_language(item, originals):
+    if item['source'].get('family')!='zhwiktionary':
+        return item
+    original=next((o for o in originals if o.get('body_sha256')==item['source'].get('body_sha256')),None)
+    if original is None:
+        raise ValueError('missing original for language-region check')
+    line=int(item.get('sense_path') or item['locator'].rsplit(':',1)[1])
+    language=wikitext_language_map(original['text']).get(line,'')
+    if language=='en':
+        return item
+    result=copy.deepcopy(item)
+    result.update(status='pending',reason='source_language_boundary_conflict',language=language or 'unknown')
+    result['language_review_note']='固定原行处于其它语言或未明确语言区域，不以词头和中文碰巧一致认作英语释义。'
+    return result
+
+
+def recovered_reviews(records, snapshot_path, review_paths, fetched=False):
+    """Bind the separately reviewed recovery formats to actual saved source lines."""
+    snapshots=[snapshot_path] if isinstance(snapshot_path,Path) else snapshot_path
+    paths=[*snapshots,*review_paths]
+    if any(not p.resolve().is_relative_to(ROOT/'test-artifacts') for p in paths):
+        raise ValueError('recovery evidence must stay under test-artifacts')
+    candidates=[candidate for path in snapshots for candidate in json.loads(path.read_bytes())]
+    decisions={}
+    ledger={}
+    for path in paths:
+        raw=path.read_bytes()
+        ledger[path.resolve().relative_to(ROOT).as_posix()]={'sha256':rich.sha(raw),'bytes':len(raw)}
+    for path in review_paths:
+        review=json.loads(path.read_bytes())
+        if review.get('review_kind')!=REVIEW_KIND or review.get('core_confirmation') is not False:
+            raise ValueError('invalid recovered source review')
+        for d in review['decisions']:
+            key=(d['entry_id'],d['locator'])
+            if key in decisions: raise ValueError('duplicate recovered review')
+            decisions[key]=d
+    expected={(s['entry_id'],s['locator']) for s in candidates}
+    if len(expected)!=len(candidates) or set(decisions)!=expected:
+        raise ValueError('recovered review coverage mismatch')
+    by_id={r['entry_id']:r for r in records}
+    added={}
+    for candidate in candidates:
+        record=by_id.get(candidate['entry_id'])
+        if not record or record['word']!=candidate['word']:
+            raise ValueError('recovered entry identity drift')
+        original=next((o for o in record['payload']['originals']
+                       if o['body_sha256']==candidate['body_sha256']),None)
+        line=int(candidate['sense_path'])
+        if (original is None or original['text'].splitlines()[line-1]!=candidate['raw_text']
+                or candidate['locator']!=f'zhwiktionary:{original["revision"]}:{line}'
+                or candidate['source']!=original['source']):
+            raise ValueError('recovered original source-line binding mismatch')
+        values=recover_wikitext_candidates(original['text'])
+        if candidate.get('normalization_version','') not in {'','regional-v1','annotations-v2'}:
+            raise ValueError('unknown source normalization version')
+        if fetched:
+            values=parse_wikitext(original['text'])['senses']+values
+            for value in values:
+                value['text']=render_definition_markup(value['text'],
+                    regional_conversion=candidate.get('normalization_version') in {'regional-v1','annotations-v2'},
+                    extended_annotations=candidate.get('normalization_version')=='annotations-v2')[0]
+        parsed={s['sense_path']:s for s in values}
+        if candidate['sense_path'] in parsed:
+            current=parsed[candidate['sense_path']]
+            if any(current.get(key,'')!=candidate.get(key,'')
+                   for key in ['text','pos_raw','pos_key','pos_locator','language']):
+                raise ValueError('recovered text/POS normalization changed')
+        result=audit_sense(candidate,decisions[(candidate['entry_id'],candidate['locator'])],
+                           entry_id=candidate['entry_id'],word=candidate['word'],index=candidate['i'])
+        result=enforce_source_language(result,record['payload']['originals'])
+        if candidate['sense_path'] not in parsed and result['language']=='en':
+            result.update(status='pending',reason='source_recovery_noise_boundary',pos_key='',pos_label='')
+        if re.search(r'\((?:Source|來源|来源)\s*:',result['text'],re.IGNORECASE):
+            result.update(status='pending',reason='third_party_source_requires_review')
+        added.setdefault(candidate['entry_id'],[]).append(result)
+    return added,ledger
+
+
+def validate_fetched_sources(records, directory, originals_path):
+    directory=directory.resolve()
+    if not directory.is_relative_to(ROOT/'test-artifacts') or not originals_path.resolve().is_relative_to(ROOT/'test-artifacts'):
+        raise ValueError('fetched originals must stay in test-artifacts')
+    manifest_path=directory/'manifest.json'
+    manifest=json.loads(manifest_path.read_bytes())
+    if manifest.get('publisher')!='Chinese Wiktionary contributors' or manifest.get('license')!='CC-BY-SA-4.0':
+        raise ValueError('unknown fetched source/conditions')
+    verified={};ledger={}
+    for item in manifest['responses']:
+        path=(directory/item['file']).resolve()
+        if not path.is_relative_to(directory) or rich.sha(path.read_bytes())!=item['sha256']:
+            raise ValueError('fetched API fingerprint mismatch')
+        ledger[path.relative_to(ROOT).as_posix()]={'sha256':item['sha256'],'bytes':path.stat().st_size}
+        for page in json.loads(path.read_bytes()).get('query',{}).get('pages',[]):
+            for revision in page.get('revisions',[]):
+                text=revision.get('slots',{}).get('main',{}).get('content')
+                if text is not None:
+                    verified[str(revision['revid'])]=(page['title'],text,path.relative_to(ROOT).as_posix(),item['sha256'])
+    originals=json.loads(originals_path.read_bytes())
+    identities={str(r['entry_id']):r['word'] for r in records}
+    for entry_id,rows in originals.items():
+        if entry_id not in identities: raise ValueError('fetched entry identity mismatch')
+        for original in rows:
+            value=verified.get(str(original['revision']))
+            if (not value or value[0]!=identities[entry_id] or original['headword']!=value[0]
+                    or original['text']!=value[1] or original['file']!=value[2] or original['file_sha256']!=value[3]
+                    or rich.sha(original['text'].encode())!=original['body_sha256']
+                    or original['source']['original_file_sha256']!=value[3]
+                    or original['source']['body_sha256']!=original['body_sha256']
+                    or str(original['source']['revision'])!=str(original['revision'])
+                    or original['source']['file']!=original['file']
+                    or original['source']['family']!='zhwiktionary'):
+                raise ValueError('fetched source page/revision/body binding mismatch')
+    for path in [manifest_path,originals_path]:
+        ledger[path.resolve().relative_to(ROOT).as_posix()]={'sha256':rich.sha(path.read_bytes()),'bytes':path.stat().st_size}
+    return originals,ledger
 
 
 @lru_cache(maxsize=128)
@@ -289,23 +476,68 @@ def main():
     parser.add_argument('--limit', type=int)
     parser.add_argument('--supplement-review', type=Path)
     parser.add_argument('--corrections', type=Path)
+    parser.add_argument('--recovery-snapshot', type=Path)
+    parser.add_argument('--recovery-review', type=Path, action='append')
+    parser.add_argument('--fetched-dir', type=Path)
+    parser.add_argument('--fetched-originals', type=Path)
+    parser.add_argument('--fetched-snapshot', type=Path, action='append')
+    parser.add_argument('--fetched-review', type=Path, action='append')
+    parser.add_argument('--normalized-snapshot', type=Path, action='append')
+    parser.add_argument('--normalized-review', type=Path, action='append')
+    parser.add_argument('--cedict-conditions',type=Path)
     args = parser.parse_args()
-    print(json.dumps(preview(args.database, args.inventory, args.review, args.out, args.limit, args.supplement_review, args.corrections),
+    print(json.dumps(preview(args.database, args.inventory, args.review, args.out, args.limit, args.supplement_review, args.corrections,
+                             args.recovery_snapshot, args.recovery_review, args.fetched_dir,
+                             args.fetched_originals, args.fetched_snapshot, args.fetched_review,
+                             args.normalized_snapshot,args.normalized_review,args.cedict_conditions),
                      ensure_ascii=False, indent=2))
 
 
-def preview(database, inventory, review_paths, output, limit=None, supplement_review=None, corrections_path=None):
+def preview(database, inventory, review_paths, output, limit=None, supplement_review=None, corrections_path=None,
+            recovery_snapshot=None,recovery_review_paths=None, fetched_dir=None,
+            fetched_originals=None,fetched_snapshot=None,fetched_review_paths=None,
+            normalized_snapshots=None,normalized_review_paths=None,cedict_conditions=None):
     output = output.resolve()
     if not output.is_relative_to(ROOT / 'test-artifacts') or output.exists():
         raise ValueError('fresh preview output under test-artifacts required')
     records = json.loads(inventory.read_bytes())
     decisions, ledger = load_reviews(review_paths, records, corrections_path)
+    recovered={}
+    if recovery_snapshot or recovery_review_paths:
+        if not recovery_snapshot or not recovery_review_paths:
+            raise ValueError('recovery snapshot and review both required')
+        recovered,recovery_files=recovered_reviews(records,recovery_snapshot,recovery_review_paths)
+        ledger.update(recovery_files)
+    fetched_values={}; extra_originals={}; binding_records=records
+    fetched_options=[fetched_dir,fetched_originals,fetched_snapshot,fetched_review_paths]
+    if any(fetched_options):
+        if not all(fetched_options):
+            raise ValueError('fetched originals, snapshot and review all required')
+        extra_originals,files=validate_fetched_sources(records,fetched_dir,fetched_originals)
+        ledger.update(files)
+        # Keep the immutable production inventory for baseline checks. Only the
+        # review binding view includes the new, fingerprint-validated originals.
+        binding_records=copy.deepcopy(records)
+        for record in binding_records:
+            record['payload']['originals'].extend(extra_originals.get(str(record['entry_id']),[]))
+        fetched_values,files=recovered_reviews(binding_records,fetched_snapshot,fetched_review_paths,fetched=True)
+        ledger.update(files)
+    normalized_values={}
+    if normalized_snapshots or normalized_review_paths:
+        if not normalized_snapshots or not normalized_review_paths:
+            raise ValueError('normalized snapshot and review both required')
+        normalized_values,files=recovered_reviews(binding_records,normalized_snapshots,normalized_review_paths,fetched=True)
+        ledger.update(files)
     # Re-validate retained originals against pinned source fingerprints on each run.
     _wik, _zh, original_files = rich.local_sources()
     ledger.update(original_files)
     ledger[inventory.resolve().relative_to(ROOT).as_posix()] = {
         'sha256': rich.sha(inventory.read_bytes()), 'bytes': inventory.stat().st_size}
     plan_records = []
+    conditions=None
+    if cedict_conditions:
+        conditions,files=verified_cedict_conditions(cedict_conditions)
+        ledger.update(files)
     with rich.read_only(database) as c:
         lexicons = c.execute("select id from lexicon where name='NETEM' and source_type='netem'").fetchall()
         if len(lexicons) != 1:
@@ -330,7 +562,19 @@ def preview(database, inventory, review_paths, output, limit=None, supplement_re
             payload = copy.deepcopy(record['payload'])
             payload['senses'] = [audit_sense(sense, decisions[(entry['id'], i)], entry_id=entry['id'],
                                             word=entry['word'], index=i) for i, sense in enumerate(payload['senses'])]
+            payload['senses']=[enforce_source_language(s,payload['originals']) for s in payload['senses']]
+            payload['senses'].extend(recovered.get(entry['id'],[]))
+            payload['senses'].extend(fetched_values.get(entry['id'],[]))
+            payload['senses'].extend(normalized_values.get(entry['id'],[]))
             payload['pronunciations'] = [audit_pronunciation(p) for p in payload['pronunciations']]
+            payload['pronunciations']=[enforce_source_language(p,payload['originals']) for p in payload['pronunciations']]
+            for original in extra_originals.get(str(entry['id']),[]):
+                payload['originals'].append(original)
+                for pronunciation in parse_wikitext(original['text'])['pronunciations']:
+                    pronunciation.update(source=original['source'],
+                        locator=f'zhwiktionary:{original["revision"]}:{pronunciation["locator"]}')
+                    payload['pronunciations'].append(enforce_source_language(
+                        audit_pronunciation(pronunciation),[original]))
             if entry['id'] in supplements:
                 # Existing common-value selections get display precedence after
                 # this run's source recheck, without losing original candidates.
@@ -339,9 +583,18 @@ def preview(database, inventory, review_paths, output, limit=None, supplement_re
                     payload[key].extend(supplements[entry['id']][key])
             payload['audit'] = {'version': AUDIT_VERSION, 'review_kind': REVIEW_KIND,
                                 'input_payload_sha256': record['payload_sha256'], 'core_confirmation': False}
+            if conditions:
+                payload['senses']=[with_cedict_attribution(s,payload['originals'],conditions) for s in payload['senses']]
             shown = [s for s in payload['senses'] if s['status'] == 'source_verified']
+            payload['audit']['input_failures']=list(payload.get('failures',[]))
+            payload['failures']=[failure for failure in payload.get('failures',[])
+                if not (failure=='pinned_wikitext_not_preserved_for_revision' and str(entry['id']) in extra_originals)
+                and not (failure=='no_structurally_usable_chinese_sense' and shown)]
             baseline = rich.original_baseline(entry)
             changes = {'new_pos': sorted({s['pos_key'] for s in shown if s['pos_key']}),
+                       'additional_originals':len(extra_originals.get(str(entry['id']),[])),
+                       'recovered_format_candidates':len(recovered.get(entry['id'],[])),
+                       'fetched_source_candidates':len(fetched_values.get(entry['id'],[])),
                        'recovered_sense_count': len(shown), 'multiple_senses': len(shown) > 1,
                        'display_pos': sorted({s['pos_key'] for s in shown if s['pos_key']}),
                        'display_sense_count': len(shown),
@@ -361,7 +614,9 @@ def preview(database, inventory, review_paths, output, limit=None, supplement_re
         if limit < len(rich.REQUIRED):
             raise ValueError('pilot must cover required representative words')
         priority = {*rich.REQUIRED, 'August', 'Bible', 'Christian', 'Christmas', 'December', 'Catholic',
-                    'a', 'about', 'against', 'compass', 'pool', 'poor', 'zone'}
+                    'a', 'about', 'against', 'compass', 'pool', 'poor', 'zone',
+                    'aboard','accompany','absolute','aeroplane','ability','actual',
+                    'certify','snobbish','mountain'}
         plan_records.sort(key=lambda r: (r['word'] not in priority, r['sequence'], r['entry_id']))
         plan_records = plan_records[:limit]
     stats = rich.coverage(plan_records)
@@ -382,8 +637,25 @@ def preview(database, inventory, review_paths, output, limit=None, supplement_re
         for record in plan_records:
             f.write(rich.canonical({'entry_id': record['entry_id'], 'word': record['word'], **record['changes']}) + '\n')
     (output / 'representatives.json').write_text(json.dumps([r for r in plan_records if r['word'] in {
-        *rich.REQUIRED, 'August', 'Bible', 'Christmas', 'December', 'Catholic', 'compass', 'a', 'about'}],
+        *rich.REQUIRED, 'August', 'Bible', 'Christmas', 'December', 'Catholic', 'compass', 'a', 'about',
+        'aboard','accompany','absolute','aeroplane','ability','actual','pop','rebellion'}],
         ensure_ascii=False, indent=2), encoding='utf-8')
+    gaps=[]
+    for record in plan_records:
+        if record['changes']['display_sense_count']:
+            continue
+        values=record['payload']['senses']
+        gaps.append({'entry_id':record['entry_id'],'word':record['word'],
+                     'original_count':len(record['payload']['originals']),
+                     'candidate_count':len(values),
+                     'category':('no_parsed_chinese_candidate' if not values else
+                                 'all_candidates_rejected' if all(s['status']=='rejected' for s in values)
+                                 else 'unresolved_source_candidates'),
+                     'reasons':record['changes']['quarantined'],
+                     'candidates':[{'text':s['text'],'status':s['status'],'reason':s.get('reason',''),
+                                    'locator':s['locator'],'note':s.get('quality_review',{}).get('note','')}
+                                   for s in values]})
+    (output/'remaining-gaps.json').write_text(json.dumps(gaps,ensure_ascii=False,indent=2),encoding='utf-8')
     return {'plan_sha256': rich.sha((output / 'plan.json').read_bytes()), **stats}
 
 
