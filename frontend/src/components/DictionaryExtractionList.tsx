@@ -13,31 +13,70 @@ const pendingLabels: Record<string, string> = {
   unlabelled_variant_requires_review: '发音变体没有明确的英语口音标注',
   ipa_format_requires_review: '音标格式需对照原文核查',
   license_marker_requires_review: '原文包含需要单独核查的许可标记',
+  source_semantic_conflict: '固定原文与中文片段不对应',
+  source_audit_unresolved: '原文依据不足或存在歧义',
 }
 
 export function DictionaryExtractionList({ value }: { value: DictionaryExtraction | null | undefined }) {
   if (!value) return null
   const groups = new Map<string, DictionaryExtractionValue[]>()
+  const audited = value.audit_status === 'automated_source_verified'
+  const ungrouped: DictionaryExtractionValue[] = []
+  const seen = new Set<string>()
   for (const sense of value.senses) {
+    const key = `${sense.pos_key ?? ''}\0${sense.text}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (audited && !sense.pos_key) {
+      ungrouped.push(sense)
+      continue
+    }
     const label = sense.pos_label || '词性待核'
     groups.set(label, [...(groups.get(label) ?? []), sense])
   }
+  if (audited) {
+    for (const [label, senses] of groups) {
+      groups.set(label, senses.slice().sort((a, b) =>
+        Number(a.semantic_scope === 'word_translation') - Number(b.semantic_scope === 'word_translation')))
+    }
+  }
   const ipa = [...new Set(value.pronunciations.map(item => item.text))]
+  const extraGroups = audited ? [...groups].map(([label, senses]) => [label, senses.slice(3)] as const)
+    .filter(([, senses]) => senses.length > 0) : []
+  const extraUngrouped = audited ? ungrouped.slice(3) : []
+  const extraCount = extraGroups.reduce((total, [, senses]) => total + senses.length, extraUngrouped.length)
   return <section className="dictionary-extraction" aria-label="来源义项">
-    <span className="source-label">来源义项 · 自动抽取 · 未核实</span>
-    <p className="muted">按来源词性和义项结构整理，尚未裁定为常用核心释义。</p>
+    <span className="source-label">{audited ? '词典释义 · 自动来源核验' : '来源义项 · 自动抽取 · 未核实'}</span>
+    {!audited && <p className="muted">按来源词性和义项结构整理，尚未裁定为常用核心释义。</p>}
     {ipa.length > 0 && <p className="phonetic">来源音标：{ipa.map(text => `/${text}/`).join('、')}</p>}
     {[...groups].map(([label, senses]) => <div className="concise-group" key={label}>
       <span className="concise-pos">{label}</span>
-      <ol className="concise-meaning-list">{senses.map((sense, i) =>
-        <li key={`${sense.locator}-${i}`}>{sense.text}</li>)}</ol>
+      <ol className="concise-meaning-list">{senses.slice(0, audited ? 3 : senses.length).map((sense, i) =>
+        <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>
     </div>)}
-    {groups.size === 0 && <p className="muted">暂无可可靠分组的来源义项，保留原文待核。</p>}
-    <details className="source-raw dictionary-extraction-evidence">
-      <summary>来源与抽取依据（{value.pending_count} 项待核）</summary>
+    {ungrouped.length > 0 && <ol className="concise-meaning-list">{ungrouped.slice(0, 3).map((sense, i) =>
+      <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>}
+    {groups.size === 0 && ungrouped.length === 0 && <p className="muted">{audited
+      ? '暂缺可用的词典释义。' : '暂无可可靠分组的来源义项，保留原文待核。'}</p>}
+    {extraCount > 0 && <details className="source-raw" key={`extra-${value.entry_id}`}>
+      <summary>更多词典释义（{extraCount}）</summary>
+      {extraGroups.map(([label, senses]) => <div className="concise-group" key={label}>
+        <span className="concise-pos">{label}</span>
+        <ol className="concise-meaning-list" start={4}>{senses.map((sense, i) =>
+          <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>
+      </div>)}
+      {extraUngrouped.length > 0 && <ol className="concise-meaning-list" start={4}>{extraUngrouped.map((sense, i) =>
+        <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>}
+    </details>}
+    <details className="source-raw dictionary-extraction-evidence" key={`evidence-${value.entry_id}`}>
+      <summary>{audited ? '查看词典来源' : `来源与抽取依据（${value.pending_count} 项待核）`}</summary>
+      {audited && <p className="muted">已按固定原文自动核对；这不属于人工确认的核心释义。词性不可靠时保留释义并让词性留空。来源待核 {value.pending_count} 项，排除 {value.excluded_count ?? 0} 项。</p>}
       {value.pending_count > 0 && <p className="muted">有歧义的内容未列入上述义项，原文保留供核对。</p>}
       {[...value.senses, ...value.pronunciations, ...(value.pending_values ?? [])].map((item, i) => <div key={`${item.locator}-${i}`}>
         {item.status === 'pending' && <small>待核：{pendingLabels[item.reason ?? ''] ?? '需对照固定原文核查'}</small>}
+        {item.status === 'rejected' && <small>已排除：{pendingLabels[item.reason ?? ''] ?? '原文对照不通过'}</small>}
+        {item.quality_review?.note && <p className="muted">核验依据：{item.quality_review.note}</p>}
+        {item.quality_review?.alignment_note && <p className="muted">{item.quality_review.alignment_note}</p>}
         <small>{item.source.publisher} · {item.source.license_id} · {item.source.version}</small>
         {item.source.attribution && <div>
           <p>{item.source.attribution.creators}</p>

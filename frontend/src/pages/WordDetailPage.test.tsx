@@ -91,6 +91,20 @@ function renderDetail(word: WordDetail) {
 }
 
 describe('the word detail page and grouped short meanings', () => {
+  it('shows an audited month meaning without a guessed POS or a false missing-IPA notice', () => {
+    renderDetail(detail({word: 'April', phonetic: '', part_of_speech: '', anchor: '',
+      source_meanings: ['四月'], dictionary_extraction: {parser_version: 'netem-rich-v1',
+        status: 'unconfirmed_source_extraction', audit_status: 'automated_source_verified',
+        pending_count: 0, pending_reasons: [], senses: [{text: '四月', language: 'en',
+          status: 'source_verified', pos_key: '', pos_label: '', locator: 'wikdict:1',
+          source: {publisher: 'WikDict'}}], pronunciations: [{text: 'ˈeɪ.pɹəl', language: 'en',
+          status: 'source_verified', locator: 'wikdict:2', source: {publisher: 'WikDict'}}]},
+    }))
+    expect(screen.getByRole('region', {name: '来源义项'})).toHaveTextContent('四月')
+    expect(screen.queryByText('暂无音标')).not.toBeInTheDocument()
+    expect(screen.queryByText('代词')).not.toBeInTheDocument()
+    expect(screen.getByText('查看来源说明').closest('details')).not.toHaveAttribute('open')
+  })
   it('keeps meanings visible and folds source explanation at the bottom', async () => {
     const { container } = renderDetail(detail({ anchor: '', semantic_note: '' }))
     const toggle = screen.getByText('查看来源说明')

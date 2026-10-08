@@ -342,6 +342,10 @@ def apply(database: Path, plan_path: Path, expected_sha: str, receipt_path: Path
                 if digest(json.loads(existing['payload'])) != record['payload_sha256']:
                     raise ValueError('existing payload checksum corruption')
                 continue
+            if ('baseline_extraction_sha256' in record and
+                    (existing is None or existing['payload_sha256'] != record['baseline_extraction_sha256']
+                     or digest(json.loads(existing['payload'])) != record['baseline_extraction_sha256'])):
+                raise ValueError('extraction baseline drift; later source update must be preserved')
             undo.append({'entry_id': row['id'], 'before': dict(existing) if existing else None,
                          'after_sha256': record['payload_sha256']})
             c.execute('insert into entry_dictionary_extraction '

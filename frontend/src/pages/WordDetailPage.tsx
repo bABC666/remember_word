@@ -35,12 +35,15 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
   // single source-declared `part_of_speech` would be a second claim beside them. With
   // no groups there is nothing else to read and it stays.
   const hasGroups = word.concise_meanings.length > 0
+  const hasSourceIPA = (word.dictionary_extraction?.pronunciations.length ?? 0) > 0
   return (
     <>
       <header>
         <div>
           <h2>{word.word}</h2>
-          <p className="phonetic">{word.phonetic || '暂无音标'}{!hasGroups && word.part_of_speech && <> · {word.part_of_speech}</>}</p>
+          {(word.phonetic || word.part_of_speech || !hasSourceIPA) && <p className="phonetic">
+            {word.phonetic || (!hasSourceIPA ? '暂无音标' : '')}{!hasGroups && word.part_of_speech && <>{word.phonetic || !hasSourceIPA ? ' · ' : ''}{word.part_of_speech}</>}
+          </p>}
         </div>
         <span className={`status status-${word.status}`}>{word.status === 'new' ? '未学习' : statusLabels[word.status]}</span>
       </header>
@@ -51,7 +54,7 @@ export function WordDetailContent({ word }: { word: WordDetail }) {
         <summary>查看完整来源义项（未核实）</summary>
         <DictionaryExtractionList value={word.dictionary_extraction} />
       </details> : <DictionaryExtractionList value={word.dictionary_extraction} />}
-      {!hasGroups && !hasSource && <p className="muted">暂无可用释义</p>}
+      {!hasGroups && !hasSource && !word.dictionary_extraction && <p className="muted">暂无可用释义</p>}
       {(word.anchor.trim() || word.semantic_note.trim()) && <section>
         {word.anchor.trim() && <><span>最小语义锚点</span><h3>{word.anchor}</h3></>}
         {word.semantic_note && <p>{word.semantic_note}</p>}

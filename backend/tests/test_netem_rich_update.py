@@ -74,3 +74,32 @@ def test_production_and_backups_are_never_writable():
         rich.writable_isolated(ROOT / 'data/vocab.db')
     with pytest.raises((UnsafeDatabasePathError, ValueError)):
         rich.writable_isolated(ROOT / 'data/backups/manual-vocab.db')
+
+
+def test_new_audit_refuses_to_overwrite_a_later_extraction(world, tmp_path):
+    database, path, checksum, entry_id = plan_for(world, tmp_path)
+    receipt = ROOT / 'test-artifacts/netem-source-audit-20261008' / (tmp_path.name + '-first.json')
+    blocked_receipt = receipt.with_name(receipt.stem + '-blocked.json')
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        rich.apply(database, path, checksum, receipt)
+        plan = json.loads(path.read_bytes())
+        record = plan['records'][0]
+        record['baseline_extraction_sha256'] = record['payload_sha256']
+        record['payload'] = dict(record['payload'], audit={'version': 'next-source-audit'})
+        record['payload_sha256'] = rich.digest(record['payload'])
+        path.write_text(rich.canonical(plan), encoding='utf-8')
+        later = {'senses': [], 'pronunciations': [], 'originals': [], 'later_review': True}
+        with rich.writable_isolated(database) as c:
+            c.execute('update entry_dictionary_extraction set payload=?,payload_sha256=? '
+                      'where lexicon_entry_id=?', (rich.canonical(later), rich.digest(later), entry_id))
+            c.commit()
+        with pytest.raises(ValueError, match='extraction baseline drift'):
+            rich.apply(database, path, rich.sha(path.read_bytes()), blocked_receipt)
+        with rich.read_only(database) as c:
+            assert c.execute('select payload_sha256 from entry_dictionary_extraction '
+                             'where lexicon_entry_id=?', (entry_id,)).fetchone()[0] == rich.digest(later)
+        assert not blocked_receipt.exists()
+    finally:
+        receipt.unlink(missing_ok=True)
+        blocked_receipt.unlink(missing_ok=True)

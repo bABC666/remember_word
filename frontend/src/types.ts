@@ -105,6 +105,10 @@ export interface DictionaryExtractionValue {
   status: string
   raw_text?: string
   reason?: string
+  semantic_scope?: 'sense' | 'word_translation'
+  meaning_kind?: 'source' | 'derived'
+  accent_status?: string
+  quality_review?: { note: string; kind?: string; core_confirmation?: boolean; alignment_note?: string }
   pos_raw?: string
   pos_locator?: string
   source: {
@@ -121,6 +125,9 @@ export interface DictionaryExtractionValue {
 }
 
 export interface DictionaryExtraction {
+  entry_id?: number
+  audit_status?: 'automated_source_verified'
+  excluded_count?: number
   parser_version: string
   status: 'unconfirmed_source_extraction'
   senses: DictionaryExtractionValue[]
