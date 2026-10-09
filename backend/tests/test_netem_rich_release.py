@@ -34,7 +34,7 @@ def test_wrong_password_refuses_before_backup_or_migration(monkeypatch, tmp_path
                                       username='admin', password='wrong', operation=tmp_path)
 
 
-def test_authenticated_isolated_migration_apply_backup_and_local_rollback(monkeypatch):
+def test_authenticated_isolated_migration_apply_backup_and_local_rollback(monkeypatch, netem_production_sentinel):
     import netem_rich_import as rich
 
     directory = ROOT / 'test-artifacts/netem-rich-release-tests' / uuid.uuid4().hex

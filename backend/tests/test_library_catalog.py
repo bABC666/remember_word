@@ -85,7 +85,7 @@ def test_entry_catalog_does_not_expose_another_users_private_entries(two_worlds)
 def test_shared_catalog_attaches_only_the_callers_learning_state(two_worlds):
     a, b = two_worlds
     with a.session() as session:
-        lexicon = Lexicon(name="Shared catalog", visibility="public")
+        lexicon = Lexicon(name="Shared catalog", visibility="public", source_type="test")
         session.add(lexicon)
         session.flush()
         entry = LexiconEntry(lexicon_id=lexicon.id, word="shared", normalized_word="shared")

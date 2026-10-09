@@ -33,7 +33,7 @@ def test_release_requires_real_administrator_before_backup(monkeypatch, tmp_path
             username='ordinary', password='unused', operation=tmp_path)
 
 
-def test_frozen_audit_authenticated_apply_and_rollback_restore_existing_source_rows(monkeypatch):
+def test_frozen_audit_authenticated_apply_and_rollback_restore_existing_source_rows(monkeypatch, netem_production_sentinel):
     from netem_release import engine_for
     from sqlalchemy.orm import Session
 
