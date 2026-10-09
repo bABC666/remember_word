@@ -17,16 +17,18 @@ from pathlib import Path
 
 import netem_rich_release as protected
 import netem_source_audit as audit
+import netem_web_supplement as web
 
 ROOT = protected.ROOT
-PLAN = ROOT / 'test-artifacts/netem-source-audit-20261008/full-recovery-locked/plan.json'
-PLAN_SHA = '29e90f367ea571773b64aedeb639bd59d01ac1c073088b0de2a4e53a3a11cb10'
+PLAN = ROOT / 'test-artifacts/netem-web91-20261008/full-final/plan.json'
+PLAN_SHA = '91eaf2f7d9ea5c397fa09a6794251cfe14156e0a0b18b0987f4c62878a781610'
 
 
 def check_code(code_sha):
     protected.check_locked_code(code_sha)
-    for path in [Path(__file__).resolve(), Path(audit.__file__).resolve(),
-                 ROOT / 'tools/phase29/netem_source_audit_browser.cjs']:
+    for path in [Path(__file__).resolve(), Path(audit.__file__).resolve(), Path(web.__file__).resolve(),
+                 ROOT / 'tools/phase29/netem_source_audit_browser.cjs',
+                 ROOT / 'tools/phase29/netem_web91_browser.cjs']:
         relative = path.relative_to(ROOT).as_posix()
         try:
             expected = subprocess.check_output(['git', 'rev-parse', f'{code_sha}:{relative}'],

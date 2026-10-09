@@ -32,3 +32,14 @@ Review artifacts and temporary databases belong under `test-artifacts/netem-sour
 - [ ] Publish this changed candidate only after the user's new final publication confirmation.
 
 Current validation: `docs/NETEM-SOURCE-RECOVERY-VALIDATION-2026-10-08.md`. The prior6ff488 candidate remains preserved but is superseded.
+
+## User-authorized online completion of the final91 words
+
+- [x] Retrieve actual dictionary pages and licence evidence online; preserve187 fixed originals/API responses.
+- [x] Review91 disjoint targets and independently recheck275 values, separating92 source Chinese values from183 faithful derived translations.
+- [x] Bind English/POS/definition/Chinese template/form-relation evidence and correct five reviewed scope issues without replacing earlier records.
+- [x] Rehearse a100-word pilot and full5528 plan with idempotence, original business table preservation and local rollback.
+- [x] Validate source qualifiers, APIs, frontend and all91 entries on desktop/mobile; preserve frozen evidence and code.
+- [ ] Publish final91eaf2 candidate only after the user's new final confirmation.
+
+Final validation: `docs/NETEM-WEB91-VALIDATION-2026-10-09.md`; the prior29e90f plan is retained but superseded. Production remains unchanged.

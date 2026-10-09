@@ -107,6 +107,8 @@ export interface DictionaryExtractionValue {
   reason?: string
   semantic_scope?: 'sense' | 'word_translation'
   meaning_kind?: 'source' | 'derived'
+  /** Usage restrictions read from the cited dictionary definition. */
+  display_usage_labels?: string[]
   accent_status?: string
   quality_review?: { note: string; kind?: string; core_confirmation?: boolean; alignment_note?: string }
   pos_raw?: string

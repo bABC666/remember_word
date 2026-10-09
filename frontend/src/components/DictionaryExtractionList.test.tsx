@@ -3,6 +3,24 @@ import userEvent from '@testing-library/user-event'
 import { expect, it } from 'vitest'
 import { DictionaryExtractionList } from './DictionaryExtractionList'
 
+it('shows source-backed usage restrictions beside the meaning', () => {
+  render(<DictionaryExtractionList value={{parser_version:'netem-rich-v1',status:'unconfirmed_source_extraction',
+    audit_status:'automated_source_verified',pending_count:0,pending_reasons:[],pronunciations:[],
+    senses:[{text:'把……注册为商标',language:'en',status:'source_verified',locator:'en:42:3',
+      display_usage_labels:['不推荐的用法'],meaning_kind:'derived',source:{publisher:'维基词典'}}]}} />)
+  expect(screen.getByRole('region',{name:'来源义项'})).toHaveTextContent('（不推荐的用法）把……注册为商标')
+  expect(screen.getByText(/据英文来源翻译整理/)).toBeInTheDocument()
+})
+
+it('does not collapse equal translations with distinct source usage restrictions', () => {
+  render(<DictionaryExtractionList value={{parser_version:'netem-rich-v1',status:'unconfirmed_source_extraction',
+    audit_status:'automated_source_verified',pending_count:0,pending_reasons:[],pronunciations:[],
+    senses:[[],['讽刺']].map((labels,i) => ({text:'所謂',pos_key:'adj',pos_label:'形容词',
+      language:'en',status:'source_verified',locator:`en:1:${i}`,display_usage_labels:labels,source:{publisher:'词典'}}))}} />)
+  expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  expect(screen.getByText(/讽刺/)).toBeInTheDocument()
+})
+
 it('shows source-verified meanings with unknown POS without turning review detail into the lesson', async () => {
   render(<DictionaryExtractionList value={{status: 'unconfirmed_source_extraction',
     parser_version: 'netem-rich-v1', audit_status: 'automated_source_verified',

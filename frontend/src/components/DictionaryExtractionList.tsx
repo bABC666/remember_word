@@ -17,6 +17,13 @@ const pendingLabels: Record<string, string> = {
   source_audit_unresolved: '原文依据不足或存在歧义',
 }
 
+function SourceValue({ sense }: { sense: DictionaryExtractionValue }) {
+  return <>
+    {(sense.display_usage_labels?.length ?? 0) > 0 && <small>（{sense.display_usage_labels!.join('、')}）</small>}
+    {sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}
+  </>
+}
+
 export function DictionaryExtractionList({ value }: { value: DictionaryExtraction | null | undefined }) {
   if (!value) return null
   const groups = new Map<string, DictionaryExtractionValue[]>()
@@ -24,7 +31,7 @@ export function DictionaryExtractionList({ value }: { value: DictionaryExtractio
   const ungrouped: DictionaryExtractionValue[] = []
   const seen = new Set<string>()
   for (const sense of value.senses) {
-    const key = `${sense.pos_key ?? ''}\0${sense.text}`
+    const key = `${sense.pos_key ?? ''}\0${sense.text}\0${(sense.display_usage_labels ?? []).join('\0')}`
     if (seen.has(key)) continue
     seen.add(key)
     if (audited && !sense.pos_key) {
@@ -52,10 +59,10 @@ export function DictionaryExtractionList({ value }: { value: DictionaryExtractio
     {[...groups].map(([label, senses]) => <div className="concise-group" key={label}>
       <span className="concise-pos">{label}</span>
       <ol className="concise-meaning-list">{senses.slice(0, audited ? 3 : senses.length).map((sense, i) =>
-        <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>
+        <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>
     </div>)}
     {ungrouped.length > 0 && <ol className="concise-meaning-list">{ungrouped.slice(0, 3).map((sense, i) =>
-      <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>}
+      <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>}
     {groups.size === 0 && ungrouped.length === 0 && <p className="muted">{audited
       ? '暂缺可用的词典释义。' : '暂无可可靠分组的来源义项，保留原文待核。'}</p>}
     {extraCount > 0 && <details className="source-raw" key={`extra-${value.entry_id}`}>
@@ -63,10 +70,10 @@ export function DictionaryExtractionList({ value }: { value: DictionaryExtractio
       {extraGroups.map(([label, senses]) => <div className="concise-group" key={label}>
         <span className="concise-pos">{label}</span>
         <ol className="concise-meaning-list" start={4}>{senses.map((sense, i) =>
-          <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>
+          <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>
       </div>)}
       {extraUngrouped.length > 0 && <ol className="concise-meaning-list" start={4}>{extraUngrouped.map((sense, i) =>
-        <li key={`${sense.locator}-${i}`}>{sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}</li>)}</ol>}
+          <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>}
     </details>}
     <details className="source-raw dictionary-extraction-evidence" key={`evidence-${value.entry_id}`}>
       <summary>{audited ? '查看词典来源' : `来源与抽取依据（${value.pending_count} 项待核）`}</summary>

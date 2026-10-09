@@ -1,0 +1,1557 @@
+{
+  "kind": "automated_online_source_supplement_isolated_validation",
+  "production_updated": false,
+  "plan_sha256": "91eaf2f7d9ea5c397fa09a6794251cfe14156e0a0b18b0987f4c62878a781610",
+  "pilot_plan_sha256": "8152c7a4b7509dd2a2dbc0ed7361845b3c406e47c9bb83acf2952569e888885f",
+  "online_words": 91,
+  "original_chinese_values": 92,
+  "derived_chinese_values": 183,
+  "human_core_confirmations_added": 0,
+  "coverage": {
+    "audit_version": "netem-source-audit-v1",
+    "canonical_phonetic_fields_changed": 0,
+    "confirmed_core_meanings_added": 0,
+    "failures": {
+      "no_exact_wikdict_headword": 706,
+      "pinned_wikitext_not_preserved_for_revision": 3856
+    },
+    "online_derived_values": 183,
+    "online_supplement_version": "netem-web91-v1",
+    "online_values_added": 275,
+    "online_words_added": 91,
+    "pending_reasons": {
+      "ipa_format_requires_review": 171,
+      "license_marker_requires_review": 55,
+      "source_audit_unresolved": 1206,
+      "source_language_boundary_conflict": 7,
+      "source_recovery_noise_boundary": 1,
+      "source_semantic_conflict": 1367,
+      "third_party_source_requires_review": 9
+    },
+    "with_displayable_unconfirmed_source_senses": 5528,
+    "with_located_english_ipa": 5300,
+    "with_multiple_displayable_source_senses": 2259,
+    "with_multiple_pos": 600,
+    "with_multiple_source_senses": 2259,
+    "with_raw_pronunciation_candidates": 5337,
+    "with_structural_pos_and_meaning": 4542,
+    "without_usable_chinese_sense": 0,
+    "without_verified_pos": 986,
+    "words": 5528,
+    "words_with_verified_ungrouped_meanings": 1135
+  },
+  "files": {
+    "test-artifacts/default-lexicon-gap-20261004/pinned-01.json": {
+      "bytes": 18100,
+      "sha256": "243602a2d0acdfc1da4b20b6e581e3ffa581620b94440143280cd1b12956be9c"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-02.json": {
+      "bytes": 21112,
+      "sha256": "e4bf53d8f6c848943e059f754ca4e301d264c007cec8893cdc88c581c7a47cbf"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-03.json": {
+      "bytes": 21631,
+      "sha256": "12fcc46f0f213b26b846ff4e16dfc858b19df8c38bcc76397502ef2be9cc7219"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-04.json": {
+      "bytes": 23328,
+      "sha256": "a447c8b208ae2e9c967afe1ccdb7e3a63fafc65b4a7555b992070f84b5fc51bd"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-05.json": {
+      "bytes": 24283,
+      "sha256": "ba416a5c29595f887024b69055c04f5075d0819ad72ecbaa8d4f6462dfbb9a11"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-06.json": {
+      "bytes": 23869,
+      "sha256": "2cce0e03aafd715452b35c60442bb99a780b7dba3ce1123465f741c16aab7b24"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-07.json": {
+      "bytes": 24418,
+      "sha256": "b6d56ea55427f1458d7ce5f74b33812dcd6adf58bc267822232d1de872063194"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-08.json": {
+      "bytes": 28709,
+      "sha256": "dd8ce48f30aed8936bfd83d74bdef1177b1b46e0fd65725dc26d838475057593"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/pinned-09.json": {
+      "bytes": 2728,
+      "sha256": "3e2ba3df0c788dac74bbe08ba7992de4752c747d79fb513297b5a770febebc23"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/snapshot-manifest.json": {
+      "bytes": 19229,
+      "sha256": "e0d2a905c24573c42f76f1a40ed082d0216d1041964df9ac5543a1ff736b26e4"
+    },
+    "test-artifacts/default-lexicon-gap-20261004/unresolved-titles.json": {
+      "bytes": 1973,
+      "sha256": "1350d476e5a8a1b1d414c3be1b80a4b3a92a22d50d85b13c4b96994f8045aa23"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/README.md": {
+      "bytes": 510,
+      "sha256": "3ecd3c46626590c92abf861aeb3a30a60925de9ffb86bca00138505c8faca797"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/choices.py": {
+      "bytes": 10575,
+      "sha256": "ae67ddca728f28a630cf1fa6251822ab5a1e71a79a3cc6c292cce42cd3fc001f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-0271.csv": {
+      "bytes": 428,
+      "sha256": "c5738f66b54c7542e387a0a2ee62967fd5394e8974129f1220f6bfddf1387a60"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-0271.csv.SOURCE.json": {
+      "bytes": 1515,
+      "sha256": "59b6065682f276017bcd0c3cba1475ab4499ca243ea79c30ed3fc6f56ece46c7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-0271.csv.SOURCE.md": {
+      "bytes": 932,
+      "sha256": "793f4261064d893e02567eac1db996d8120a90da81b96a04ee45c506b32be1ec"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-1213.csv": {
+      "bytes": 501,
+      "sha256": "53d6d4966f8f30e54797bd09cae4881c8df31805d496abbf0fd689a9e7c5aed8"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-1213.csv.SOURCE.json": {
+      "bytes": 1511,
+      "sha256": "a3b83fcbb9ed4d6dddf033d81359dcaaa5b1c25ade5efad3d5d1b19ae78cd30f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-1213.csv.SOURCE.md": {
+      "bytes": 927,
+      "sha256": "07e416b0896310915fb4d75f0318fa34d1b7c246eed8dc0a0d3af052d36c5ac9"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-1683.csv": {
+      "bytes": 268,
+      "sha256": "e1940da7b0f6630ad459913454de76d2315364da543ccffb4f4faf5e20d72a37"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-1683.csv.SOURCE.json": {
+      "bytes": 1499,
+      "sha256": "1a1373ef3d53ca05cd1cf65255aa7d0dcdb32f457308ae85ab24c3b636b1b16a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-1683.csv.SOURCE.md": {
+      "bytes": 903,
+      "sha256": "96bd12b79fb96f3766beb5a3ae61d6f5ae145cae1b79cd82612d034b43908fc3"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-2178.csv": {
+      "bytes": 151,
+      "sha256": "25592f78848e407ca3912d3424c18601e36e15a90c8bffcb95a395ba50e114b6"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-2178.csv.SOURCE.json": {
+      "bytes": 1492,
+      "sha256": "e98794efb39406ad4c8797a90402ed68271723f18732a842cfd1b26ffdb2bc85"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-2178.csv.SOURCE.md": {
+      "bytes": 899,
+      "sha256": "42b56c06fb3a903c91992b0d0f7b3448a014184e8c9dee632f202cdfee81cd36"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3156.csv": {
+      "bytes": 153,
+      "sha256": "6bd49ee96a8162b1732cd13bab90e5085fa56e8ce04eaf65022d7e02110deb8a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3156.csv.SOURCE.json": {
+      "bytes": 1534,
+      "sha256": "3546735b66e4ad3d647b87ef16eb9c844e4ec0c3492dc5c0670385356f335284"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3156.csv.SOURCE.md": {
+      "bytes": 925,
+      "sha256": "98e89282b805d5da04a679f4295507ff90a36adb8a18dfa14ba7ab64951f5969"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3211.csv": {
+      "bytes": 528,
+      "sha256": "e5ab024f2c83181b4e91e5a44959f53280854577acbc337b91af0ecd9e4d017a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3211.csv.SOURCE.json": {
+      "bytes": 1524,
+      "sha256": "b244484013d71b405b042f3988017854edcc8e418c15a498d4db4d12f7b1862d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3211.csv.SOURCE.md": {
+      "bytes": 925,
+      "sha256": "f4c607ab817b84f8458fbee443fce89d72b7132e8b7077d4afc01ce9fb4609b4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3340.csv": {
+      "bytes": 208,
+      "sha256": "7576abaa977df763bf3d6988e9cf77b1523d73e65b2d668965e92b6f23e63dfc"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3340.csv.SOURCE.json": {
+      "bytes": 1514,
+      "sha256": "7e44826985864fa94ba5683e194b79383e51597647f3e4ebcdb24f6de9f869e4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3340.csv.SOURCE.md": {
+      "bytes": 905,
+      "sha256": "26b7fcad1aa6e88ddd088f2abe4a65b147ed6d246fc630319a95cd5e87183ace"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3392.csv": {
+      "bytes": 234,
+      "sha256": "0e7fa4d61f60d66841277f1db51db562ad5cc4abd317326dee0021c778196248"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3392.csv.SOURCE.json": {
+      "bytes": 1549,
+      "sha256": "3eef519e489941a960818b9c57f575884632063f3bafa924675aecbceb70899a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3392.csv.SOURCE.md": {
+      "bytes": 933,
+      "sha256": "3b4ffad32a2317be12e40bcec1282fad87ef89b3a37bf0acc4e016d5c74d3da0"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3525.csv": {
+      "bytes": 157,
+      "sha256": "851b2d6a68b05d4a6cf9eed4a0b01e990ba603460020fa2f1adbcfbe9c3e0370"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3525.csv.SOURCE.json": {
+      "bytes": 1499,
+      "sha256": "a45cba6222b88c1bf10e580288e1c20c821b0c6c1d8c3345475e9c2eccc8e79e"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3525.csv.SOURCE.md": {
+      "bytes": 898,
+      "sha256": "b73fd3660e35b10f515cf83375607eb1c6b48394f406ef9b2af37bab8d4cad47"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3800.csv": {
+      "bytes": 324,
+      "sha256": "3e8891d66b1102872ee8aad2be5711b0023f6027eedb0cf7db591a583ff189c9"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3800.csv.SOURCE.json": {
+      "bytes": 1542,
+      "sha256": "0396b616cfed90e5e7f8a73bb93f16553920de172785c883a6d900016d81ea52"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3800.csv.SOURCE.md": {
+      "bytes": 950,
+      "sha256": "3613b59f48778c6b8fa046b9813825ce20729f0f95c0eb34fd581630db8c2d59"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3848.csv": {
+      "bytes": 284,
+      "sha256": "34507f40c7df4e8dce426981afe99705580880f7cda7a2481e4d6cbdd886190f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3848.csv.SOURCE.json": {
+      "bytes": 1527,
+      "sha256": "d40e5d8851ed0eb6e016203dc0ca18bcb84a191285e4846cd409e9065afb5dfb"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3848.csv.SOURCE.md": {
+      "bytes": 927,
+      "sha256": "d04ecc9ff0198573ce0592d99f106433369085b10c9470e7e4eff124dc3a1e36"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3916.csv": {
+      "bytes": 172,
+      "sha256": "3f861a3020023cac952d62da455cf515d270d9345c988051af3cb54fffc53950"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3916.csv.SOURCE.json": {
+      "bytes": 1518,
+      "sha256": "ad0b14cc4e717f6122a039a2655baa7b8df2668cc46faba3ccc452ff609eb171"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3916.csv.SOURCE.md": {
+      "bytes": 913,
+      "sha256": "4e4258464f748913385670d09105614743b87de09c1b1813fb8cc152e2f38ae0"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3987.csv": {
+      "bytes": 301,
+      "sha256": "07d183f54dc4c6972c3c534e944556ed7580e1a43096ac00c44d6e5e68bb43d7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3987.csv.SOURCE.json": {
+      "bytes": 1512,
+      "sha256": "32a2964d1f39b7e379ef8f891647984cec9ffc5d38091047c19578ab1551613c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-3987.csv.SOURCE.md": {
+      "bytes": 920,
+      "sha256": "ba52425431a65c3f55927ae207757f26b3e2ec97ac2f4dfb8fdb6eb3a65416b2"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4070.csv": {
+      "bytes": 321,
+      "sha256": "f30654ad069f1e74d1e02212e33d185b95508a80f4f507de82b24916833322f0"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4070.csv.SOURCE.json": {
+      "bytes": 1545,
+      "sha256": "f6324939daa1772054a538ea2266659fef452457f29e288621fe05196bddad37"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4070.csv.SOURCE.md": {
+      "bytes": 944,
+      "sha256": "9136a4b04d402c192cccaa508df9cb8fc57316dda4192b6121758d2112f70b80"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4313.csv": {
+      "bytes": 265,
+      "sha256": "747ce612213b2a02ad6d7622416c1258c1220f981cc7435e8e4f311d9641e83f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4313.csv.SOURCE.json": {
+      "bytes": 1723,
+      "sha256": "c314ed8b258430fe220d28fb78b9cd441600fc16749ed91ebddc044563a1c191"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4313.csv.SOURCE.md": {
+      "bytes": 963,
+      "sha256": "36f6ce0c1fc087cc12427593859ebc3e671015968909f0d9f6f5a1a775d7a691"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4647.csv": {
+      "bytes": 231,
+      "sha256": "e617bc0bd2b3342c03e0fd5f2d9b2fd8c95a5112af7e59a53a02f36a5bf2e110"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4647.csv.SOURCE.json": {
+      "bytes": 1487,
+      "sha256": "2284c118c28b7e1d0e846b741f759a3c4744f8bae782c7ec94ab6c3a79e44dd4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4647.csv.SOURCE.md": {
+      "bytes": 891,
+      "sha256": "3ae84e46882e2f8a41174cabbfd5b6f76019bd9f3f42d5c6e0845c855c3a771b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4968.csv": {
+      "bytes": 337,
+      "sha256": "b8a3e76a142473d8990fc193142255217ff26c0d6e362547bb556c1040b45b03"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4968.csv.SOURCE.json": {
+      "bytes": 1507,
+      "sha256": "908e1f9865359c6f1bee12130c0dc2ecd39fe89f88c40dd07a046735ab710d3b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-4968.csv.SOURCE.md": {
+      "bytes": 911,
+      "sha256": "4b52a56c75a1fb14034254c540591809b207f83307c97ab4cf6ed1815de8a112"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5055.csv": {
+      "bytes": 195,
+      "sha256": "b25eb77cdd408e46d50ed63475a15a34bcff9fdc7fb683ddfc82f1c366476d2a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5055.csv.SOURCE.json": {
+      "bytes": 1503,
+      "sha256": "15fd66088f6480e6d8161f53e8aa13ffa6688d37e24018bd59bbdf73ac94305f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5055.csv.SOURCE.md": {
+      "bytes": 914,
+      "sha256": "bec892978cda048d268024fc52dd3cac45705d2da66fa001818b99fed861177c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5219.csv": {
+      "bytes": 195,
+      "sha256": "e21df70a764f92a2749845946e5c973ea93a7e474e71cdb174ee29ae866d2679"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5219.csv.SOURCE.json": {
+      "bytes": 1634,
+      "sha256": "b81d967acfbadda079d928e2a8864ea0515a3def97436fbd56425dcbd50a52e8"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5219.csv.SOURCE.md": {
+      "bytes": 903,
+      "sha256": "32debc3f9de9dd0e0abd577de5b0543dc9f651b5c442d9214fb1a62fca90e693"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5385.csv": {
+      "bytes": 327,
+      "sha256": "ed4ee30a4570530ce6b88d92e35fa7137e5eeb4cfa912ecac04134dbdb57c042"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5385.csv.SOURCE.json": {
+      "bytes": 1556,
+      "sha256": "28413db7a19b9e42729eb4ebd6388c01a574bf30b0d28a5062b52391dbdfadfc"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5385.csv.SOURCE.md": {
+      "bytes": 948,
+      "sha256": "e15e660e04dcb74401c6a64e333f10c35d84b2b9cab00b251d19b82dac9b2739"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5494.csv": {
+      "bytes": 146,
+      "sha256": "809d4bf6f9fe4d8a3ffc7b3f6802052a89e262455ec4c6f8413b52a9008b459c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5494.csv.SOURCE.json": {
+      "bytes": 1525,
+      "sha256": "daf8f86100741f3717cfd73af728ede400c11e626194a24485c5062b384b0398"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5494.csv.SOURCE.md": {
+      "bytes": 920,
+      "sha256": "381778b6af3ab48b974a08ed5c192e26f430c40a96699b2c87e4baa6461f8c4c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5507.csv": {
+      "bytes": 305,
+      "sha256": "64af7a59ffc7a9f0bed5dcecb19b205507666b918424c6c9585049b79a19193d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5507.csv.SOURCE.json": {
+      "bytes": 1545,
+      "sha256": "bef7dcec94f25ac07744460d5222d74b38c6642939e992ffd34683d2887e7539"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-translation-5507.csv.SOURCE.md": {
+      "bytes": 940,
+      "sha256": "ca35cc9a22696e93fe44c13ea479cce84457c1205b4dcfd383ae8922388870ff"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0256.csv": {
+      "bytes": 185,
+      "sha256": "00d312cfde8dbf9a995731956debeee5d21543398fb04c85d0aec9e92c1f61af"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0256.csv.SOURCE.json": {
+      "bytes": 1478,
+      "sha256": "ba19ee276fcc57cb3cf39b19d2a3ccb765b4494871a8819277f22ad5e80418b1"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0256.csv.SOURCE.md": {
+      "bytes": 877,
+      "sha256": "f26b4a21a0107ba5e98826de77d5ea16f94545d8c01ac3d35a071d594c607f45"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0435.csv": {
+      "bytes": 190,
+      "sha256": "cca24f33a05f88bda6461739af3bfea772cd5a6e1cb58bb0078076cff1587730"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0435.csv.SOURCE.json": {
+      "bytes": 1468,
+      "sha256": "ae513da2166cc7cbdee8cd4ad78649a032fcdbe2c906052a1e03b36d4a792bdb"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0435.csv.SOURCE.md": {
+      "bytes": 855,
+      "sha256": "71b16ccdf06022fc5633dd8c168d6ed11d3af967724e1790e819f3ec2be44e92"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0763.csv": {
+      "bytes": 281,
+      "sha256": "d7f029b27e187ac3d61380cd85b1e7a90788c8ba69e48e4afe5376f236380ab0"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0763.csv.SOURCE.json": {
+      "bytes": 1524,
+      "sha256": "eb0b3f8e5e4a1b1e557eed6d62809f70637c0b59a07e35a71aead7c51fc6d6cf"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0763.csv.SOURCE.md": {
+      "bytes": 903,
+      "sha256": "b10b7f831cc6c16b4b39bbab44a366761418da4aca4ed7b02836e5f5f6af3c97"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0898.csv": {
+      "bytes": 198,
+      "sha256": "0c9d24a07bc1e306d74d194790f26968080e85c1a508283cb6428454310eda19"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0898.csv.SOURCE.json": {
+      "bytes": 1537,
+      "sha256": "8f030a9d68793ca177da5328c4637f5c4a188eb4b6a7027b16c20ac907fd4230"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0898.csv.SOURCE.md": {
+      "bytes": 921,
+      "sha256": "eb3f7b4ee9a84daa58573478e300b9eb1fe66dee12211952d53c1fb1312ae6c7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0984.csv": {
+      "bytes": 143,
+      "sha256": "12bc8ed1f3b95839395e8fc248c36fccb77c839d2ebbedb204b3712919bda01c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0984.csv.SOURCE.json": {
+      "bytes": 1501,
+      "sha256": "034217b81415e6eacb15972c304f965873f10c9f8f6a2debec18235069fb41bf"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-0984.csv.SOURCE.md": {
+      "bytes": 892,
+      "sha256": "c560bd1086b92c5f5625faa2b259b33b8cdb6c49ba9f4718dc3734a6e12b8896"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1127.csv": {
+      "bytes": 231,
+      "sha256": "84266b27ba8fd961ee7bbc44774d2342c1a79201d7f330072b7d4d4ad5cf6677"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1127.csv.SOURCE.json": {
+      "bytes": 1500,
+      "sha256": "f2e5543395db7566bec7e98d424e4cd76b9e054a08a6642add7462741c24bf1a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1127.csv.SOURCE.md": {
+      "bytes": 891,
+      "sha256": "fcddfbebf9b9b428d3356ad07dae757f2f3d357347e9bd0f4439b0c2cc0735d7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1131.csv": {
+      "bytes": 180,
+      "sha256": "fc6de3d6adfc68090ad1fcb4efec78a43fc5014bfbd787cb5219d1eca5e4184f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1131.csv.SOURCE.json": {
+      "bytes": 1484,
+      "sha256": "bf18336d8e4d495758eb991577c9384f96cca3f57f98511e7b6d3039867e3f31"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1131.csv.SOURCE.md": {
+      "bytes": 871,
+      "sha256": "0532c8348e0bccd104210f11caec980374c1d6cd1807c3331672113e7b16f01c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1469.csv": {
+      "bytes": 245,
+      "sha256": "7eb624c82efa2b4370adba9407da071083892cbf36f5e5c5f856236baab55504"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1469.csv.SOURCE.json": {
+      "bytes": 1480,
+      "sha256": "54e13998f7ad3f24619a6de7322596c207cf4ed3d68a12a4c7ee7ccb0d11438b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1469.csv.SOURCE.md": {
+      "bytes": 879,
+      "sha256": "b849b2869f6eec4861cb7b1f48ce5d29967dd6b2ce9f730f21c9192245789bec"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1762.csv": {
+      "bytes": 172,
+      "sha256": "b9a23c6c67659c5e5ab441ddedb9c7fbe91f350d594907e985b92b050d262b09"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1762.csv.SOURCE.json": {
+      "bytes": 1675,
+      "sha256": "aa44f9353cfb22c6925ddc53cbaf9eaacd38fd16a70ceb68b73bbb85ff05c927"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-1762.csv.SOURCE.md": {
+      "bytes": 921,
+      "sha256": "47b7c6d5b0c2ef96607d2c8d24ddc94d16b1b65d441c8206cfcad4242ad3d7cb"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2041.csv": {
+      "bytes": 159,
+      "sha256": "fd1a87360b64fb727e73498f66ba7085546ab29cc1b1307004492569ebac7c15"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2041.csv.SOURCE.json": {
+      "bytes": 1495,
+      "sha256": "79accba0786d8859d4d8f22de26702cfb8e298be7abb0616d1c2f86d7ee11098"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2041.csv.SOURCE.md": {
+      "bytes": 894,
+      "sha256": "beb9bfbbb5d8906683588a6ecd4054ff299297761dfcb1de838f8257fba7f6dc"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2075.csv": {
+      "bytes": 211,
+      "sha256": "abf1e10319dfa1717efcfd4cc7fd7da50473bcbea610c4f4d68cfdecab75eb5c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2075.csv.SOURCE.json": {
+      "bytes": 1659,
+      "sha256": "4fd4b098398769eeff61cd6a9f1b8ec41e81b9cb6b4879889a4e1f76948a763b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2075.csv.SOURCE.md": {
+      "bytes": 905,
+      "sha256": "2daf34bcd63ecf003d2696754b9cf31b882624af15a7831b1d2503769933de68"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2111.csv": {
+      "bytes": 185,
+      "sha256": "a7c767fd925994eb422e97c20bb6ca960673dc1ce1438744b4bac3f07e944493"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2111.csv.SOURCE.json": {
+      "bytes": 1460,
+      "sha256": "256ab2a98d92643f989e90152e1c65c24ba8eb18810bde26b32b9df64b0bf3fe"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2111.csv.SOURCE.md": {
+      "bytes": 855,
+      "sha256": "7c7c0daa4a32aa666f2cbf9bd9dcd2075a6feba1eac694f05e7e111b8e79b7a4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2121.csv": {
+      "bytes": 166,
+      "sha256": "fe3caab2edb4aa284a48853aabba86c0114686698f93b444531265aa5cb01a94"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2121.csv.SOURCE.json": {
+      "bytes": 1501,
+      "sha256": "510d6807e5d2e63f7d5b38d922500ea4538088cd470c99d41993d32d14d9a52a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2121.csv.SOURCE.md": {
+      "bytes": 888,
+      "sha256": "c4b777646f93ff4ba65fca22ee71dcd2847dac171dec426a709fa4d0202e64b2"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2142.csv": {
+      "bytes": 190,
+      "sha256": "3ea7665e1d865e32f18cfd4d57743139c95b6ba7f5b8f34b34fd26a156cf06ae"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2142.csv.SOURCE.json": {
+      "bytes": 1504,
+      "sha256": "1e51b56a4e734384818213dfc0c99754b34060089e8f6ab024301efd3c9abad9"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2142.csv.SOURCE.md": {
+      "bytes": 891,
+      "sha256": "b59fe85f698dfb1ad31b10641430313d8e48f9dd165ecc4e3307963db338194d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2172.csv": {
+      "bytes": 172,
+      "sha256": "fce621a524e819fd082eaaf9137fd06aea868ca969deed8e28f71e0682d6d174"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2172.csv.SOURCE.json": {
+      "bytes": 1502,
+      "sha256": "4e5529c8e8cd9b693cc275cf099c174d548c6e2ad6c06b3cfe27972969479f01"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2172.csv.SOURCE.md": {
+      "bytes": 885,
+      "sha256": "f54fa75eec79b1fc401cbb2a3123317fa0596e13ea6f4d4ec3125f4639f71d02"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2237.csv": {
+      "bytes": 331,
+      "sha256": "2c2632759007fe397e313b087b9ce8eebf3787fa4b72c94626ef68a8b5fc3981"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2237.csv.SOURCE.json": {
+      "bytes": 1517,
+      "sha256": "96fef95f7a73717626d016408834b772cc6f8b55d1290bf90804cc1468fd0229"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2237.csv.SOURCE.md": {
+      "bytes": 900,
+      "sha256": "8b31c0b96928fc885fab8ae1456903e347952fb59d5e44b1335a4af40f221c0a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2480.csv": {
+      "bytes": 135,
+      "sha256": "ec2d9720958d977fd3ff62829811dcaa2daa96aa961456c414d77f5b589a5701"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2480.csv.SOURCE.json": {
+      "bytes": 1495,
+      "sha256": "41c11831bec1d7cc1e005b69cf92473d47b870a3f403e65167f168a43785df84"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2480.csv.SOURCE.md": {
+      "bytes": 882,
+      "sha256": "643da8ecd082f340276a724cf64df413142bece7e510adc896bec2b073919c34"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2564.csv": {
+      "bytes": 167,
+      "sha256": "f4e155424dc5ee5e027e3d76890a26e8c1db904e9bea4e9a340ed6192df9df95"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2564.csv.SOURCE.json": {
+      "bytes": 1521,
+      "sha256": "b0f6e328fc8f4f2af1520fc77f15046711c28f54b21b81e89240f7da9b262f34"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2564.csv.SOURCE.md": {
+      "bytes": 900,
+      "sha256": "7ff8d2036f301396ad86a224dd1b602262952d10a5c7bc202cca5df9bd99c4ee"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2613.csv": {
+      "bytes": 218,
+      "sha256": "226b789dd3dc554cebe1333426f68414bd86e82449c8998936c9fb825070557b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2613.csv.SOURCE.json": {
+      "bytes": 1527,
+      "sha256": "0e91ed8c593aa967e1eb13b51a14106a21d2ce076b46f2abbbdf434d8e62c1e5"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2613.csv.SOURCE.md": {
+      "bytes": 911,
+      "sha256": "205fb4c48c7bacc898d096eaba814d2ddfe520d1bcaf7b132b551a9c692ce458"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2860.csv": {
+      "bytes": 220,
+      "sha256": "2a57f497a0dbfa1e49137bf3f14b4cfcee21c24f84c37c27cf293b6c25a63323"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2860.csv.SOURCE.json": {
+      "bytes": 1515,
+      "sha256": "b3c21953c1e9f392cd88dc048f25b7c5b77050e3c53b616169311c0a39581f92"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-2860.csv.SOURCE.md": {
+      "bytes": 887,
+      "sha256": "a57162431ab3b9ed987a9ea884654a04f2dd559e85135057c6f01f1839702aff"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3194.csv": {
+      "bytes": 155,
+      "sha256": "b297e8121642b977d50a9ea69fcf9094ee9a38037480bbcd4ed3a1668fbcd12a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3194.csv.SOURCE.json": {
+      "bytes": 1509,
+      "sha256": "9871bb56741594e3459b25752fa4ec2eefa3e532aa9cd892b0fb06417e56b657"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3194.csv.SOURCE.md": {
+      "bytes": 900,
+      "sha256": "8d3556802840369c9b84a7b60a8a69462346ee7acc71e6e1578bb752152efe2a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3406.csv": {
+      "bytes": 188,
+      "sha256": "ecc90748e2c2e57744db212f2dec299bba96f9055a0fd9424f4f9f2a1afded6c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3406.csv.SOURCE.json": {
+      "bytes": 1480,
+      "sha256": "1b0410acf47bdacc321e888256598f6703e9856e1da64cc913249441f5886f22"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3406.csv.SOURCE.md": {
+      "bytes": 868,
+      "sha256": "5c07f2fc62360eb456f64716599cd3d3dc770883a678a4375ce72951c97e2c82"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3477.csv": {
+      "bytes": 205,
+      "sha256": "1cdd86e19e5d3d9feac86034782b6c338cd84edcfab803789dfe580596c16c5c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3477.csv.SOURCE.json": {
+      "bytes": 1509,
+      "sha256": "0e240e786804f8271f539f79e4f19f1fb8b44b69c81b4e4820de3b31292e907b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3477.csv.SOURCE.md": {
+      "bytes": 889,
+      "sha256": "13d9fcf86f8648de0bfb78fb20a5b8dbb33494ba5a9da4fd36f7230a7c502c58"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3499.csv": {
+      "bytes": 161,
+      "sha256": "296df73980df0a32a492de3216e2445e47be31d31ab020f036fa5876b6bdf2e4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3499.csv.SOURCE.json": {
+      "bytes": 1461,
+      "sha256": "f350def25c748c397104db743d4669d82ae03cd1e459b3c2740d8bf5c5d7b1d7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3499.csv.SOURCE.md": {
+      "bytes": 840,
+      "sha256": "0fed68b536370dd67eda883d3f5f2ed1322638703a107e45bed1dc872cbf8a29"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3747.csv": {
+      "bytes": 143,
+      "sha256": "3faf330dfc0e7dc0c2b3664e619038c9169f422df49f19d6916c4a9a3219133f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3747.csv.SOURCE.json": {
+      "bytes": 1478,
+      "sha256": "ba1a5bb19a029058153f5f5bb499d4f92984080d2cdb943dce8005213bc242bb"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3747.csv.SOURCE.md": {
+      "bytes": 861,
+      "sha256": "c6be4465d0a300db0afcca6399277a95bebdf0439dcadc2cd3162e4f27ba6426"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3816.csv": {
+      "bytes": 199,
+      "sha256": "7525a2eeef9d94a7d1eb88314131c567cf466a19cf798aabb89e4c31291a6fd1"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3816.csv.SOURCE.json": {
+      "bytes": 1461,
+      "sha256": "9f0cff6727c25c9c89063a6de693cc3d6c75550e512d098d9da08c9a945f70c4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3816.csv.SOURCE.md": {
+      "bytes": 857,
+      "sha256": "1267111783382d193e094b465a16a9954257c0ce1a23852807aa5bfb28ef72a6"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3827.csv": {
+      "bytes": 148,
+      "sha256": "8b5620c0a5117cd62af7d68ab3105ffe84b7e6492f22b4a10e8f35827ce43414"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3827.csv.SOURCE.json": {
+      "bytes": 1476,
+      "sha256": "1d8be0660df582ac43afb8163add1a5ffde865a9bbef983bf4e65a48f86aa30e"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-3827.csv.SOURCE.md": {
+      "bytes": 867,
+      "sha256": "b598acd8340e448855d9c7a50a5f420b256d0fe15fcc0fd1cf925a7e015b7540"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4022.csv": {
+      "bytes": 144,
+      "sha256": "0ecb757443300baa7cf80c88fc8067ed5fba117fd6d9f327f26dbb84ab0645cd"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4022.csv.SOURCE.json": {
+      "bytes": 1473,
+      "sha256": "cf09756c8ee982bbaf43c54e289b9ecddbd889922d36205843ce10a6575bdbef"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4022.csv.SOURCE.md": {
+      "bytes": 864,
+      "sha256": "7e069035c7885d2cc0aafe3d59db3e735a5ed2083e09aba921b0d5655796c5b4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4066.csv": {
+      "bytes": 264,
+      "sha256": "ff15fbb992594bebffbd39a73e55d224b6cb84f9de8c321aae302713319b74b3"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4066.csv.SOURCE.json": {
+      "bytes": 1507,
+      "sha256": "42f87ef4e8766d9e33e391ea17171e23b4de17fc820f931eb422d7aea24e8f73"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4066.csv.SOURCE.md": {
+      "bytes": 882,
+      "sha256": "b93cfc03917fef8a507cae733f955f9d4b0acd7d9ce8f9bd0fd4aff064c0ec0d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4086.csv": {
+      "bytes": 169,
+      "sha256": "5f99276f0c5233c020bf612244cd3324874bd558d767e875f0325e4d2a581484"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4086.csv.SOURCE.json": {
+      "bytes": 1507,
+      "sha256": "5c2d5d34c8aad4142bab98cb8c3f8b0e003cd417e062c1d89df78c0d678abecb"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4086.csv.SOURCE.md": {
+      "bytes": 894,
+      "sha256": "ba1fddb39dcdff88b014e1cb08b64b559c8b29033e3facdf17549b5a2c91071f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4092.csv": {
+      "bytes": 145,
+      "sha256": "df6a8620290641f6f93b13df3179ce8e6d5903eda526645cfd68efb2dfd2037c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4092.csv.SOURCE.json": {
+      "bytes": 1467,
+      "sha256": "6a0dc39fb6f6dbc52b3ffa2c73087637ee911735ffe127e4b20e84b2e59e13c9"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4092.csv.SOURCE.md": {
+      "bytes": 858,
+      "sha256": "30d75a41356d4331337db81a97b149c75930c773d0644c111509ec1e7496320f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4327.csv": {
+      "bytes": 201,
+      "sha256": "956f91098a01491f719d28c6b5471577d8442d336c82154dd1eb9a84120e9424"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4327.csv.SOURCE.json": {
+      "bytes": 1465,
+      "sha256": "5df8bfe4da81f56ace7eaaa6312987939e4b1a5245e6983be02c9db70471e141"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4327.csv.SOURCE.md": {
+      "bytes": 857,
+      "sha256": "6eff97225c19ae119bb68b4cfc2ade5b23e3323a5c0bd14b0e8c36f247b446ac"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4379.csv": {
+      "bytes": 150,
+      "sha256": "d0d4bf622b9661aaea83a57ff3013c784f363084ea56035404ce1858f7908dea"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4379.csv.SOURCE.json": {
+      "bytes": 1481,
+      "sha256": "824c0bedb51463306c40db3c0d114a160673a05a14beaa02d7cb05a4483664c8"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4379.csv.SOURCE.md": {
+      "bytes": 864,
+      "sha256": "4f3ecbe377e6e90e32afd22e891c0034ae5d68735d2b753fa5885928ab26be95"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4419.csv": {
+      "bytes": 138,
+      "sha256": "ea57c6406e9120e7561b9e883224bb715eab62fc656fc2bdcad0312aad4e3f70"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4419.csv.SOURCE.json": {
+      "bytes": 1443,
+      "sha256": "00364c378e88294e0c683556e8779f445b456007892460e6299c947fd47b3fa4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4419.csv.SOURCE.md": {
+      "bytes": 846,
+      "sha256": "70a6f2b21c65790a5cc4d7168e711084b2aec2c956b587800f699d7c46e17397"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4527.csv": {
+      "bytes": 150,
+      "sha256": "84223c8eca14ccb3c7d86c1fc60dc322e898ac8ebd3d0686ba1a6d8f454ee53f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4527.csv.SOURCE.json": {
+      "bytes": 1641,
+      "sha256": "5cbf68ee9f3b5ca2849c0412936e435be78d85482be6aa9c0e42303abedae12c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4527.csv.SOURCE.md": {
+      "bytes": 882,
+      "sha256": "964d36edc36cdc393f3b32e3e6e7eb5ec10605e74083dda5333d64bdf4c5a46b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4695.csv": {
+      "bytes": 212,
+      "sha256": "ff091035421157a5742d8bb360b805aba1e56134fec8016e133e1b1ed681b8f7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4695.csv.SOURCE.json": {
+      "bytes": 1509,
+      "sha256": "e416e94a9e59b70f15111567d61c195cfc6a36087ee295fde577308f15bc5d70"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4695.csv.SOURCE.md": {
+      "bytes": 888,
+      "sha256": "30b6107c4b06c5a5c5243c18478840320beb64d0c92baca3d36ffbf0653fb926"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4730.csv": {
+      "bytes": 206,
+      "sha256": "e9f85cfa7aa6ca6b93372f515ec19fc3a38470afeb49dd3456f5c889f1809376"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4730.csv.SOURCE.json": {
+      "bytes": 1675,
+      "sha256": "6eff3e324a081b3f9e1550c0e491d9a33d1376f49a52149acc5a5a3620b3b366"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4730.csv.SOURCE.md": {
+      "bytes": 917,
+      "sha256": "ecdd84f1e9ddfd2a3601d4df8d01e0621d151a70b8fa34beed7b684962c0797a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4845.csv": {
+      "bytes": 143,
+      "sha256": "c9e7aa832742b63d371c99c0f0056d0dfbf1a0d2a4fd2963bc92cabc05277182"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4845.csv.SOURCE.json": {
+      "bytes": 1645,
+      "sha256": "d2707d37b31b984a43c19b3d849547893426577d43818ab320e1973d5565a90d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4845.csv.SOURCE.md": {
+      "bytes": 876,
+      "sha256": "211ae676446aa3c709f051c7e19fec7d477eb1edf7f07e4698c9d2242165c79c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4938.csv": {
+      "bytes": 287,
+      "sha256": "91e6e9f1ba84bff0dbb7139ec053d8d91c18791b1b15ab2c5d22aec61d894863"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4938.csv.SOURCE.json": {
+      "bytes": 1655,
+      "sha256": "e3951b7be4c1cb8c8b4acd9f1502acbbe9f5d8c055e823fbad54d84b98fd821a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-4938.csv.SOURCE.md": {
+      "bytes": 901,
+      "sha256": "148897c7632c6f6ac6f60a5e7404474942d7c96acbf02b2a7a25247a881c80e4"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5054.csv": {
+      "bytes": 224,
+      "sha256": "9e614d42149bae40eb1ac0891c9c688de0491952647d4d5fb9430fc62dea23aa"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5054.csv.SOURCE.json": {
+      "bytes": 1648,
+      "sha256": "8f495a00e8e5f611c32547042876ffb9031d6b21bfcb573ed7ccdc81799c08c6"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5054.csv.SOURCE.md": {
+      "bytes": 899,
+      "sha256": "13740361d5193716635c197a98f98a6c73f6aba3fa367d74c34c085bcca2bb5a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5056.csv": {
+      "bytes": 297,
+      "sha256": "0a1ff8634bcbf7eafec0ae2da950a12cf3db7e0aeffcb50e7694f038f96aa787"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5056.csv.SOURCE.json": {
+      "bytes": 1464,
+      "sha256": "253c669b556f04ff6d3eb52ced3a957f0f6687b69c70554674f2383a52fcf6af"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5056.csv.SOURCE.md": {
+      "bytes": 868,
+      "sha256": "58897573be9dc49390cd5d14c799d8f4d5261a0a4754920589fae2c6bfd4589a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5207.csv": {
+      "bytes": 158,
+      "sha256": "9f89f8517638be76cdb3ca0045f4f30847cfaff2be133240eaa43f736816bd46"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5207.csv.SOURCE.json": {
+      "bytes": 1661,
+      "sha256": "b6485217855611c1b0bd3c9b38460029af3dc1e770c231e2d1caa8868dd290ee"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5207.csv.SOURCE.md": {
+      "bytes": 912,
+      "sha256": "c4918c10f7605bba708e3eca6960699b3e6227273cf559c8ca34be67a53cf075"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5217.csv": {
+      "bytes": 168,
+      "sha256": "3dbe325f17253984f8ba88e6e59350bd98975e201dc4d499730c55c3ce40812d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5217.csv.SOURCE.json": {
+      "bytes": 1635,
+      "sha256": "1843ef535fc36def86454a7bf28a8a805c9de438e342ab8c3cb9f98e7281d77a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5217.csv.SOURCE.md": {
+      "bytes": 881,
+      "sha256": "50a024726118d4de0eb60cbcefd8da42fa1d56167822852c30442d2b52ca7a0d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5267.csv": {
+      "bytes": 201,
+      "sha256": "0a917f67894b55c6cc36fd71348afbae04bbf82e0ae289598dd2aa17b12a891c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5267.csv.SOURCE.json": {
+      "bytes": 1671,
+      "sha256": "371d1e02b56699c266cade3b75f0ced086f40f52a1e325b895c3f6f85cdbceb6"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5267.csv.SOURCE.md": {
+      "bytes": 923,
+      "sha256": "a0c016e088bb15c839f4772374ea19a3fdd743f87a25bd64676e6ee45c42f434"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5307.csv": {
+      "bytes": 193,
+      "sha256": "70518eefe03c674132a1644a3d385b11c7ca2b1e651e72ca34eab008dec6d1d2"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5307.csv.SOURCE.json": {
+      "bytes": 1615,
+      "sha256": "dfc44216169879af663cc45021477d8121feb097332339a1a5fb790564d33bb7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5307.csv.SOURCE.md": {
+      "bytes": 861,
+      "sha256": "0ed1f6fcb6c544ea6d51e0fa2e2a5243c0cd8e50336c8325a42f34e5a659b681"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5311.csv": {
+      "bytes": 201,
+      "sha256": "18ac469795568047f1321a9bee958f3167c23459ee42889e930e80a2d8769691"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5311.csv.SOURCE.json": {
+      "bytes": 1498,
+      "sha256": "25845f1d1841f2cc07861fdfe611684b623f19247351a0a198b0afc501cce1b6"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5311.csv.SOURCE.md": {
+      "bytes": 897,
+      "sha256": "a497d9a3836fee89519c093088cbd421f6c27024cf2c220a795c4e97451862cb"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5312.csv": {
+      "bytes": 241,
+      "sha256": "86d82429e4c4704968f37305dda343ea4bd5b245627cd86dfd218bc1464f495c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5312.csv.SOURCE.json": {
+      "bytes": 1496,
+      "sha256": "bbb90cc464776b83f6d6abb49cc0735555447f81639ad213adbce401c20788e6"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5312.csv.SOURCE.md": {
+      "bytes": 884,
+      "sha256": "f4578be00163afc25073be83ac05e5ea4b1c1cfa27abcf2e0577513f23d3e0ef"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5337.csv": {
+      "bytes": 150,
+      "sha256": "b5f0bb743a5f06ad448804c88ca10bd80d652754953f97cea2345dccf8425700"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5337.csv.SOURCE.json": {
+      "bytes": 1639,
+      "sha256": "98f8f4cab93a3f3ca91c873fbfc2bd478a44b1dfb1cdc2191e9d86f3495698d3"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5337.csv.SOURCE.md": {
+      "bytes": 885,
+      "sha256": "6c625a436d6310e4ea2c336faa7dabd0e40dda76681036c7dbd94bd1abc29c55"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5340.csv": {
+      "bytes": 168,
+      "sha256": "8071d6a4bec1a6755a1ef25fd7702e5f271bc70ab24012adf9cb2dbb3dbd7d2e"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5340.csv.SOURCE.json": {
+      "bytes": 1655,
+      "sha256": "97c273ae24cf5a53a44997a8f2f0ab245350a17858d6e8fe842f1e5b5469af53"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5340.csv.SOURCE.md": {
+      "bytes": 906,
+      "sha256": "8e42993c34125e197190dca85745c7028491436f8c1b7ce637b310576dd0d375"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5432.csv": {
+      "bytes": 208,
+      "sha256": "437b1fce8eae34226b18c5884322c4692a2302ea0542c2bdee16edab7c873510"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5432.csv.SOURCE.json": {
+      "bytes": 1677,
+      "sha256": "c0bea2fd566acdf0aa1bc82ba1325a88536cae10c0495c9fae52ef64f0bf008c"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5432.csv.SOURCE.md": {
+      "bytes": 903,
+      "sha256": "983b3ec28b5f0cd885e56d373209fe16d619b0d63aeb8281ca09d9b637a2eb25"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5436.csv": {
+      "bytes": 225,
+      "sha256": "f087cdf4fcabe22d25a5ccd8f4c647d22aa53d27436d8ab530213313ffe9f874"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5436.csv.SOURCE.json": {
+      "bytes": 1695,
+      "sha256": "6578901e352f70e80789c4e448a9ae50b16a162ea3810bc7b36445a3b245b587"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5436.csv.SOURCE.md": {
+      "bytes": 921,
+      "sha256": "742549fa6fd1bb2818ec5660d92b291af411b171bef8969ae7f63b96caa1b0e1"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5446.csv": {
+      "bytes": 139,
+      "sha256": "b1c0f5912344dabd1beac12533b0b47b71021de5220aab33eee3c73fb969ea6e"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5446.csv.SOURCE.json": {
+      "bytes": 1497,
+      "sha256": "79c8e37de0b9afc33233a6a197bb70be04ba57eeb3aead3f7b2d64dd00996fda"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5446.csv.SOURCE.md": {
+      "bytes": 878,
+      "sha256": "de2e2caafaebaacbd5cacfa8ac792e628de801e89a300b74573cf61dc315843e"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5456.csv": {
+      "bytes": 222,
+      "sha256": "639018e6ec46f6e2f3575b7a792839082e292b59dac7d9a7e6f1250891ba7f4f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5456.csv.SOURCE.json": {
+      "bytes": 1517,
+      "sha256": "a627b917e0115809aead936d303cc7b188fb1862a803c0a44e7b2a2504572eee"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5456.csv.SOURCE.md": {
+      "bytes": 893,
+      "sha256": "721f0efecdbeec1667a826e4da0171ce729b45268d72786a6e454077b720500d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5498.csv": {
+      "bytes": 153,
+      "sha256": "b74ecf89f93079ca0abbc43ec98b163809026ebb0b2254bf92e0f8a47a63351b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5498.csv.SOURCE.json": {
+      "bytes": 1632,
+      "sha256": "ff349f352a15737ec2cc6d87e091a0cb90482864952bee8fb6180c00040e3684"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5498.csv.SOURCE.md": {
+      "bytes": 873,
+      "sha256": "f132530da5ea8a5f72a6d03296e5e0409db489b494a8dc4bcd055fce68aa7fa7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5499.csv": {
+      "bytes": 197,
+      "sha256": "7e85f1da230ac6aef628e7c27d6bcf9bcc7c2c16772070cefa422abefe50f9ac"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5499.csv.SOURCE.json": {
+      "bytes": 1508,
+      "sha256": "d52cd97ad548a55acc6dc7b812ba28fbf666fb1d0d4baa104a78270261d2b3f1"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/enwiktionary-zh_selection-5499.csv.SOURCE.md": {
+      "bytes": 903,
+      "sha256": "97828c55717206af518db85772ebdb88556f47afdd9c56e147306a1faf2e2448"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/ledger.json": {
+      "bytes": 108233,
+      "sha256": "cb10af58920ae4db686b155456412ba918e835940ca6279845f0a10b08261dad"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/cc-by-sa-3.html": {
+      "bytes": 54093,
+      "sha256": "c33d7ebdbcc5c8db073e69a794b2ac44805f5d7d9edcfb8b5181a71869a9b7d5"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/cc-by-sa-4.html": {
+      "bytes": 51645,
+      "sha256": "47c0a954c88d793bdefe92fb007ae3c038fb3807f1a27083433d01aa7542c0d8"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/conditions-manifest.json": {
+      "bytes": 7011,
+      "sha256": "c24a9f7d8660a1a9b81d206e22795ff23573975bc005e3966b8f978db954c1d3"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/history-head-00.json": {
+      "bytes": 3848,
+      "sha256": "e3741e92ee47a1a3c2fe513e5016dacf6c5bc69c216dc24f5d28bb1b9496ed7b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/history-head-01.json": {
+      "bytes": 4193,
+      "sha256": "3d371c52f7286ca62ab9bd4b2c51d5b496699ff4709c3d81e627fbb81588d121"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/history-head-02.json": {
+      "bytes": 5017,
+      "sha256": "2003955d9816b36c85e5e6afadddbd1a4451981a044f39c452c3cd9646e882ae"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/history-head-03.json": {
+      "bytes": 4986,
+      "sha256": "ba2dde9f80edf9e56acf870e6687b1ea9e8381272fc458ac5293fbde333df28f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/history-head-04.json": {
+      "bytes": 3517,
+      "sha256": "b62e0c79b0a671236b907265e4ecb40f87fbdc88513c34ef4d3aae806a6cd4ff"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/manifest.json": {
+      "bytes": 5558,
+      "sha256": "a0a9b2a07a01d4a2a35c9da8ac8aee3176565326801f0d6775012be41efa0942"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages-00.json": {
+      "bytes": 277681,
+      "sha256": "1ac7f42ac7c913a5e32ee11dde35a47c328810cf50045275cda1d969c62fae8f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages-01.json": {
+      "bytes": 125958,
+      "sha256": "7a83e9a798bcadf08e5c7ae6c6cfa1ae24f996fe572b1c533a05c0a768fbaae7"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages-02.json": {
+      "bytes": 166868,
+      "sha256": "7bebcf776ec1041681534c8fd94fd77710b775f651d132e1fe1aba06cb2d315d"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages-03.json": {
+      "bytes": 97910,
+      "sha256": "646ce2bbe2c3fe2396e964eb561ec5be3c70b24901899354cce8f105f0bd5fe8"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages-04.json": {
+      "bytes": 104879,
+      "sha256": "4d6894999f3f44468d3464ad83c750f6c518be4aa4b9bc82a427cefaaed78707"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages-05.json": {
+      "bytes": 111976,
+      "sha256": "1b40bbc68101465460a92f41447e1144cf121e46b76c6647fad46c33c2b23a61"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages-06.json": {
+      "bytes": 65677,
+      "sha256": "24d15f8f0f23b4d40897c5d62e622ce014612de38cc3260d8c8421fc8753687b"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/pages.json": {
+      "bytes": 951424,
+      "sha256": "4df43ed28cd0a21af35ab1e42c0b9283a15e8d3b9a0afee02bcf829a1bbe3f5f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/talk-00.json": {
+      "bytes": 37469,
+      "sha256": "460f72556215a701c97c42a943bc8c504c0d506f91e0c30f03bd0092591947ff"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/talk-01.json": {
+      "bytes": 17594,
+      "sha256": "dcbd9692a64ed33ca6521ebb8acbe99ab235eb57725881c65f6a81438b58bf46"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/talk-02.json": {
+      "bytes": 9592,
+      "sha256": "4d027ad2058565613b9e19ad6da89aec9f2df484736254256ec8973b10e6e652"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/talk-03.json": {
+      "bytes": 29347,
+      "sha256": "2abb693064cd4515a7a8c5d59a3b6fefce10257d4f571effb9db7486adb51f6a"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/talk-04.json": {
+      "bytes": 7626,
+      "sha256": "817da7691c365858c153bb2d931ae9c09f37efd9a0030bda6b77b20211eb2d39"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/snapshots/terms-of-use.html": {
+      "bytes": 152924,
+      "sha256": "2ce01d759bdf07046f165a173b7fffbfa1fc7646742613f15b39b2268d67ce4f"
+    },
+    "test-artifacts/netem-gap-20261005/candidate/sources.json": {
+      "bytes": 203258,
+      "sha256": "661d1817ddb2cdc13993bddd7bf3b218dff5970e2e5a1d48d76af2af1893a3d1"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/fetch-manifest.json": {
+      "bytes": 8541,
+      "sha256": "e6584fec88a18893b6c13d3b2fcd2acbff7164261b71be01ce3f7fa11fda8738"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-00.json": {
+      "bytes": 66545,
+      "sha256": "eb973f15f4cc950157d4d634d75ab58308c0eaa0f6b460fdfee9367e1119bd57"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-01.json": {
+      "bytes": 43273,
+      "sha256": "fb7ac56cffdf62c03cd066e6daf72a81e0907e79e77bc8e18e32ecf1d4691557"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-02.json": {
+      "bytes": 47317,
+      "sha256": "5cf184df847e6e7e97ca1449e39009259c626c85c20de01e146001abd925fb45"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-03.json": {
+      "bytes": 44490,
+      "sha256": "6f9310c2edcf76f7b41950c6ee4f766a400ac701619bb1d7adce14e9985f17b8"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-04.json": {
+      "bytes": 69618,
+      "sha256": "77ce0d3810b091f631ebad0628fd34645890f12244645b506d4680a38417ebdf"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-05.json": {
+      "bytes": 51084,
+      "sha256": "d2c2a58dde7dee239f8e2d7edcfe8bbec1049749424520fda9f53f576451210c"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-06.json": {
+      "bytes": 69756,
+      "sha256": "b39acc4742ff428ff3a60e3665343cc48502f9b6c35ec89c577a71c4810dbcd7"
+    },
+    "test-artifacts/netem-launch-decision-20261005/upstream/original-07.json": {
+      "bytes": 11834,
+      "sha256": "704623f36a35444d5ba2890e81d1b8e9d7e6b73f19bc53fc6d830dd6a9c36828"
+    },
+    "test-artifacts/netem-source-audit-20261008/annotation-candidates-v2.json": {
+      "bytes": 83751,
+      "sha256": "fd4795ef26e363281874df425e0d381b24a12b6d36b617c0d8298c5e4b9d8263"
+    },
+    "test-artifacts/netem-source-audit-20261008/annotations-reviewed-v2.json": {
+      "bytes": 6711,
+      "sha256": "0761079e7f50f70daecc97a494b405547e09af69cdc558e93bf64262804e5ee6"
+    },
+    "test-artifacts/netem-source-audit-20261008/extra-format-normalized-candidates.json": {
+      "bytes": 5391050,
+      "sha256": "3fb46b2e27298e0f5de23e8f50351c6bbcd68ca4b05f697489bb78e202c55dba"
+    },
+    "test-artifacts/netem-source-audit-20261008/extra-reviewed-0-825.json": {
+      "bytes": 428043,
+      "sha256": "19b1eb6f7e3f04a5236e27ce5260a801f8f3c40cacde18cda69f53e5ab5d45e7"
+    },
+    "test-artifacts/netem-source-audit-20261008/fetched-candidates.json": {
+      "bytes": 14597339,
+      "sha256": "42f679f24cee09ce0e4f3fa3769260247dfad71c38efbd22b46e0eb0cd78d1c4"
+    },
+    "test-artifacts/netem-source-audit-20261008/fetched-originals.json": {
+      "bytes": 5019559,
+      "sha256": "723cffb9f4ea9faa6cc32f3cade4d13115b811f718b3af09939b51676baf8128"
+    },
+    "test-artifacts/netem-source-audit-20261008/fetched-reviewed-0-599.json": {
+      "bytes": 293289,
+      "sha256": "750a22c4d5a01757e9bb469bfe08b86ab44b68c4c7ca93bef84809acfd6ed60c"
+    },
+    "test-artifacts/netem-source-audit-20261008/fetched-reviewed-1200-1799.json": {
+      "bytes": 279767,
+      "sha256": "079f63a216096a3f5edd4c204ca824240285ab42ed0bad05f98cdfaf2de74b09"
+    },
+    "test-artifacts/netem-source-audit-20261008/fetched-reviewed-1800-2283.json": {
+      "bytes": 230728,
+      "sha256": "ae8fcad142a8003c80f71b4b54595a912331059f9bfee69d551fc0a307e3e324"
+    },
+    "test-artifacts/netem-source-audit-20261008/fetched-reviewed-600-1199.json": {
+      "bytes": 288122,
+      "sha256": "02d78f8b6a66b3962b45642049199fd582eae4758f0486221cbad2e60004a53b"
+    },
+    "test-artifacts/netem-source-audit-20261008/full-recovery-locked/plan.json": {
+      "bytes": 245260483,
+      "sha256": "29e90f367ea571773b64aedeb639bd59d01ac1c073088b0de2a4e53a3a11cb10"
+    },
+    "test-artifacts/netem-source-audit-20261008/license-evidence/condition-0.txt": {
+      "bytes": 18023,
+      "sha256": "4167e5725cd173c744b8e8f410ae364340a398ad70ceeeba9dc12827d82ba033"
+    },
+    "test-artifacts/netem-source-audit-20261008/license-evidence/condition-1.txt": {
+      "bytes": 54093,
+      "sha256": "c33d7ebdbcc5c8db073e69a794b2ac44805f5d7d9edcfb8b5181a71869a9b7d5"
+    },
+    "test-artifacts/netem-source-audit-20261008/license-evidence/condition-2.txt": {
+      "bytes": 502,
+      "sha256": "ed39699f498626114b95900ce6422ea3c5a8b17c3d2bb79cf771d1432b212485"
+    },
+    "test-artifacts/netem-source-audit-20261008/license-evidence/manifest.json": {
+      "bytes": 756,
+      "sha256": "1491b0f3a4446fdd5f898885d0c1e92f2a2381e3580ca5c1b0368d8577dc0634"
+    },
+    "test-artifacts/netem-source-audit-20261008/locked-review-0.json": {
+      "bytes": 1811668,
+      "sha256": "9da22940f3965c6b16033ccbfec542f7756d240b53056556c82e08f0d6553474"
+    },
+    "test-artifacts/netem-source-audit-20261008/locked-review-1.json": {
+      "bytes": 1763423,
+      "sha256": "7c1182e15d55ac86b12e75c6758addfda50a7676c3395f0f688b39d3824b72fd"
+    },
+    "test-artifacts/netem-source-audit-20261008/locked-review-2.json": {
+      "bytes": 1289606,
+      "sha256": "22245749672a30710cdf1000bf66d0f233799547f7c1d146023ec6e58d6643fe"
+    },
+    "test-artifacts/netem-source-audit-20261008/locked-review-existing-77.json": {
+      "bytes": 54550,
+      "sha256": "ee644f9c069e621cf49d801ae2f2932ac344be9227ebade057f5cd030dcefcb6"
+    },
+    "test-artifacts/netem-source-audit-20261008/normalized-gap-candidates.json": {
+      "bytes": 385700,
+      "sha256": "439e5c64abab53dbeaf9804b23ce4047f682210ede3d240513cfc9073a4e9595"
+    },
+    "test-artifacts/netem-source-audit-20261008/normalized-gap-reviewed.json": {
+      "bytes": 32570,
+      "sha256": "83e44478d241f6a27cc4cd801d943e1f4785ba43928ea4f4aed6119d1d278610"
+    },
+    "test-artifacts/netem-source-audit-20261008/records.json": {
+      "bytes": 190612158,
+      "sha256": "d5378c330a3b236cb101b01d5c508724a1228df834e86fc78e2c6b523727fcdb"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-candidates.json": {
+      "bytes": 2638599,
+      "sha256": "5327298957942f9a5db4f1e48142ee6d756d4e804fca36e33c8a3d84b240f65a"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/manifest.json": {
+      "bytes": 21583,
+      "sha256": "c2ba404b8bd0fe49cbc0184eedee62b632a3e68f27eb46fef11e1449dbb2d8df"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-000.json": {
+      "bytes": 31505,
+      "sha256": "8d3ee2edbdfce9f73de86b917838270a69a1bfd0dfb4d920eb578228d79ac222"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-001.json": {
+      "bytes": 19806,
+      "sha256": "80ae611625bbd16bcea3f6abf8ac186a33c106b755b613e5efdb6c1117a7b883"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-002.json": {
+      "bytes": 14878,
+      "sha256": "a5897e8323aa4607f4a4f59676a4a1f32afec05f9a3cbb9d97005f6e2b800222"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-003.json": {
+      "bytes": 26129,
+      "sha256": "1b28802fae8cf98332eb47a813bb2f435b3ddc7a0248147d7c03608df75f8b5e"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-004.json": {
+      "bytes": 23392,
+      "sha256": "9476e4d6f51953cbba119e0127233cad3354ddabf614b699966d3209014cc3f8"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-005.json": {
+      "bytes": 21140,
+      "sha256": "fc7c8138eaf6bf579286d3e3e6b41090ce648735d33a93e253cfe4fa96364583"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-006.json": {
+      "bytes": 24645,
+      "sha256": "44f50afdb4d69c33aba2cab54bd082389c775e5175c2fb2cd11306e975120eb4"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-007.json": {
+      "bytes": 13213,
+      "sha256": "63dec40d0528fadfa36260288650b8f735b70a1dd93d4a04d924d6868c439cfd"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-008.json": {
+      "bytes": 35610,
+      "sha256": "8636def77ed211829cdf72f9e4f80113283d349d89bb5710721f8be34e2e57ca"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-009.json": {
+      "bytes": 21070,
+      "sha256": "a6b20e0a41373264e5d0b84f708b5a8d0afe5b06c7ba96e92fc1824da56341f2"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-010.json": {
+      "bytes": 18642,
+      "sha256": "b83c89fedab6deb60fe75d330ea1ec82a0c244056d7019bae03f0c700e863288"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-011.json": {
+      "bytes": 23452,
+      "sha256": "e2e48b993d7037d8b0e91f7e7dee9d2e908ff3c96c4e12d00df43997ae597f71"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-012.json": {
+      "bytes": 26632,
+      "sha256": "6bb18f5322e66a6506f85c0f2db1656c6af7bd307e55b9fd559823c1c5410e84"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-013.json": {
+      "bytes": 20023,
+      "sha256": "d02dd3717ff809b86594f0e2cb9e07847e5587e4d8a12a638206e6f5fa01fa92"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-014.json": {
+      "bytes": 49186,
+      "sha256": "f1d1b412a83baecd1fbab2756ddc096cb8e67f1f712ffbc8098e0d50155cdf70"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-015.json": {
+      "bytes": 21807,
+      "sha256": "3a4275e6a1ae266d82cc2be3d554185dd8ce644d993ff31e1a3a9bc87798a801"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-016.json": {
+      "bytes": 21641,
+      "sha256": "0446c3daffcd43a9bd942e405314f0c7be4732370721b0e8352ba9827e630d34"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-017.json": {
+      "bytes": 17822,
+      "sha256": "3e3418ad960d01c45b1e10eff286a8ee1bf62139124b8ceb3df6ccdf197360e3"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-018.json": {
+      "bytes": 15981,
+      "sha256": "737f4f615d8b82a1026d95aa9fccf2651faf9fc04ba8b3005e092fb7f6c135e5"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-019.json": {
+      "bytes": 13842,
+      "sha256": "ce871f7ee4ea5c6bd383d1c095e892b5f836716f7d1ddb1eb0fee9dade6fd678"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-020.json": {
+      "bytes": 13892,
+      "sha256": "330e634e4e883ccba5c44456af71458a7892bedf4393a9001fb24a74828cf559"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-021.json": {
+      "bytes": 15504,
+      "sha256": "a8153aba2e4d6be93dcf23c00596b86b09acfcfd4b6dc7d1a076f0264de2df24"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-022.json": {
+      "bytes": 15120,
+      "sha256": "38be706a580792b00864092fcae0a3541cc125527af52f3ebf215d85efdb7b2d"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-023.json": {
+      "bytes": 15569,
+      "sha256": "13c67eefe7e72eb24f90e45940afa4adbfa8c579b5d78ebe88aa6040678ba12b"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-024.json": {
+      "bytes": 13966,
+      "sha256": "fe7eda81fd6280b82c0cd11c40bd90d22d174aa4f621e1417d21a69fbcbd359c"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-025.json": {
+      "bytes": 15999,
+      "sha256": "fb7fb3b059cbce73d8b0e3e101f5ad9b0d0e83f0460e846e7357487459c295f2"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-026.json": {
+      "bytes": 13053,
+      "sha256": "82c9a27dd6b67703c317e24f1f1ff90ae03e0254f33be97de1643257ae064187"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-027.json": {
+      "bytes": 13119,
+      "sha256": "203c579738557941aef6b19dc8e8dc6772769aae7312bd7ee4e1001158b42be4"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-028.json": {
+      "bytes": 16146,
+      "sha256": "69f9635e95a288e20e6de89910409bc4d8f5b85d97cbdad36c97d9f44ed98783"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-029.json": {
+      "bytes": 17806,
+      "sha256": "28e67afd9a2985484b9e6fe0cabb3319e87165f28de85c6fb441473c5ae1a102"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-030.json": {
+      "bytes": 24100,
+      "sha256": "bcd460f420a8e43534327fbf85d2821725aabc96d37b0bc9b71da1e1b298c0d1"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-031.json": {
+      "bytes": 17156,
+      "sha256": "138d7f387d50cfc05da7bd2a05840807c1e4542582c386e590c4b96d6127637e"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-032.json": {
+      "bytes": 18318,
+      "sha256": "1fa17540dbd8a7a53f5a69c077fd7cc7c9d4d74c8f0ba00873efae9a64bf5a30"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-033.json": {
+      "bytes": 16644,
+      "sha256": "31b898118229bf7ed731c46fa8573625593d3d6930dcddb7ea7cfe7bc34cb85c"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-034.json": {
+      "bytes": 25833,
+      "sha256": "e00b03637902857109baf22494d8c350e0ef5a132d7bfdfa495e5a475e52cd0f"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-originals/revisions-035.json": {
+      "bytes": 10061,
+      "sha256": "8ad6e66846024814a37967104816e18b76ab032db33b3dbb38c061e6f48f886e"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-review-0.json": {
+      "bytes": 104392,
+      "sha256": "41f6f3d1328d625dca9ba8e8b70b572cf43a6e4f3788c1eed26110a77395947d"
+    },
+    "test-artifacts/netem-source-audit-20261008/recovered-review-1.json": {
+      "bytes": 104268,
+      "sha256": "8bb46cc8a00c94fcb389604285615e05a37f5d71a44c0495e4ec334f89a223c6"
+    },
+    "test-artifacts/netem-source-audit-20261008/review-corrections-recovery.json": {
+      "bytes": 3428,
+      "sha256": "612ab228afd57874081ebadfa7dc618104726757a38ba78f00e01d9f10f9b062"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary-relations/current-00.json": {
+      "bytes": 57698,
+      "sha256": "38f283dbfea7320fe3b74182806134210cf0dd551b0959c0b15a4a861e923613"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary-relations/manifest.json": {
+      "bytes": 573,
+      "sha256": "9298244c7057210c9579fd1bea3269ca59ae2f74baa7cf3ff8fe8f4211364d52"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary-relations/pages.json": {
+      "bytes": 58751,
+      "sha256": "28cd5c8e0499c241c55c51510458319a16a0e49e7c504c01def2a9178146380a"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary/current-00.json": {
+      "bytes": 226121,
+      "sha256": "193d0be43b7a7846977170906789cefdf5b0988695c6e6d6364f778044f81303"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary/current-01.json": {
+      "bytes": 245592,
+      "sha256": "e853d8003849e7d9dc8cf5a6ef845560a2edebd8f408f0b46edee27465da9d21"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary/current-02.json": {
+      "bytes": 246460,
+      "sha256": "11ca158b407c58473ae375b551eb285f91e57c52f0a8e8b14655298d9cd6b6ad"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary/current-03.json": {
+      "bytes": 189427,
+      "sha256": "9cb79ecb7f779128d8dd84951fc36265c2f74d9b0cb597f10e43304113f41881"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary/current-04.json": {
+      "bytes": 117399,
+      "sha256": "5715ed6438a459cbb995720822887db2f99154272b323bb6f4387681e1786e9b"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary/manifest.json": {
+      "bytes": 3163,
+      "sha256": "d299bd3df643c03160b7812826574dba96d7998f5fc13821be75bc742a8aae4f"
+    },
+    "test-artifacts/netem-web91-20261008/enwiktionary/pages.json": {
+      "bytes": 1040416,
+      "sha256": "d3965fa07391c0ca267d4b9cadfe62bb2c1f30bf4d72b6fe13afa4a222527e07"
+    },
+    "test-artifacts/netem-web91-20261008/review-web91-0.json": {
+      "bytes": 58355,
+      "sha256": "35ddd113dfbd02c9dc652b2fcccacfbacaaccd751bf11c3ec8001a6dc2194f64"
+    },
+    "test-artifacts/netem-web91-20261008/review-web91-1.json": {
+      "bytes": 46638,
+      "sha256": "bc9760c98d9126e299cda8da90a955f7b65297344d34b98e3eab0ab8e205ac8a"
+    },
+    "test-artifacts/netem-web91-20261008/review-web91-2.json": {
+      "bytes": 53868,
+      "sha256": "d9dcebc31b2649b0ac7948fce84662c34d512126649a390bd3808c31cc666a84"
+    },
+    "test-artifacts/netem-web91-20261008/review-web91-corrections-final.json": {
+      "bytes": 4018,
+      "sha256": "f6f7d1b7247026ca5d8334a007905463934b1364d40f9fb511efbd1b8930f4a8"
+    },
+    "test-artifacts/netem-web91-20261008/targets.json": {
+      "bytes": 66289,
+      "sha256": "da755a2f4271b165e3fef9bb7f3e57d217a1badfe3b90ede8fdc1f4164a77fc9"
+    },
+    "test-artifacts/netem-web91-20261008/zhwiktionary/current-00.json": {
+      "bytes": 11759,
+      "sha256": "5a82eaf7dcc228ffad71691f088a10ac00c17899f339199e2eee89ced303cb5a"
+    },
+    "test-artifacts/netem-web91-20261008/zhwiktionary/current-01.json": {
+      "bytes": 12487,
+      "sha256": "6e318cbe8eaad6e024d0792c24c49ae311f4e26241596d6a4609d88cfd3f5762"
+    },
+    "test-artifacts/netem-web91-20261008/zhwiktionary/current-02.json": {
+      "bytes": 12819,
+      "sha256": "8c07c6ad883dfa1c6e7297179a85463943df01bfb19b3f6b9580ef12ebd4a8cc"
+    },
+    "test-artifacts/netem-web91-20261008/zhwiktionary/current-03.json": {
+      "bytes": 12193,
+      "sha256": "24883e97751e8301c841193be6775a45b513ede9c07e6e623386c0982a2ed426"
+    },
+    "test-artifacts/netem-web91-20261008/zhwiktionary/current-04.json": {
+      "bytes": 8505,
+      "sha256": "45721d1a7ce88acf466bed1d628a771b816412f9c3fa976d5baa0b860e4771dc"
+    },
+    "test-artifacts/netem-web91-20261008/zhwiktionary/manifest.json": {
+      "bytes": 3209,
+      "sha256": "dc580cc74834592625244e1993cbe66e3b0f46cf93e6feced4897327a7f1ed92"
+    },
+    "test-artifacts/netem-web91-20261008/zhwiktionary/pages.json": {
+      "bytes": 72616,
+      "sha256": "a105a44680fc1418e090a0725dc0d84a04269163f69d28c2afdfa4f169c5790f"
+    },
+    "test-artifacts/phase29-provenance-evidence/kaoyan-vocab-research/raw/wikdict-en-zh.zip": {
+      "bytes": 1576093,
+      "sha256": "62d6d4a8ccf28c28bbe4ec82ac65fa67fd52c0f34d71294ab1d9d95fa3233830"
+    },
+    "test-artifacts/phase29-provenance-evidence/kaoyan-vocab-research/rehearsal/pilot/zh-pinned-wikitext-300.json": {
+      "bytes": 281210,
+      "sha256": "09650bf2143440c5810b992a35a24ab8171094c6055aca111c02fe2a73a82a46"
+    },
+    "test-artifacts/phase29-provenance-evidence/kaoyan-vocab-research/reports/zhwiktionary-full-coverage.json": {
+      "bytes": 843394,
+      "sha256": "50c7cda85bdaa731afb0d25caca39c23a8248497c332a8a10014ce3b32978ff6"
+    },
+    "test-artifacts/netem-web91-20261008/full-final/plan.json": {
+      "sha256": "91eaf2f7d9ea5c397fa09a6794251cfe14156e0a0b18b0987f4c62878a781610",
+      "bytes": 248097713
+    },
+    "test-artifacts/netem-web91-20261008/full-final/coverage.json": {
+      "sha256": "8232cb5f56516dffbd1e5ae0618159aee371f1ace4f2ad5e8de3ae4d03fec83b",
+      "bytes": 1155
+    },
+    "test-artifacts/netem-web91-20261008/full-final/per-word.jsonl": {
+      "sha256": "7d561632ee05308a961e9c9eef578f2c11601b9c19ff8ce610c9661d630f0ef7",
+      "bytes": 2600096
+    },
+    "test-artifacts/netem-web91-20261008/full-final/online91.json": {
+      "sha256": "47c0a0aa360afa6b92f628926cd2c1a8361a9e3e7468bb857736e04d8cc80b40",
+      "bytes": 7329379
+    },
+    "test-artifacts/netem-web91-20261008/pilot-final/plan.json": {
+      "sha256": "8152c7a4b7509dd2a2dbc0ed7361845b3c406e47c9bb83acf2952569e888885f",
+      "bytes": 6674403
+    },
+    "test-artifacts/netem-web91-20261008/pilot-final/coverage.json": {
+      "sha256": "34460a9e0c28756a78b96fd9f83141a488a2b38c1cb15a6b296121d6304f3bc9",
+      "bytes": 1040
+    },
+    "test-artifacts/netem-web91-20261008/pilot-final-rehearsal/preservation.json": {
+      "sha256": "533cbb0d1cb3a2bd7eb13a981b6334f3de87e5f4d340837ef33285060dcc9ab9",
+      "bytes": 4447
+    },
+    "test-artifacts/netem-web91-20261008/pilot-final-rehearsal/batch-undo.json": {
+      "sha256": "caa29a911b1af0492f8b4186a7c18012086a779777b31154605e74df5a060c59",
+      "bytes": 2781292
+    },
+    "test-artifacts/netem-web91-20261008/full-rehearsal-final/preservation.json": {
+      "sha256": "b8587cc5083b9541fa7d69bbff1c876c599e04c8739d14d73b38db2d6182570f",
+      "bytes": 4447
+    },
+    "test-artifacts/netem-web91-20261008/full-rehearsal-final/batch-undo.json": {
+      "sha256": "ab3f2b66668ffbc4f16eedb05c16c7cafff46c9b51f9c8f0e557b700e5702933",
+      "bytes": 205321837
+    },
+    "test-artifacts/netem-web91-20261008/browser-pilot.json": {
+      "sha256": "e09e7c018a1294e415873544e13e804c224de575a2263d1c4b49308042c4f86d",
+      "bytes": 58996
+    },
+    "test-artifacts/netem-web91-20261008/browser-full.json": {
+      "sha256": "4bfa5c219b60b8a7d3b7e459935481b329ae3fa0a9f135bc2a88e425cc4ec376",
+      "bytes": 58984
+    }
+  }
+}
