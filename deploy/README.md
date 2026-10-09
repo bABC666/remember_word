@@ -36,15 +36,17 @@ server's CPU, follow [the OCR installation and verification guide](OCR.md).
 Copy `deploy/shici.env.example` to `/etc/shici/shici.env`. Set a DeepSeek key
 there if AI features are needed. The empty database is initialized **once**, to
 the exact revision in this package. For the current package that revision is
-`0010_entry_source_revision`; check the Alembic heads again before running:
+`0016_dictionary_extraction`; check the Alembic heads again before running:
 
 ```sh
 cd /opt/shici/current/backend
 sudo -u shici env VOCAB_DATA_DIR=/var/lib/shici VOCAB_DATABASE_PATH=/var/lib/shici/vocab.db \
   /opt/shici/current/.venv/bin/python -m alembic heads
 sudo -u shici env VOCAB_DATA_DIR=/var/lib/shici VOCAB_DATABASE_PATH=/var/lib/shici/vocab.db \
-  /opt/shici/current/.venv/bin/python -m alembic upgrade 0010_entry_source_revision
+  /opt/shici/current/.venv/bin/python -m alembic upgrade 0016_dictionary_extraction
 ```
+
+This command is only for the new empty staging database described above; existing databases require their own backup and rehearsed migration plan.
 
 The migration creates an `admin` account with an unusable password. Set its
 password interactively; never put a password on the command line:

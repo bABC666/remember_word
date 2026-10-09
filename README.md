@@ -103,13 +103,15 @@ Vite 会把 `/api` 代理到 `127.0.0.1:8000`。
 
 ```powershell
 backend\.venv\Scripts\python.exe -m pytest backend\tests -q
-backend\.venv\Scripts\python.exe -m ruff check backend
+backend\.venv\Scripts\python.exe -m ruff check backend/app backend/tests tools
 cd frontend
 npm test
 npm run typecheck
 npm run lint
 npm run build
 ```
+
+部分来源审计与发布回归依赖本机保存的固定词典证据、候选包或历史测试快照，这些输入位于 Git 忽略的 `test-artifacts/`，不随源码分发；运行完整相关验证前应准备匹配指纹的输入。测试使用合成临时库或隔离历史副本，不能连接正式数据库。当前验证范围与结果见[源码同步记录](docs/GITHUB-SYNC-2026-10-09.md)。
 
 ## 目录
 
