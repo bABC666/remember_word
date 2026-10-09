@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -372,6 +373,7 @@ class UserSession(Base):
     """
 
     __tablename__ = "user_session"
+    __table_args__ = ({"sqlite_autoincrement": True},)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(
@@ -400,6 +402,9 @@ class UserSettings(Base):
     daily_new_words: Mapped[int] = mapped_column(Integer, default=15)
     article_length: Mapped[int] = mapped_column(Integer, default=650)
     onboarding_seen: Mapped[bool] = mapped_column(Boolean, default=False)
+    selected_lexicon_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lexicon.id", ondelete="SET NULL"), nullable=True
+    )
     theme: Mapped[str] = mapped_column(String(16), default="auto")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -476,6 +481,25 @@ class LexiconEntry(Base):
     )
 
     lexicon: Mapped[Lexicon] = relationship(back_populates="entries")
+    dictionary_extraction: Mapped[EntryDictionaryExtraction | None] = relationship(
+        lazy="selectin", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class EntryDictionaryExtraction(Base):
+    """Full, unconfirmed source extraction; never writes a concise meaning or user state.
+
+    Payload contains original text, per-sense language/POS positions, source hashes,
+    attribution, pronunciations and quarantined records. No confirmer is representable.
+    """
+
+    __tablename__ = "entry_dictionary_extraction"
+    lexicon_entry_id: Mapped[int] = mapped_column(
+        ForeignKey("lexicon_entry.id", ondelete="CASCADE"), primary_key=True
+    )
+    parser_version: Mapped[str] = mapped_column(String(64))
+    payload_sha256: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JSON)
 
 
 class UserLexicon(Base):
@@ -765,11 +789,81 @@ class EntrySourceEvidence(Base):
 CONCISE_MEANING_KINDS: tuple[str, ...] = ("source", "derived", "ai_supplement")
 CONCISE_MEANING_STATUSES: tuple[str, ...] = ("candidate", "confirmed", "rejected")
 
-#: The product rule is "one to three short, common senses". The cap is enforced by
-#: the database as well as the service so a later code path cannot widen it silently;
-#: widening it is a product decision and therefore a migration.
+#: The product rule is "one to three short, common senses" **per part of speech**, and
+#: the cap is enforced by the database as well as the service so a later code path
+#: cannot widen it silently; widening it is a product decision and therefore a
+#: migration. The cap is per group: a word with two parts of speech may legitimately
+#: show more than three values in total, which is why there is deliberately **no** cap
+#: on the number of display rows a word may have.
 CONCISE_MEANING_MAX_LENGTH = 40
 CONCISE_MEANING_MAX_SLOTS = 3
+
+#: The closed vocabulary of part-of-speech keys. A closed set is what makes grouping
+#: deterministic: with free text, ``名詞``/``名词``/``n.``/``noun`` would become four
+#: groups for one word and the unique slot index could not stop it. Adding a key is a
+#: product decision and therefore a migration, the same rule ``MAX_SLOTS`` follows.
+#:
+#: The keys are English tags rather than the headings a source happens to use, because
+#: the heading is *evidence for* a part of speech, not its identity: ``Wiktionary``
+#: spells the same category ``形容詞`` on one page and ``形容词`` on another.
+CONCISE_MEANING_POS_KEYS: tuple[str, ...] = (
+    "noun",
+    "verb",
+    "adj",
+    "adv",
+    "pron",
+    "det",
+    "num",
+    "prep",
+    "conj",
+    "interj",
+    "particle",
+    "classifier",
+    "abbrev",
+    "prefix",
+    "suffix",
+    "phrase",
+)
+
+#: Where a row's part of speech came from. ``none`` is the only value allowed while the
+#: part of speech is undetermined, and it is the value a candidate starts life with:
+#: a part of speech is never *inferred* from a display value, because that would be a
+#: machine guess presented as a fact about the word.
+CONCISE_MEANING_POS_SOURCES: tuple[str, ...] = ("none", "pos_section", "reviewer")
+
+#: How "the part of speech is not established yet" is stored. Deliberately ``""`` and
+#: not ``NULL``: migration 0010 established this repository's rule that a text-ish
+#: column records "unknown" exactly one way, and that the way is ``NOT NULL DEFAULT ''``
+#: rather than nullable. ``NULL`` would add a second spelling of the same state, and the
+#: two would then have to be compared as equal in every constraint and query.
+CONCISE_MEANING_POS_UNDETERMINED = ""
+
+#: The languages a concise meaning may declare: the entry's own language, or "not
+#: recorded". ``""`` again means "unknown" rather than "some other language".
+#:
+#: A part-of-speech grouping is not enough on its own. A zh.wiktionary page carries
+#: several languages' sections -- the word ``mutter`` has Danish, Norwegian and Swedish
+#: noun senses beside its English ones -- so a Chinese gloss taken from the wrong section
+#: would otherwise be grouped as if it were an English sense. Recording the language is
+#: what lets a reader check that, and the constraint below makes a row that declares
+#: itself to be some *other* language unrepresentable in the first place.
+CONCISE_MEANING_LANGUAGES: tuple[str, ...] = ("", "en")
+
+#: ``pos_key``/``pos_source``/``language`` as SQL literal lists, built from the tuples so
+#: a value can never be legal in Python and illegal in the database.
+CONCISE_MEANING_POS_KEY_SQL = ", ".join(repr(key) for key in ("", *CONCISE_MEANING_POS_KEYS))
+CONCISE_MEANING_POS_SOURCE_SQL = ", ".join(repr(source) for source in CONCISE_MEANING_POS_SOURCES)
+CONCISE_MEANING_LANGUAGE_SQL = ", ".join(repr(language) for language in CONCISE_MEANING_LANGUAGES)
+
+#: Server default for ``pos_order``, kept as a module-level object rather than written
+#: inline as ``text("1")``.
+#:
+#: Both tables below declare a column named ``text``, and a name assigned anywhere in a
+#: class body shadows the module import for every later line of that body -- so an inline
+#: ``text("1")`` further down the class would call the *column* and raise
+#: ``TypeError: 'MappedColumn' object is not callable``. Hoisting it also states the
+#: intent: this is one object shared by the model and the migration's DDL.
+CONCISE_MEANING_POS_ORDER_SERVER_DEFAULT = text("1")
 
 
 class EntryConciseMeaning(Base):
@@ -795,12 +889,19 @@ class EntryConciseMeaning(Base):
 
     __tablename__ = "entry_concise_meaning"
     __table_args__ = (
-        # One row per slot. A rejected row does not hold its slot: withdrawing a
+        # One row per display slot. A rejected row does not hold its slot: withdrawing a
         # value is how a displayed meaning is changed, so the freed slot has to be
         # usable again without deleting the record of what was withdrawn.
+        #
+        # ``pos_key`` is part of the slot because ``display_order`` is 1..3 *within a
+        # part of speech*: without it a word's second part of speech could not have a
+        # first slot. Two rows that are both still undetermined (``pos_key = ''``) do
+        # collide here, which is the intended reading -- an unclassified candidate
+        # occupies the undetermined group's slot until someone classifies it.
         Index(
             "uq_entry_concise_meaning_slot",
             "lexicon_entry_id",
+            "pos_key",
             "display_order",
             unique=True,
             sqlite_where=text("status <> 'rejected'"),
@@ -849,6 +950,61 @@ class EntryConciseMeaning(Base):
             " OR (confirmed_at IS NOT NULL AND length(trim(confirmed_by_username)) > 0)",
             name="ck_entry_concise_meaning_confirmed_is_attributed",
         ),
+        # --- the part-of-speech group (migration 0011) -------------------------
+        # A key outside the closed vocabulary would silently create a new group, which
+        # is exactly the drift the closed set exists to prevent.
+        CheckConstraint(
+            f"pos_key in ({CONCISE_MEANING_POS_KEY_SQL})",
+            name="ck_entry_concise_meaning_pos_key",
+        ),
+        CheckConstraint(
+            f"pos_source in ({CONCISE_MEANING_POS_SOURCE_SQL})",
+            name="ck_entry_concise_meaning_pos_source",
+        ),
+        # A key is stored already trimmed, so two rows cannot differ by invisible
+        # whitespace while claiming to be the same group.
+        CheckConstraint(
+            "pos_key = trim(pos_key)",
+            name="ck_entry_concise_meaning_pos_key_trimmed",
+        ),
+        # "Not established" and "no source for it" are the same state, so they are
+        # forced to agree in both directions. This is what makes an undetermined part of
+        # speech impossible to *store* as though a source had labelled it.
+        CheckConstraint(
+            "(pos_key = '' AND pos_source = 'none')"
+            " OR (pos_key <> '' AND pos_source <> 'none')",
+            name="ck_entry_concise_meaning_pos_key_matches_source",
+        ),
+        # Either the part of speech is undetermined and carries no evidence, or it is
+        # established and says *where from* -- a heading in the pinned revision, or a
+        # reviewer's own judgement. There is no third shape, so a part of speech cannot
+        # be recorded as a bare assertion.
+        CheckConstraint(
+            "(pos_source = 'none' AND length(trim(pos_evidence_locator)) = 0)"
+            " OR (pos_source <> 'none' AND length(trim(pos_evidence_locator)) > 0)",
+            name="ck_entry_concise_meaning_pos_evidence",
+        ),
+        # Group positions are 1-based. There is deliberately no upper bound: the number
+        # of parts of speech a word has is a fact about the word, not a product quota,
+        # and a quota here would silently drop a real group. The per-group cap that *is*
+        # a product rule is ``display_order between 1 and 3`` above.
+        CheckConstraint(
+            "pos_order >= 1",
+            name="ck_entry_concise_meaning_pos_order_positive",
+        ),
+        # A row may not declare itself to be in some other language. See
+        # ``CONCISE_MEANING_LANGUAGES``: the empty string means "not recorded", and a
+        # source page's Danish or French section must not be storable as an English
+        # sense. Recording "not recorded" is still possible, so this closes the
+        # *declared* leak rather than pretending it closes every one.
+        CheckConstraint(
+            f"language in ({CONCISE_MEANING_LANGUAGE_SQL})",
+            name="ck_entry_concise_meaning_language",
+        ),
+        CheckConstraint(
+            "language = trim(language)",
+            name="ck_entry_concise_meaning_language_trimmed",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -887,10 +1043,71 @@ class EntryConciseMeaning(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
+    #: --- the part-of-speech group (migration 0011) ---------------------------
+    #:
+    #: Declared last because migration 0011 appends them: a table built by the
+    #: migrations and one built by ``create_all`` then have the same column order.
+    #:
+    #: ``pos_key`` is the group identity, ``pos_label`` is only how it is shown, and
+    #: ``pos_order`` is which group comes first. Keeping the identity separate from the
+    #: label is what makes renaming a label a display change instead of a regrouping.
+    pos_key: Mapped[str] = mapped_column(
+        String(24), default=CONCISE_MEANING_POS_UNDETERMINED, server_default=""
+    )
+    #: Shown for the group, e.g. ``动词``. Never used for grouping.
+    pos_label: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    #: 1-based order of the group within the entry.
+    #:
+    #: ``server_default`` is declared as well as the Python default so a table built by
+    #: ``create_all`` and one built by the migrations agree: without it, a writer that
+    #: does not name this column (every pre-0011 writer) would get a NOT NULL violation
+    #: on a ``create_all`` database and silently succeed on a migrated one.
+    pos_order: Mapped[int] = mapped_column(
+        Integer, default=1, server_default=CONCISE_MEANING_POS_ORDER_SERVER_DEFAULT
+    )
+    #: none | pos_section | reviewer
+    pos_source: Mapped[str] = mapped_column(
+        String(16), default="none", server_default="none"
+    )
+    #: Where the part of speech came from: the heading in the pinned revision
+    #: (``zhwiktionary:9576029:12``) for ``pos_section``, or the gloss line itself for a
+    #: reviewer's own call. Empty exactly when ``pos_source = 'none'``.
+    pos_evidence_locator: Mapped[str] = mapped_column(
+        String(200), default="", server_default=""
+    )
+    #: The language this sense belongs to; ``''`` means "not recorded".
+    language: Mapped[str] = mapped_column(String(16), default="", server_default="")
+
+    #: Optional persistent bindings to the pinned source's individual lines. Kept
+    #: separate: a gloss line is not its part-of-speech heading. Existing candidates
+    #: have NULL here until their source lines are explicitly verified; locators and
+    #: CSV ``source_evidence_id`` retain their original meaning.
+    primary_wikitext_line_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_wikitext_line.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    pos_wikitext_line_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_wikitext_line.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+
     entry: Mapped[LexiconEntry] = relationship()
+    #: Additional source positions this one display value rests on, beyond the primary
+    #: ``source_locator`` above. Deleting the value deletes them: they describe it.
+    citations: Mapped[list[EntryConciseMeaningCitation]] = relationship(
+        back_populates="meaning",
+        cascade="all, delete-orphan",
+        order_by="EntryConciseMeaningCitation.citation_order",
+    )
 
     @property
-    def is_displayable(self) -> bool:
+    def is_confirmed(self) -> bool:
+        """Only the status half of "may this be shown".
+
+        Deliberately **not** called ``is_displayable``: displayability also requires an
+        established part of speech, a stated basis with a position, the target language
+        and -- for a supplement -- no citations. That rule lives in one place,
+        ``app.services.concise_meaning.display_refusal_reason``, so the model cannot
+        hold a second, weaker copy of it that a reader might mistake for the real one.
+        """
         return self.status == "confirmed"
 
 
@@ -937,4 +1154,384 @@ class EntryConciseMeaningRevision(Base):
     )
     actor_username: Mapped[str] = mapped_column(String(64), default="")
     note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    #: --- the group that was in force (migration 0011) ------------------------
+    #:
+    #: The history has to record the grouping as well as the wording. Without these,
+    #: "who moved this value from the noun group to the verb group, and when" is not
+    #: answerable from the append-only record -- and moving a value between groups is a
+    #: change to what the study page shows, so it belongs here rather than only in the
+    #: current row.
+    #:
+    #: They are snapshots, so they carry no constraints of their own: a revision that
+    #: says ``''``/``none`` is the honest record of a proposal made before anyone had
+    #: established the part of speech.
+    pos_key: Mapped[str] = mapped_column(String(24), default="", server_default="")
+    pos_order: Mapped[int] = mapped_column(
+        Integer, default=1, server_default=CONCISE_MEANING_POS_ORDER_SERVER_DEFAULT
+    )
+    pos_source: Mapped[str] = mapped_column(String(16), default="none", server_default="none")
+
+
+class EntryConciseMeaningCitation(Base):
+    """One additional source position a displayed value rests on.
+
+    A display value may rest on more than one position, and on more than one *source*:
+    the trial record's ``decrease`` shows ``减少；降低`` merging a zh.wiktionary line with
+    a WikDict value, and ``performance`` shows two display values that both come from a
+    single zh.wiktionary line. Neither shape fits the single ``source_locator`` /
+    ``source_evidence_id`` pair on the meaning row, and neither fits a delimited string:
+    only a row can carry its own ``source_evidence_id``, and pointing at the evidence is
+    what makes the value checkable without the source file still being on disk.
+
+    The primary citation stays on ``entry_concise_meaning`` rather than moving here.
+    That keeps every CHECK that already guards it in force -- a non-supplement must name
+    a position, a supplement must name none -- and leaves this table meaning strictly
+    "the additional ones". The cost is that reading a value's full provenance means
+    reading both the row and its citations, which is why ``entry_provenance`` is the one
+    place that does it.
+
+    ``ON DELETE CASCADE`` on the meaning: a citation describes a display value and has
+    no meaning of its own once the value is gone. ``ON DELETE SET NULL`` on the evidence
+    row, matching the meaning row's own foreign key, so losing an evidence row degrades
+    the link but never deletes the citation or the value it supports.
+    """
+
+    __tablename__ = "entry_concise_meaning_citation"
+    __table_args__ = (
+        # 1-based, and unique per value: a citation list is a list, not a bag, and a
+        # duplicated position would render twice.
+        Index(
+            "uq_entry_concise_meaning_citation_order",
+            "concise_meaning_id",
+            "citation_order",
+            unique=True,
+        ),
+        CheckConstraint(
+            "citation_order >= 1",
+            name="ck_entry_concise_meaning_citation_order_positive",
+        ),
+        # A citation whose position is blank cannot be checked against anything, which is
+        # the one thing a citation is for.
+        CheckConstraint(
+            "length(trim(citation_locator)) > 0",
+            name="ck_entry_concise_meaning_citation_locator_present",
+        ),
+        CheckConstraint(
+            "citation_locator = trim(citation_locator)",
+            name="ck_entry_concise_meaning_citation_locator_trimmed",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    concise_meaning_id: Mapped[int] = mapped_column(
+        ForeignKey("entry_concise_meaning.id", ondelete="CASCADE"), index=True
+    )
+    #: 1-based position in this value's citation list.
+    citation_order: Mapped[int] = mapped_column(Integer)
+    #: Human-readable source position, e.g. ``zhwiktionary:9576029:15`` or ``wikdict:37``.
+    #: A column of its own rather than a join, for the same reason the primary locator
+    #: is: it has to survive the evidence row being removed.
+    citation_locator: Mapped[str] = mapped_column(String(200))
+    #: The evidence row this position resolves to, when the import recorded one.
+    source_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("entry_source_evidence.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    #: Optional pinned wikitext line for this *additional* citation. A WikDict CSV
+    #: citation continues to use ``source_evidence_id`` and can leave this NULL.
+    wikitext_line_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_wikitext_line.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+
+    meaning: Mapped[EntryConciseMeaning] = relationship(back_populates="citations")
+
+
+# --- Phase 2.9 follow-up: the pinned wikitext line behind a citation ---------
+#
+# Two different things are called "the line a value came from", and migration 0012 is
+# what keeps them apart:
+#
+# 1. ``entry_source_evidence.row_locator`` -- the physical line of a *converted* file.
+#    For ``prior`` that is line 139 of ``zhwiktionary-v4en.csv``, and its ``zh_meaning``
+#    cell aggregates several senses into one field.
+# 2. ``source_wikitext_line`` (below) -- a line of the *wikitext* of one pinned page
+#    revision. For the same word those are ``9576029:12`` (the ``===形容詞===`` heading),
+#    ``:15``/``:16`` (glosses under it) and ``:23`` (a gloss under ``===副詞===``).
+#
+# ``139`` and ``15`` are both integers and both mean "the line"; they index different
+# files and neither can stand in for the other. The CSV row was already storable. This
+# table is the missing half: one row per cited line of one page revision, with the
+# page's own fingerprint, the headings that govern the line, and -- when the line is
+# itself a part-of-speech heading -- the heading's text and the key it maps to.
+#
+# What it deliberately does **not** do: it binds no citation and no part of speech. The
+# bindings and the confirmation rules that read them are a later slice; this table only
+# makes the line a thing that can be pointed at.
+
+#: How the two path columns are joined, spelled once so a stored path and the string a
+#: reader compares it with cannot drift apart. It is the same ``' > '`` the extraction
+#: index writes in its ``section`` field.
+SOURCE_WIKITEXT_LINE_PATH_SEPARATOR = " > "
+
+#: ``pos_heading_key`` as a SQL literal list, built from the same tuple migration 0011
+#: uses for the display grouping: one closed vocabulary of parts of speech, so a heading
+#: can never establish a part of speech no group can hold.
+SOURCE_WIKITEXT_LINE_POS_KEY_SQL = ", ".join(
+    repr(key) for key in ("", *CONCISE_MEANING_POS_KEYS)
+)
+
+
+def source_wikitext_line_sha256(
+    *,
+    source_id: str,
+    page_revision: str,
+    page_text_sha256: str,
+    line_number: int,
+    raw_text: str,
+) -> str:
+    """The fingerprint of one recorded line, as stored in ``line_sha256``.
+
+    ``sha256`` over the five fields joined by a newline, in the order above, encoded as
+    UTF-8 and written as lowercase hex. The serialization is unambiguous because no
+    field can contain a newline: ``raw_text`` and ``source_id`` are refused if they do
+    (``ck_source_wikitext_line_text_single_line`` and
+    ``ck_source_wikitext_line_source_id_single_line``), and ``page_revision`` is a run of
+    digits.
+
+    The page's own fingerprint is part of the formula on purpose. A hash over the line
+    text alone would be identical for the same words appearing in two different pages or
+    in two revisions of one page, and would then prove nothing about *this* citation;
+    binding the page digest means a row cannot be moved to another page or another
+    revision and still verify.
+
+    Computed here rather than left to each writer, because the value is only useful if
+    the confirmation step recomputes exactly the same digest: two spellings of the
+    formula would make every stored row look tampered with.
+    """
+    joined = "\n".join(
+        (source_id, page_revision, page_text_sha256, str(line_number), raw_text)
+    )
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+class SourceWikitextLine(Base):
+    """One line of one pinned revision of one source page, stored verbatim.
+
+    Written once and never updated. The row is the answer to "what did line 15 of
+    oldid 9576029 actually say", and it stays that answer after the preserved archive
+    is moved, re-packed or lost -- which is the whole reason the line is copied into
+    the database instead of being read from a file at display time.
+
+    Identity is ``(source_id, page_revision, line_number)``: one revision of one page
+    has exactly one line 15, so a second row for the same triple is refused rather than
+    overwriting or joining the first. ``source_id`` is part of the key because an
+    ``oldid`` is unique only inside the wiki that issued it.
+
+    ``source_artifact_id`` names the preserved bytes this line was read from, and its
+    ``file_sha256``/``mapping_sha256`` are the artifact fingerprint; ``page_text_sha256``
+    is the digest of the whole page text and ``line_sha256`` the digest of this row, so
+    both the page and the line can be re-checked against a re-read of the archive.
+
+    Three of the rules that make it evidence are **triggers**, and they exist only in the
+    database the migrations build: SQLAlchemy has no construct for them, so a table made
+    by ``create_all`` would enforce the columns and the CHECKs and none of this. The rows
+    are append-only -- no UPDATE and no DELETE, because a recorded line is what the page
+    said and a silent rewrite of it would be a source reading that nobody took -- and one
+    ``(source_id, page_revision)`` may carry only one ``page_text_sha256``, because an
+    ``oldid`` names one immutable revision and a second digest for it is one of the two
+    being wrong. ``backend/tests/test_source_wikitext_line.py`` asserts both the presence
+    of the triggers and their effect, and the migration asserts them on the way in.
+    """
+
+    __tablename__ = "source_wikitext_line"
+    __table_args__ = (
+        # One row per position. Deliberately *not* keyed on the artifact: an oldid names
+        # one immutable revision upstream, so two rows for the same triple would be two
+        # spellings of one fact, and a reader looking the locator up could not tell which
+        # of them a citation meant.
+        Index(
+            "uq_source_wikitext_line_position",
+            "source_id",
+            "page_revision",
+            "line_number",
+            unique=True,
+        ),
+        # --- the declared source ------------------------------------------------
+        CheckConstraint(
+            "length(source_id) > 0",
+            name="ck_source_wikitext_line_source_id_present",
+        ),
+        CheckConstraint(
+            "source_id = trim(source_id)",
+            name="ck_source_wikitext_line_source_id_trimmed",
+        ),
+        # A locator is ``source_id:revision:line``, so an id containing ``:`` would make
+        # the string ambiguous -- and the decision record's rule is that a source is
+        # resolved through a declared alias, never by reading a prefix off the string.
+        CheckConstraint(
+            "instr(source_id, ':') = 0",
+            name="ck_source_wikitext_line_source_id_unambiguous",
+        ),
+        # Unambiguous *and* one line: the id is one of the fields joined into
+        # ``line_sha256``, and that serialization is only unambiguous while no field can
+        # contain a line break.
+        CheckConstraint(
+            "instr(source_id, char(10)) = 0 AND instr(source_id, char(13)) = 0",
+            name="ck_source_wikitext_line_source_id_single_line",
+        ),
+        # --- the page revision and the line -------------------------------------
+        CheckConstraint(
+            "length(page_revision) > 0",
+            name="ck_source_wikitext_line_revision_present",
+        ),
+        CheckConstraint(
+            "page_revision = trim(page_revision)",
+            name="ck_source_wikitext_line_revision_trimmed",
+        ),
+        # An oldid is a run of digits, which is also what stops a CSV row number, a
+        # commit hash or a free-form version string from being stored as a page
+        # revision: a line here is a line of a *page*, or it is not storable at all.
+        CheckConstraint(
+            "page_revision NOT GLOB '*[^0-9]*'",
+            name="ck_source_wikitext_line_revision_digits",
+        ),
+        CheckConstraint(
+            "line_number >= 1",
+            name="ck_source_wikitext_line_number_positive",
+        ),
+        # ...and a *number*. SQLite keeps text that does not look numeric in an INTEGER
+        # column and sorts every INTEGER before every TEXT, so a stored ``'abc'`` would
+        # compare as "after line 15" while every reader treats the column as a position.
+        CheckConstraint(
+            "typeof(line_number) = 'integer'",
+            name="ck_source_wikitext_line_number_integer",
+        ),
+        # --- the line's own text ------------------------------------------------
+        # A cited line with nothing in it proves nothing. Not trimmed: wikitext
+        # indentation and list markers are content, not noise.
+        CheckConstraint(
+            "length(trim(raw_text)) > 0",
+            name="ck_source_wikitext_line_text_present",
+        ),
+        # One line, literally. A CR or LF would make the stored text a block, and the
+        # line number would then no longer say which text a citation means.
+        CheckConstraint(
+            "instr(raw_text, char(10)) = 0 AND instr(raw_text, char(13)) = 0",
+            name="ck_source_wikitext_line_text_single_line",
+        ),
+        # --- the paths ----------------------------------------------------------
+        CheckConstraint(
+            "language_path = trim(language_path) AND heading_path = trim(heading_path)",
+            name="ck_source_wikitext_line_paths_trimmed",
+        ),
+        CheckConstraint(
+            "instr(language_path, char(10)) = 0 AND instr(language_path, char(13)) = 0"
+            " AND instr(heading_path, char(10)) = 0 AND instr(heading_path, char(13)) = 0",
+            name="ck_source_wikitext_line_paths_single_line",
+        ),
+        # When a language is recorded, the heading path is that language itself or a
+        # sub-path under it. ``substr`` rather than ``LIKE``: a path may contain ``%``
+        # or ``_``, and a pattern match would treat those as wildcards and accept a
+        # heading path that is not under the recorded language at all.
+        CheckConstraint(
+            "length(language_path) = 0"
+            " OR heading_path = language_path"
+            " OR substr(heading_path, 1, length(language_path) + 3)"
+            f" = language_path || '{SOURCE_WIKITEXT_LINE_PATH_SEPARATOR}'",
+            name="ck_source_wikitext_line_heading_path_under_language",
+        ),
+        # --- the part-of-speech heading basis -----------------------------------
+        CheckConstraint(
+            f"pos_heading_key in ({SOURCE_WIKITEXT_LINE_POS_KEY_SQL})",
+            name="ck_source_wikitext_line_pos_heading_key",
+        ),
+        CheckConstraint(
+            "pos_heading_key = trim(pos_heading_key)",
+            name="ck_source_wikitext_line_pos_heading_key_trimmed",
+        ),
+        CheckConstraint(
+            "pos_heading_text = trim(pos_heading_text)",
+            name="ck_source_wikitext_line_pos_heading_text_trimmed",
+        ),
+        # The key and the heading it was read from stand or fall together, in both
+        # directions: no key without its heading text, and no heading text that claims
+        # no part of speech. A part of speech is therefore never a bare assertion here.
+        CheckConstraint(
+            "(pos_heading_key = '' AND length(pos_heading_text) = 0)"
+            " OR (pos_heading_key <> '' AND length(pos_heading_text) > 0)",
+            name="ck_source_wikitext_line_pos_heading_agrees",
+        ),
+        CheckConstraint(
+            "instr(pos_heading_text, char(10)) = 0"
+            " AND instr(pos_heading_text, char(13)) = 0",
+            name="ck_source_wikitext_line_pos_heading_text_single_line",
+        ),
+        # --- the fingerprints ---------------------------------------------------
+        # Lowercase hex, exactly 64 characters: a truncated digest, or one in another
+        # alphabet, cannot be compared byte-for-byte with a digest recomputed from the
+        # preserved page, and a fingerprint that cannot be compared is not one.
+        CheckConstraint(
+            "length(page_text_sha256) = 64"
+            " AND page_text_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="ck_source_wikitext_line_page_text_fingerprint",
+        ),
+        CheckConstraint(
+            "length(line_sha256) = 64 AND line_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="ck_source_wikitext_line_line_fingerprint",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    #: The preserved file the line was read from. ``RESTRICT``, matching
+    #: ``entry_source_evidence``: the bytes a line was read from cannot be removed out
+    #: from under the record of that read.
+    source_artifact_id: Mapped[int] = mapped_column(
+        ForeignKey("source_artifact.id", ondelete="RESTRICT"), index=True
+    )
+    #: The **declared** source id, e.g. ``zhwiktionary-pinned-oldid`` -- not the short
+    #: name a locator string uses. Resolving that alias is the confirmation entry's job;
+    #: storing the resolved id is what keeps the row readable without it.
+    source_id: Mapped[str] = mapped_column(String(64))
+    #: The pinned revision of the page (zh.wiktionary's ``oldid``). The same fact
+    #: migration 0010 records as ``entry_source_evidence.source_revision`` for a CSV
+    #: row; named for what it is here, because this row's line number indexes *this*
+    #: revision's text and nothing else.
+    page_revision: Mapped[str] = mapped_column(String(64))
+    #: 1-based line number in that revision's wikitext. The database also requires
+    #: ``typeof(line_number) = 'integer'``: SQLite's INTEGER affinity keeps text that
+    #: does not look numeric as text, and would then order it after every real line.
+    line_number: Mapped[int] = mapped_column(Integer)
+    #: The line, byte for byte. Never trimmed, never truncated, and never rewritten
+    #: into simplified characters: it is what the source said, and the confirmation
+    #: step's verbatim test reads *this* column.
+    raw_text: Mapped[str] = mapped_column(Text)
+    #: The language section the line sits in, e.g. ``英語``. ``''`` means the language
+    #: was not determined -- the honest answer for a page lead -- and never "some other
+    #: language". A row whose heading path says another language cannot be stored.
+    language_path: Mapped[str] = mapped_column(String(160), default="", server_default="")
+    #: The headings that govern the line, joined by ``' > '``, e.g. ``英語 > 形容詞``.
+    #: The line's own heading is included when it has one; a line that is itself a
+    #: heading is described by ``pos_heading_*`` below.
+    heading_path: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    #: The part of speech this line *is the heading for*, from the closed vocabulary
+    #: ``CONCISE_MEANING_POS_KEYS``. Empty when the line is not a part-of-speech
+    #: heading -- which is also what makes a non-heading (``發音``, ``詞源``) unable to
+    #: pass as a basis for one.
+    pos_heading_key: Mapped[str] = mapped_column(String(24), default="", server_default="")
+    #: The heading as written, e.g. ``形容詞``. Kept beside the key for the same reason
+    #: ``pos_label`` is kept beside ``pos_key``: the heading is the *evidence*, the key
+    #: is the *mapping*, and Wiktionary spells one category ``形容詞`` on one page and
+    #: ``形容词`` on another.
+    pos_heading_text: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    #: SHA-256 of the whole pinned page text, lowercase hex. This is what makes the
+    #: version a *content* fact rather than a number: a re-fetch of ``page_revision``
+    #: that does not hash to this value is not the page these lines came from.
+    page_text_sha256: Mapped[str] = mapped_column(String(64))
+    #: SHA-256 of this row, from :func:`source_wikitext_line_sha256`. Recomputed by the
+    #: confirmation step, so a row whose text was edited in place is detectable without
+    #: the archive being present.
+    line_sha256: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -7,6 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Lexicon,
     LexiconEntry,
     ReviewEvent,
     User,
@@ -18,6 +19,8 @@ from app.services.day import today_bounds
 from app.services.scheduler import calculate_schedule
 from app.services.userdata import (
     WordView,
+    get_or_create_word_state,
+    load_readable_lexicon,
     load_user_article,
     load_user_word,
     load_user_word_state,
@@ -220,6 +223,7 @@ def build_today_queue(
     *,
     limit: int,
     now: datetime | None = None,
+    lexicon_id: int | None = None,
 ) -> TodayQueue:
     """What this user should study now: due words first, then new ones in budget.
 
@@ -230,20 +234,54 @@ def build_today_queue(
     it can never reduce the reviews.
     """
     moment = now or datetime.now(UTC)
-    due = _due_rows(session, user, moment, limit)
     budget = new_word_budget(session, user, now=moment)
+    if lexicon_id is not None:
+        load_readable_lexicon(session, user, lexicon_id)
+        _ensure_selected_states(session, user, lexicon_id, min(limit, budget.user_room))
+    due = _due_rows(session, user, moment, limit, lexicon_id)
 
     fresh: list[tuple[UserWordState, LexiconEntry]] = []
     room = limit - len(due)
     if room > 0 and budget.remaining > 0:
-        fresh = _new_rows(session, user, room, budget)
+        fresh = _new_rows(session, user, room, budget, lexicon_id)
 
     views = [WordView(state=state, entry=entry) for state, entry in (*due, *fresh)]
     return TodayQueue(words=views, budget=budget)
 
 
+def _ensure_selected_states(session: Session, user: User, lexicon_id: int, limit: int) -> None:
+    """Make only the next page of system entries studyable; never enrol in bulk."""
+    pending = session.scalar(
+        select(func.count()).select_from(UserWordState)
+        .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
+        .where(UserWordState.user_id == user.id, UserWordState.status == "new",
+               LexiconEntry.lexicon_id == lexicon_id)
+    ) or 0
+    limit = max(0, limit - pending)
+    if limit <= 0:
+        return
+    existing = select(UserWordState.lexicon_entry_id).where(UserWordState.user_id == user.id)
+    entries = session.scalars(
+        select(LexiconEntry).where(LexiconEntry.lexicon_id == lexicon_id,
+                                   LexiconEntry.id.not_in(existing))
+        .order_by(LexiconEntry.sequence, LexiconEntry.id).limit(limit)
+    ).all()
+    for entry in entries:
+        get_or_create_word_state(session, user, entry)
+    session.commit()
+
+
+def _readable_lexicon_ids(user: User):
+    # Withdrawal keeps historical states intact. A fallback queue must still
+    # respect library visibility rather than re-serving a withdrawn library.
+    return select(Lexicon.id).where(or_(
+        Lexicon.owner_user_id == user.id,
+        (Lexicon.owner_user_id.is_(None)) & (Lexicon.visibility == "public"),
+    ))
+
+
 def _due_rows(
-    session: Session, user: User, moment: datetime, limit: int
+    session: Session, user: User, moment: datetime, limit: int, lexicon_id: int | None = None
 ) -> list[tuple[UserWordState, LexiconEntry]]:
     """Words that are not new and are due, ``weak`` first.
 
@@ -251,12 +289,15 @@ def _due_rows(
     ``status != 'new'`` plus one of "unscheduled" (rows that predate scheduling),
     "due now", or "weak" (always offered, whatever the schedule says).
     """
+    lexicon_filter = [] if lexicon_id is None else [LexiconEntry.lexicon_id == lexicon_id]
     return list(
         session.execute(
             select(UserWordState, LexiconEntry)
             .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
             .where(
                 UserWordState.user_id == user.id,
+                LexiconEntry.lexicon_id.in_(_readable_lexicon_ids(user)),
+                *lexicon_filter,
                 UserWordState.status != "new",
                 or_(
                     UserWordState.next_review_at.is_(None),
@@ -276,7 +317,8 @@ def _due_rows(
 
 
 def _new_rows(
-    session: Session, user: User, room: int, budget: NewWordBudget
+    session: Session, user: User, room: int, budget: NewWordBudget,
+    lexicon_id: int | None = None,
 ) -> list[tuple[UserWordState, LexiconEntry]]:
     """Up to ``room`` new words, spending the allowance as it goes.
 
@@ -285,14 +327,17 @@ def _new_rows(
     own pace. A candidate whose lexicon is already spent is skipped, so a slow-paced
     lexicon cannot block the others behind it in the ordering.
     """
+    lexicon_filter = [] if lexicon_id is None else [LexiconEntry.lexicon_id == lexicon_id]
     candidates = session.execute(
         select(UserWordState, LexiconEntry)
         .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
         .where(
             UserWordState.user_id == user.id,
+            LexiconEntry.lexicon_id.in_(_readable_lexicon_ids(user)),
+            *lexicon_filter,
             UserWordState.status == "new",
         )
-        .order_by(UserWordState.first_seen, UserWordState.id)
+        .order_by(LexiconEntry.sequence, UserWordState.first_seen, UserWordState.id)
         .limit(room)
     ).all()
 
@@ -379,7 +424,11 @@ def _lexicon_room(
     silently disappearing from the queue.
     """
     paces = {
-        row.lexicon_id: row.daily_new_words
+        # The legacy membership default is not a separately configured pace.
+        # It follows the personal goal, including increases made during the day.
+        row.lexicon_id: (
+            target if row.daily_new_words == DEFAULT_DAILY_NEW_WORDS else row.daily_new_words
+        )
         for row in session.scalars(
             select(UserLexicon).where(UserLexicon.user_id == user.id)
         )

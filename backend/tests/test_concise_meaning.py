@@ -248,18 +248,54 @@ def _source_snapshot(entry) -> tuple[Any, ...]:
 def _proposal(
     text: str,
     *,
-    kind: str = KIND_SOURCE,
+    kind: str = KIND_AI_SUPPLEMENT,
     order: int = 1,
-    locator: str = "primary:2",
-    note: str = "",
+    locator: str | None = None,
+    note: str = "人工补充测试值",
+    pos: str = "noun",
+    pos_order: int = 1,
+    pos_source: str = "reviewer",
+    pos_evidence: str = "zhwiktionary:9576029:15",
+    language: str = "en",
+    citations=(),
 ) -> ConciseMeaningProposal:
+    """One proposal that satisfies the display rules unless a test says otherwise.
+
+    The part of speech and the language are stated here rather than left undetermined
+    because ``confirm`` refuses an undetermined part of speech and an unrecorded
+    language: a helper that defaulted to "undetermined" would make every test in this
+    module fail for a reason none of them is about. The rules themselves are tested
+    directly -- here and in ``test_concise_meaning_pos.py`` -- by passing the
+    undetermined values explicitly.
+    """
     return ConciseMeaningProposal(
         text=text,
         provenance_kind=kind,
         display_order=order,
-        source_locator=locator,
+        source_locator=("" if kind == KIND_AI_SUPPLEMENT else "primary:2")
+        if locator is None else locator,
         derivation_note=note,
+        pos_key=pos,
+        pos_order=pos_order,
+        pos_source=pos_source,
+        pos_evidence_locator=pos_evidence,
+        language=language,
+        citations=tuple(citations),
     )
+
+
+def _meanings(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every value of every part-of-speech group, in the order the server returned them.
+
+    The response groups by part of speech, so a test about *which* values are shown --
+    rather than about the grouping -- reads them through this. The grouping itself is
+    asserted where it is the subject, in ``test_concise_meaning_api_groups.py``.
+    """
+    return [
+        meaning
+        for group in payload["concise_meanings"]
+        for meaning in group["meanings"]
+    ]
 
 
 def _rows(session, entry_id: int):
@@ -341,10 +377,10 @@ def test_source_label_refuses_wording_absent_from_recorded_source(admin) -> None
         assert _rows(session, entry.id) == []
 
 
-def test_a_simplified_value_displays_simplified_while_the_source_keeps_traditional(
+def test_a_simplified_value_without_line_evidence_is_withheld_and_source_stays_traditional(
     admin,
 ) -> None:
-    """The pilot's P03 case: the source says 農村的, the study page shows 农村的."""
+    """A conversion claim cannot be confirmed from a bare wikitext locator."""
     from app.models import LexiconEntry
     from app.services.concise_meaning import entry_short_meanings
 
@@ -358,19 +394,16 @@ def test_a_simplified_value_displays_simplified_while_the_source_keeps_tradition
                                  note="来源为「農村的」，此处为简体转换")],
             actor=_user(session, admin),
         )[0]
-        confirm(session, meaning=row, confirmer=_user(session, admin))
+        with pytest.raises(ConciseMeaningRefused, match="wikitext"):
+            confirm(session, meaning=row, confirmer=_user(session, admin))
         session.commit()
 
     with admin.session() as session:
         entry = session.get(LexiconEntry, entry.id)
-        short = entry_short_meanings(session, [entry.id])[entry.id]
+        groups = entry_short_meanings(session, [entry.id])
 
-    assert [item["text"] for item in short] == ["农村的"]
-    assert short[0]["provenance_kind"] == KIND_DERIVED
-    assert short[0]["is_source_verbatim"] is False, (
-        "a converted value is not the source's own wording and must not claim to be"
-    )
-    assert "简体转换" in short[0]["derivation_note"]
+    assert groups == {}
+    assert row.status == STATUS_CANDIDATE
     # The traditional source text is still there, untouched and still readable.
     assert entry.source_meanings == ["農村的"], "the source must not be converted"
     assert "農村的" in entry.source_raw
@@ -477,24 +510,117 @@ def test_the_database_itself_refuses_a_long_or_fourth_value(admin) -> None:
             session.rollback()
 
 
-def test_at_most_three_meanings_per_call(admin) -> None:
+def test_at_most_three_meanings_per_group_and_no_cap_per_word(admin) -> None:
+    """The cap is per part of speech, and a word may carry as many groups as it has.
+
+    ``play`` is the case: three verb senses plus one noun sense is four values for one
+    word, which the old per-word cap of three could not hold. Four in a *single* group
+    is still refused -- and the service refuses it through the position rules (a fourth
+    value either reuses a position or leaves the 1..3 range), which is why the messages
+    below are those two rather than a separate "too many per group" one.
+    """
     with admin.session() as session:
         lexicon = _system_lexicon(session, "cm-slots", "cm-test-slots")
         entry = _entry(session, lexicon, "maximum")
+        administrator = _user(session, admin)
+
         with pytest.raises(ConciseMeaningRefused) as error:
             propose(
                 session, entry=entry,
-                proposals=[_proposal(f"义项{i}", order=i) for i in range(1, 5)],
+                proposals=[_proposal(f"义项{i}", order=i, kind=KIND_DERIVED, note="改写")
+                           for i in range(1, 5)],
+                actor=administrator,
+            )
+        session.rollback()
+        assert "越界" in str(error.value)
+        assert "每组只允许" in str(error.value)
+
+        with pytest.raises(ConciseMeaningRefused) as error:
+            propose(
+                session, entry=entry,
+                proposals=[
+                    _proposal("甲", order=1, kind=KIND_DERIVED, note="改写"),
+                    _proposal("乙", order=2, kind=KIND_DERIVED, note="改写"),
+                    _proposal("丙", order=3, kind=KIND_DERIVED, note="改写"),
+                    _proposal("丁", order=1, kind=KIND_DERIVED, note="改写"),
+                ],
+                actor=administrator,
+            )
+        session.rollback()
+        assert "同一个词性组内展示位置不能重复" in str(error.value)
+
+        # Two groups, four values in total: accepted, because the cap is per group.
+        created = propose(
+            session, entry=entry,
+            proposals=[
+                _proposal("玩", order=1, pos="verb", pos_order=1, kind=KIND_DERIVED, note="改写"),
+                _proposal("演奏", order=2, pos="verb", pos_order=1, kind=KIND_DERIVED, note="改写"),
+                _proposal("播放", order=3, pos="verb", pos_order=1, kind=KIND_DERIVED, note="改写"),
+                _proposal("剧", order=1, pos="noun", pos_order=2, kind=KIND_DERIVED, note="改写"),
+            ],
+            actor=administrator,
+        )
+        session.commit()
+        assert len(created) == 4
+        assert sorted((row.pos_key, row.display_order) for row in created) == [
+            ("noun", 1), ("verb", 1), ("verb", 2), ("verb", 3),
+        ]
+
+
+def test_two_groups_may_not_share_a_group_order(admin) -> None:
+    """Group order has to be unambiguous, and no constraint can express that.
+
+    ``pos_order`` lives on every row, so two rows could claim the same group key at
+    different positions and the database would not object; "which group shows first"
+    would then depend on insertion order.
+    """
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-group-order", "cm-test-group-order")
+        entry = _entry(session, lexicon, "play")
+        with pytest.raises(ConciseMeaningRefused) as error:
+            propose(
+                session, entry=entry,
+                proposals=[
+                    _proposal("玩", order=1, pos="verb", pos_order=1),
+                    _proposal("剧", order=1, pos="noun", pos_order=1),
+                ],
                 actor=_user(session, admin),
             )
         session.rollback()
-        assert "最多提交 3 个" in str(error.value)
+        assert "组序冲突" in str(error.value)
+
+
+def test_a_later_call_may_not_renumber_an_existing_group(admin) -> None:
+    """A second ``propose`` call has to agree with what is already stored.
+
+    Otherwise the first group's position could be changed by submitting one more value,
+    silently reordering what the study page shows.
+    """
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-group-stable", "cm-test-group-stable")
+        entry = _entry(session, lexicon, "play")
+        administrator = _user(session, admin)
+        propose(session, entry=entry,
+                proposals=[_proposal("玩", order=1, pos="verb", pos_order=1,
+                                     kind=KIND_DERIVED, note="由「遊玩」繁转简")],
+                actor=administrator)
+        session.commit()
 
         with pytest.raises(ConciseMeaningRefused) as error:
-            propose(session, entry=entry, proposals=[_proposal("越界", order=4)],
-                    actor=_user(session, admin))
+            propose(session, entry=entry,
+                    proposals=[_proposal("演奏", order=2, pos="verb", pos_order=9,
+                                         kind=KIND_DERIVED, note="抽义")],
+                    actor=administrator)
         session.rollback()
-        assert "越界" in str(error.value)
+        assert "既有行与本提案不一致" in str(error.value)
+
+        # ...and a value in a *different* group is fine, because it is not that group.
+        propose(session, entry=entry,
+                proposals=[_proposal("剧", order=1, pos="noun", pos_order=2,
+                                     kind=KIND_DERIVED, note="抽义")],
+                actor=administrator)
+        session.commit()
+        assert len(_rows(session, entry.id)) == 2
 
 
 def test_evidence_from_another_entry_is_refused(admin) -> None:
@@ -586,6 +712,406 @@ def test_source_label_must_match_its_pointed_evidence(admin) -> None:
         assert _rows(session, entry.id) == []
 
 
+def _persist_csv_evidence(session, lexicon, entry, *, row: int, raw: str,
+                          source: str = "wikdict.csv", revision: str = "") -> int:
+    """Store one CSV-level chain that an import records, without source files."""
+    return _persist_csv_evidence_rows(
+        session, lexicon, entry, rows=[(row, raw)],
+        source=source, revision=revision,
+    )[row]
+
+
+def _persist_csv_evidence_rows(session, lexicon, entry, *, rows, source: str = "wikdict.csv",
+                               revision: str = "") -> dict[int, int]:
+    """Store one import's CSV-level chain for several rows of the same source.
+
+    One artifact and one run, because that is what an import produces and what the
+    confirmation re-checks: the file bytes, the mapping and the role identify the
+    source, so two rows of it are two evidence rows under one artifact -- not two
+    artifacts. Returns ``{row_locator: evidence_id}``.
+    """
+    import hashlib
+
+    from app.models import (
+        EntrySourceEvidence,
+        PublicImportRun,
+        PublicImportRunSource,
+        SourceArtifact,
+    )
+    from app.services.public_lexicon_plan import evidence_idempotency_key
+
+    tag = f"{entry.id}-{source}"
+    mapping_json = '{"columns":{"word":"word","meaning":"wikdict_meaning"}}'
+    mapping_sha256 = hashlib.sha256(mapping_json.encode()).hexdigest()
+    file_sha256 = (
+        "4dde746b901f7fa41e8137acf1cbd2cad8fd96b33144f5ebc146b8c415fbc894"
+        if source == "wikdict.csv" else "b" * 64
+    )
+    artifact = SourceArtifact(
+        role="meaning", name=source, publisher="synthetic", version="fixture-v1",
+        obtained_at_utc="2026-01-01T00:00:00Z", format="delimited-text-v1",
+        mapping_json=mapping_json,
+        mapping_sha256=mapping_sha256, file_sha256=file_sha256,
+        license_id="synthetic", use_scope="local", display_scope="local",
+    )
+    session.add(artifact)
+    session.flush()
+    run = PublicImportRun(
+        plan_sha256="c" * 64, run_id=f"evidence-{tag}",
+        target_lexicon_id=lexicon.id, confirmed_by_username="owner", status="applied",
+    )
+    session.add(run)
+    session.flush()
+    session.add(PublicImportRunSource(
+        import_run_id=run.id, source_artifact_id=artifact.id, outcome="created",
+    ))
+    written: dict[int, int] = {}
+    for row, raw in rows:
+        evidence = EntrySourceEvidence(
+            lexicon_entry_id=entry.id, source_artifact_id=artifact.id,
+            import_run_id=run.id, normalized_word=entry.normalized_word,
+            row_locator=row, field_kind="meaning", sense_key=f"meaning@{row}",
+            raw_word=entry.word, raw_text=raw, evidence_sha256=evidence_idempotency_key(
+                file_sha256=file_sha256, mapping_sha256=mapping_sha256,
+                line=row, field="meaning", raw_value=raw,
+            ),
+            decision="selected", selected_for_default=True, source_revision=revision,
+        )
+        session.add(evidence)
+        session.flush()
+        written[row] = evidence.id
+    session.commit()
+    return written
+
+
+def test_confirm_refuses_wrong_wikdict_position_without_changing_candidate(admin) -> None:
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-location-mismatch", "cm-location-mismatch")
+        entry = _entry(session, lexicon, "performance", source_meanings=["表演"])
+        evidence_id = _persist_csv_evidence(session, lexicon, entry, row=37, raw="表演")
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="表演", provenance_kind=KIND_SOURCE, display_order=1,
+                source_locator="wikdict:38", source_evidence_id=evidence_id,
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="wikdict:37", language="en",
+            ),
+        ])[0]
+        session.commit()
+        before = len(_revisions(session, entry.id))
+        with pytest.raises(ConciseMeaningRefused, match="wikdict:38"):
+            confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CANDIDATE
+        assert row.confirmed_at is None
+        assert len(_revisions(session, entry.id)) == before
+
+
+@pytest.mark.parametrize(
+    ("word", "locator", "basis", "basis_kind", "expected"),
+    [
+        ("prior", "zhwiktionary:9576029:15", "zhwiktionary:9576029:12",
+         "pos_section", "逐行"),
+        ("performance", "zhwiktionary:8457333:10", "zhwiktionary:8457333:3",
+         "pos_section", "标题"),
+        ("fertiliser", "zhwiktionary:7831922:20", "zhwiktionary:7831922:20",
+         "reviewer", "语言"),
+    ],
+)
+def test_confirm_refuses_wikitext_claims_not_proved_by_csv_evidence(
+    admin, word: str, locator: str, basis: str, basis_kind: str, expected: str,
+) -> None:
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, f"cm-unproved-{word}", f"cm-unproved-{word}")
+        entry = _entry(session, lexicon, word, source_meanings=["表演；施肥；先的"])
+        # Even a CSV meaning cell with a matching oldid does not preserve its wikitext
+        # line, heading ancestry, or language path.
+        evidence_id = _persist_csv_evidence(
+            session, lexicon, entry, row=36, raw="表演；施肥；先的",
+            source="zhwiktionary-v4en.csv", revision=locator.split(":")[1],
+        )
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="表演", provenance_kind=KIND_DERIVED, display_order=1,
+                source_locator=locator, source_evidence_id=evidence_id,
+                derivation_note="从来源汇总格抽义", pos_key="noun",
+                pos_source=basis_kind, pos_evidence_locator=basis, language="en",
+            ),
+        ])[0]
+        session.commit()
+        before = len(_revisions(session, entry.id))
+        with pytest.raises(ConciseMeaningRefused, match=expected):
+            confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CANDIDATE
+        assert len(_revisions(session, entry.id)) == before
+
+
+def test_confirm_accepts_wikdict_row_that_persistent_evidence_proves(admin) -> None:
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-proven-wikdict", "cm-proven-wikdict")
+        entry = _entry(session, lexicon, "performance", source_meanings=["表演"])
+        evidence_id = _persist_csv_evidence(session, lexicon, entry, row=37, raw="表演")
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="表演", provenance_kind=KIND_SOURCE, display_order=1,
+                source_locator="wikdict:37", source_evidence_id=evidence_id,
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="wikdict:37", language="en",
+            ),
+        ])[0]
+        confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CONFIRMED
+
+
+def test_confirm_refuses_additional_citation_at_the_wrong_csv_row(admin) -> None:
+    from app.services.concise_meaning import ConciseMeaningCitationProposal
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-wrong-extra", "cm-wrong-extra")
+        entry = _entry(session, lexicon, "performance", source_meanings=["表演"])
+        evidence_id = _persist_csv_evidence(session, lexicon, entry, row=37, raw="表演")
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="表演", provenance_kind=KIND_SOURCE, display_order=1,
+                source_locator="wikdict:37", source_evidence_id=evidence_id,
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="wikdict:37", language="en",
+                citations=(ConciseMeaningCitationProposal(
+                    citation_locator="wikdict:38", source_evidence_id=evidence_id,
+                ),),
+            ),
+        ])[0]
+        session.commit()
+        before = len(_revisions(session, entry.id))
+        with pytest.raises(ConciseMeaningRefused, match="wikdict:38"):
+            confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CANDIDATE
+        assert len(_revisions(session, entry.id)) == before
+
+
+def test_confirm_refuses_additional_citation_whose_row_does_not_carry_the_wording(
+    admin,
+) -> None:
+    """A citation bound to the right entry, source and row is still not evidence.
+
+    The additional citation resolves to a real, persisted evidence row of the same
+    entry, same source and same CSV row number, so every structural check passes --
+    and its cell says something else entirely. Binding a value to that row proves
+    nothing about the value, so a source-verbatim claim has to refuse it.
+    """
+    from app.services.concise_meaning import ConciseMeaningCitationProposal
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-unrelated-extra", "cm-unrelated-extra")
+        entry = _entry(session, lexicon, "performance", source_meanings=["表演"])
+        evidence = _persist_csv_evidence_rows(
+            session, lexicon, entry, rows=[(37, "表演"), (900, "苹果；水果")],
+        )
+        evidence_id, unrelated_id = evidence[37], evidence[900]
+        assert unrelated_id != evidence_id
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="表演", provenance_kind=KIND_SOURCE, display_order=1,
+                source_locator="wikdict:37", source_evidence_id=evidence_id,
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="wikdict:37", language="en",
+                citations=(ConciseMeaningCitationProposal(
+                    citation_locator="wikdict:900", source_evidence_id=unrelated_id,
+                ),),
+            ),
+        ])[0]
+        session.commit()
+        before = len(_revisions(session, entry.id))
+        with pytest.raises(ConciseMeaningRefused, match="附加引用 #1"):
+            confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CANDIDATE
+        assert row.confirmed_at is None
+        assert len(_revisions(session, entry.id)) == before
+        assert load_concise_meanings(session, [entry.id]) == {}
+
+
+def test_confirm_keeps_a_citation_that_does_carry_the_wording(admin) -> None:
+    """The same shape with a citation whose cell does hold the value is confirmed.
+
+    The refusal above must come from the wording, not from the citation list itself:
+    ``performance`` legitimately rests on a second source that says the same thing.
+    """
+    from app.services.concise_meaning import ConciseMeaningCitationProposal
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-related-extra", "cm-related-extra")
+        entry = _entry(session, lexicon, "performance", source_meanings=["表演"])
+        evidence = _persist_csv_evidence_rows(
+            session, lexicon, entry, rows=[(37, "表演"), (41, "表演；演出")],
+        )
+        evidence_id, second_id = evidence[37], evidence[41]
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="表演", provenance_kind=KIND_SOURCE, display_order=1,
+                source_locator="wikdict:37", source_evidence_id=evidence_id,
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="wikdict:41", language="en",
+                citations=(ConciseMeaningCitationProposal(
+                    citation_locator="wikdict:41", source_evidence_id=second_id,
+                ),),
+            ),
+        ])[0]
+        confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CONFIRMED
+        assert load_concise_meanings(session, [entry.id])[entry.id][0].text == "表演"
+
+
+def test_confirm_accepts_a_derived_rewrite_with_verified_evidence(admin) -> None:
+    """A rewritten value is not required to appear verbatim in the source.
+
+    ``derived`` says the wording was changed on purpose -- here a traditional source
+    cell rewritten to its simplified form -- so the check is the evidence chain plus
+    the rewrite note, never a search for text the rewrite deliberately replaced. A
+    reviewer basis may cite either the primary or an additional citation, so both are
+    present here and both have to be verified.
+    """
+    from app.services.concise_meaning import ConciseMeaningCitationProposal
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-derived-confirm", "cm-derived-confirm")
+        entry = _entry(session, lexicon, "rural", source_meanings=["農村的"])
+        evidence = _persist_csv_evidence_rows(
+            session, lexicon, entry, rows=[(12, "農村的"), (13, "農村的；鄉村的")],
+        )
+        evidence_id, citation_id = evidence[12], evidence[13]
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="农村的", provenance_kind=KIND_DERIVED, display_order=1,
+                source_locator="wikdict:12", source_evidence_id=evidence_id,
+                derivation_note="来源为「農村的」，此处为简体转换",
+                pos_key="adj", pos_source="reviewer",
+                pos_evidence_locator="wikdict:13", language="en",
+                citations=(ConciseMeaningCitationProposal(
+                    citation_locator="wikdict:13", source_evidence_id=citation_id,
+                ),),
+            ),
+        ])[0]
+        session.commit()
+        before = len(_revisions(session, entry.id))
+        confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CONFIRMED
+        assert len(_revisions(session, entry.id)) == before + 1
+        displayed = load_concise_meanings(session, [entry.id])[entry.id]
+        assert [(item.text, item.provenance_kind) for item in displayed] == [
+            ("农村的", KIND_DERIVED)
+        ]
+
+
+def test_confirm_refuses_a_derived_citation_that_binds_no_evidence(admin) -> None:
+    """A derived value still has to prove *where* it was rewritten from.
+
+    Skipping the wording check is not the same as skipping the evidence: a citation
+    with no persistent evidence row leaves the rewrite unattributable, so the refusal
+    names the missing row instead of accepting the locator string as proof.
+    """
+    from app.services.concise_meaning import ConciseMeaningCitationProposal
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-derived-unbound", "cm-derived-unbound")
+        entry = _entry(session, lexicon, "rural", source_meanings=["農村的"])
+        evidence_id = _persist_csv_evidence(session, lexicon, entry, row=12, raw="農村的")
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="农村的", provenance_kind=KIND_DERIVED, display_order=1,
+                source_locator="wikdict:12", source_evidence_id=evidence_id,
+                derivation_note="来源为「農村的」，此处为简体转换",
+                pos_key="adj", pos_source="reviewer",
+                pos_evidence_locator="wikdict:12", language="en",
+                citations=(ConciseMeaningCitationProposal(
+                    citation_locator="wikdict:99", source_evidence_id=None,
+                ),),
+            ),
+        ])[0]
+        session.commit()
+        before = len(_revisions(session, entry.id))
+        with pytest.raises(ConciseMeaningRefused, match="缺少持久证据 ID"):
+            confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CANDIDATE
+        assert row.confirmed_at is None
+        assert len(_revisions(session, entry.id)) == before
+
+
+def test_a_confirmed_source_value_reads_back_as_source_verbatim(admin) -> None:
+    """The read path still labels a confirmed quotation for what it is.
+
+    Confirmation now demands verbatim evidence, so the pair of flags a client
+    branches on -- "the source's own words" versus "added by a human" -- has to be
+    checked through an API response, not only on the stored row.
+    """
+    from app.services.userdata import get_or_create_word_state
+
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-api-verbatim", "cm-api-verbatim")
+        entry = _entry(session, lexicon, "performance", source_meanings=["表演"])
+        administrator = _user(session, admin)
+        get_or_create_word_state(session, administrator, entry)
+        evidence_id = _persist_csv_evidence(session, lexicon, entry, row=37, raw="表演")
+        rows = propose(session, entry=entry, actor=administrator, proposals=[
+            ConciseMeaningProposal(
+                text="表演", provenance_kind=KIND_SOURCE, display_order=1,
+                source_locator="wikdict:37", source_evidence_id=evidence_id,
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="wikdict:37", language="en",
+            ),
+            ConciseMeaningProposal(
+                text="演出", provenance_kind=KIND_DERIVED, display_order=2,
+                source_locator="wikdict:37", source_evidence_id=evidence_id,
+                derivation_note="由「表演」改写",
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="wikdict:37", language="en",
+            ),
+        ])
+        for item in rows:
+            confirm(session, meaning=item, confirmer=administrator)
+        session.commit()
+        entry_id = entry.id
+
+    listing = admin.client.get("/api/words")
+    assert listing.status_code == 200, listing.text
+    listed = next(
+        item for item in listing.json()["words"] if item["lexicon_entry_id"] == entry_id
+    )
+    assert [item["text"] for item in _meanings(listed)] == ["表演", "演出"]
+    first, second = _meanings(listed)
+    assert first["is_source_verbatim"] is True
+    assert first["is_supplement"] is False
+    assert first["source_locator"] == "wikdict:37"
+    assert second["is_source_verbatim"] is False
+    assert second["is_supplement"] is False
+
+
+def test_source_free_supplement_stays_candidate_until_human_confirms(admin) -> None:
+    with admin.session() as session:
+        lexicon = _system_lexicon(session, "cm-supplement-gate", "cm-supplement-gate")
+        entry = _entry(session, lexicon, "fertiliser", source_meanings=[], source_raw="")
+        row = propose(session, entry=entry, actor=_user(session, admin), proposals=[
+            ConciseMeaningProposal(
+                text="肥料", provenance_kind=KIND_AI_SUPPLEMENT, display_order=1,
+                derivation_note="无可用来源释义；人工补充",
+                pos_key="noun", pos_source="reviewer",
+                pos_evidence_locator="人工试判，无来源行", language="en",
+            ),
+        ])[0]
+        session.commit()
+        assert row.status == STATUS_CANDIDATE
+        assert load_concise_meanings(session, [entry.id]) == {}
+        confirm(session, meaning=row, confirmer=_user(session, admin))
+        session.commit()
+        assert row.status == STATUS_CONFIRMED
+
+
 # --- a refusal must write nothing at all -------------------------------------
 #
 # ``ConciseMeaningRefused`` promises "Raised before any row is added, so a refusal
@@ -613,7 +1139,7 @@ def test_a_refused_proposal_writes_none_of_its_siblings(admin) -> None:
                 proposals=[
                     _proposal("琥珀", order=1),
                     # Not in the recorded source text, so this one is refused.
-                    _proposal("招募", order=2),
+                    _proposal("招募", kind=KIND_SOURCE, order=2),
                 ],
                 actor=_user(session, admin),
             )
@@ -873,8 +1399,9 @@ def test_today_queue_returns_the_confirmed_value_beside_the_source(admin) -> Non
     assert response.status_code == 200, response.text
     word = next(item for item in response.json()["words"] if item["lexicon_entry_id"] == entry_id)
 
-    assert [item["text"] for item in word["concise_meanings"]] == ["专门知识"]
-    assert word["concise_meanings"][0]["is_source_verbatim"] is True
+    assert [item["text"] for item in _meanings(word)] == ["专门知识"]
+    assert _meanings(word)[0]["is_source_verbatim"] is False
+    assert _meanings(word)[0]["is_supplement"] is True
     # Both source fields survive the short value untouched.
     assert word["source_meanings"] == ["专门知识；专家意见；专门技能"]
     assert word["source_raw"] == "expertise n. 专门知识；专家意见"
@@ -914,8 +1441,7 @@ def test_word_detail_and_list_include_the_confirmed_value(admin) -> None:
         state = get_or_create_word_state(session, administrator, entry)
         row = propose(
             session, entry=entry,
-            proposals=[_proposal("农村的", kind=KIND_DERIVED,
-                                 note="来源为「農村的」，此处为简体转换")],
+            proposals=[_proposal("农村的", note="人工补充；来源原文仍保留")],
             actor=administrator,
         )[0]
         confirm(session, meaning=row, confirmer=administrator)
@@ -926,7 +1452,7 @@ def test_word_detail_and_list_include_the_confirmed_value(admin) -> None:
     detail = admin.client.get(f"/api/words/state/{state_id}")
     assert detail.status_code == 200, detail.text
     body = detail.json()
-    assert [item["text"] for item in body["concise_meanings"]] == ["农村的"]
+    assert [item["text"] for item in _meanings(body)] == ["农村的"]
     assert body["source_meanings"] == ["農村的"]
 
     listing = admin.client.get("/api/words")
@@ -934,7 +1460,7 @@ def test_word_detail_and_list_include_the_confirmed_value(admin) -> None:
     listed = next(
         item for item in listing.json()["words"] if item["lexicon_entry_id"] == entry_id
     )
-    assert [item["text"] for item in listed["concise_meanings"]] == ["农村的"]
+    assert [item["text"] for item in _meanings(listed)] == ["农村的"]
     assert listed["source_raw"] == "rural adj. 農村的"
 
 
@@ -983,7 +1509,7 @@ def test_every_word_response_reports_the_confirmed_value_or_nothing(admin) -> No
         item for item in article_body.json()["quiz_words"]
         if item["lexicon_entry_id"] == entry_id
     )
-    assert [item["text"] for item in quiz["concise_meanings"]] == ["高度"]
+    assert [item["text"] for item in _meanings(quiz)] == ["高度"]
 
     # And no caller may fall back to the default: a missing argument is not allowed to
     # look like "nothing confirmed".
@@ -1025,7 +1551,7 @@ def test_two_users_share_the_short_meaning_and_keep_their_own_state(admin, membe
         response = world.client.get(f"/api/words/state/{state_id}")
         assert response.status_code == 200, response.text
         body = response.json()
-        assert [item["text"] for item in body["concise_meanings"]] == ["高度", "海拔"], (
+        assert [item["text"] for item in _meanings(body)] == ["高度", "海拔"], (
             "both accounts must see the same confirmed content"
         )
         assert body["lexicon_entry_id"] == entry_id
@@ -1041,8 +1567,28 @@ def test_two_users_share_the_short_meaning_and_keep_their_own_state(admin, membe
 # --- the administrator CLI ---------------------------------------------------
 
 
+def _group(meanings: list[dict[str, Any]], **overrides: Any) -> dict[str, Any]:
+    """One part-of-speech group for the v2 proposal file.
+
+    ``format_version`` 2 requires the group, including its ``pos_source``: the format
+    refuses a file that leaves a part of speech for the program to infer, so a test that
+    wants the undetermined case has to say ``pos_source="none"`` explicitly.
+    """
+    group: dict[str, Any] = {
+        "pos_key": "noun",
+        "pos_label": "名词",
+        "pos_order": 1,
+        "pos_source": "reviewer",
+        "pos_evidence_locator": "zhwiktionary:9576029:15",
+        "language": "en",
+        "meanings": meanings,
+    }
+    group.update(overrides)
+    return group
+
+
 def _proposal_file(path: Path, entries: list[dict[str, Any]], **extra: Any) -> Path:
-    payload = {"format_version": 1, "entries": entries, **extra}
+    payload = {"format_version": 2, "entries": entries, **extra}
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return path
 
@@ -1064,10 +1610,10 @@ def test_cli_propose_status_confirm_flow(admin, tmp_path, monkeypatch, capsys) -
 
     file = _proposal_file(tmp_path / "proposals.json", [{
         "word": "awe",
-        "meanings": [{
-            "text": "敬畏", "provenance_kind": KIND_SOURCE,
-            "source_locator": "zhwiktionary:4",
-        }],
+        "pos_groups": [_group([{
+            "text": "敬畏", "provenance_kind": KIND_AI_SUPPLEMENT,
+            "source_locator": "", "derivation_note": "人工补充测试值",
+        }])],
     }])
 
     assert cli.main([
@@ -1120,8 +1666,8 @@ def test_cli_refuses_the_wrong_password_and_writes_nothing(admin, tmp_path, monk
 
     file = _proposal_file(tmp_path / "p.json", [{
         "word": "awe",
-        "meanings": [{"text": "敬畏", "provenance_kind": KIND_SOURCE,
-                      "source_locator": "primary:2"}],
+        "pos_groups": [_group([{"text": "敬畏", "provenance_kind": KIND_SOURCE,
+                                "source_locator": "primary:2"}])],
     }])
     assert cli.main([
         "concise-meaning", "propose", "--file", str(file),
@@ -1146,10 +1692,11 @@ def test_cli_refuses_a_proposal_file_whose_word_is_not_in_the_lexicon(
         entry_id = entry.id
 
     file = _proposal_file(tmp_path / "p.json", [
-        {"word": "awe", "meanings": [{"text": "敬畏", "provenance_kind": KIND_SOURCE,
-                                     "source_locator": "primary:2"}]},
-        {"word": "not-in-this-lexicon", "meanings": [
-            {"text": "无", "provenance_kind": KIND_SOURCE, "source_locator": "primary:3"}]},
+        {"word": "awe", "pos_groups": [_group([
+            {"text": "敬畏", "provenance_kind": KIND_SOURCE, "source_locator": "primary:2"}])]},
+        {"word": "not-in-this-lexicon", "pos_groups": [_group([
+            {"text": "无", "provenance_kind": KIND_SOURCE, "source_locator": "primary:3"}],
+            pos_order=1)]},
     ])
     assert cli.main([
         "concise-meaning", "propose", "--file", str(file),
@@ -1166,13 +1713,29 @@ def test_cli_refuses_a_proposal_file_whose_word_is_not_in_the_lexicon(
 @pytest.mark.parametrize(
     ("payload", "fragment"),
     [
-        ({"format_version": 2, "entries": []}, "format_version"),
-        ({"format_version": 1, "entries": [], "extra": True}, "未知字段"),
-        ({"format_version": 1, "entries": [{"word": "awe", "meanings": [],
+        # The old flat format is refused rather than reinterpreted: reading it as one
+        # unnamed group would file every value under an undetermined part of speech.
+        ({"format_version": 1, "entries": []}, "format_version"),
+        ({"format_version": 3, "entries": []}, "format_version"),
+        ({"format_version": 2, "entries": [], "extra": True}, "未知字段"),
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [],
                                             "note": "x"}]}, "未知字段"),
-        ({"format_version": 1, "entries": [{"word": "awe", "meanings": [
-            {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1",
-             "kind": "source"}]}]}, "未知字段"),
+        # A v1-shaped entry: flat ``meanings`` with no group.
+        ({"format_version": 2, "entries": [{"word": "awe", "meanings": [
+            {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1"}]}]},
+         "未知字段"),
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [
+            {"pos_key": "noun", "pos_source": "reviewer", "meanings": [
+                {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1",
+                 "kind": "source"}]}]}]}, "未知字段"),
+        # A group that leaves the part of speech for the program to infer.
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [
+            {"pos_key": "noun", "meanings": [
+                {"text": "敬畏", "provenance_kind": "source", "source_locator": "p:1"}]}]}]},
+         "pos_source"),
+        ({"format_version": 2, "entries": [{"word": "awe", "pos_groups": [
+            {"pos_key": "noun", "pos_source": "reviewer", "meanings": []}]}]},
+         "meanings"),
     ],
 )
 def test_cli_rejects_a_malformed_proposal_file(tmp_path, payload, fragment) -> None:
@@ -1190,8 +1753,8 @@ def test_cli_proposal_file_may_not_disagree_about_the_lexicon(tmp_path) -> None:
 
     file = _proposal_file(
         tmp_path / "p.json",
-        [{"word": "awe", "meanings": [
-            {"text": "敬畏", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"}]}],
+        [{"word": "awe", "pos_groups": [_group([
+            {"text": "敬畏", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"}])]}],
         lexicon="some-other-lexicon",
     )
     with pytest.raises(cli.ConciseMeaningFileError) as error:
@@ -1204,13 +1767,61 @@ def test_cli_display_order_defaults_to_the_position_in_the_list(tmp_path) -> Non
 
     file = _proposal_file(tmp_path / "p.json", [{
         "word": "maximum",
-        "meanings": [
+        "pos_groups": [_group([
             {"text": "最大", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"},
             {"text": "最大值", "provenance_kind": KIND_SOURCE, "source_locator": "p:2"},
-        ],
+        ])],
     }])
     prepared = cli.load_proposal_file(file, lexicon_name="cm-cli")
     assert [item.display_order for item in prepared[0]["proposals"]] == [1, 2]
+
+
+def test_cli_reads_two_groups_and_their_citations(tmp_path) -> None:
+    """The file carries the group, its order, its basis, the language and citations.
+
+    ``play`` is the shape being checked: four values for one word, split across two
+    groups that each start at position 1, with a value that rests on a second source.
+    """
+    from app import cli
+
+    file = _proposal_file(tmp_path / "play.json", [{
+        "word": "play",
+        "pos_groups": [
+            _group(
+                [
+                    {"text": "玩", "provenance_kind": KIND_DERIVED,
+                     "source_locator": "zhwiktionary:7993707:13",
+                     "derivation_note": "由「遊玩」繁转简",
+                     "citations": [{"citation_locator": "wikdict:20",
+                                    "citation_order": 1}]},
+                    {"text": "演奏", "provenance_kind": KIND_DERIVED,
+                     "source_locator": "zhwiktionary:7993707:14",
+                     "derivation_note": "由「演奏」抽义"},
+                    {"text": "播放", "provenance_kind": KIND_DERIVED,
+                     "source_locator": "zhwiktionary:7993707:10",
+                     "derivation_note": "由「播放」抽义"},
+                ],
+                pos_key="verb", pos_label="动词", pos_order=1,
+            ),
+            _group(
+                [{"text": "剧", "provenance_kind": KIND_DERIVED,
+                  "source_locator": "zhwiktionary:7993707:9",
+                  "derivation_note": "由「剧」抽义"}],
+                pos_key="noun", pos_label="名词", pos_order=2,
+            ),
+        ],
+    }])
+    prepared = cli.load_proposal_file(file, lexicon_name="cm-cli")
+    proposals = prepared[0]["proposals"]
+
+    assert len(proposals) == 4, "the per-group cap is three, not a per-word cap"
+    assert [(p.pos_key, p.display_order) for p in proposals] == [
+        ("verb", 1), ("verb", 2), ("verb", 3), ("noun", 1),
+    ]
+    assert {p.pos_order for p in proposals if p.pos_key == "verb"} == {1}
+    assert {p.pos_order for p in proposals if p.pos_key == "noun"} == {2}
+    assert proposals[0].citations[0].citation_locator == "wikdict:20"
+    assert proposals[0].citations[0].citation_order == 1
 
 
 def test_describe_entry_reports_what_is_shown_and_what_was_decided(admin) -> None:
@@ -1250,9 +1861,17 @@ def test_0009_follows_the_unpublished_0008_and_keeps_one_head() -> None:
     config.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    # 0010 stacks on 0009, so 0009 is no longer the head -- but there is still exactly
-    # one head, which is what this assertion is for.
-    assert script.get_heads() == ["0010_entry_source_revision"]
+    # Later revisions stack on 0009; the graph must still have one head.
+    assert script.get_heads() == ["0016_dictionary_extraction"]
+    assert script.get_revision("0016_dictionary_extraction").down_revision == (
+        "0015_session_autoincrement"
+    )
+    assert script.get_revision("0015_session_autoincrement").down_revision == (
+        "0014_selected_lexicon"
+    )
+    assert script.get_revision("0014_selected_lexicon").down_revision == (
+        "0013_concise_meaning_wikitext_binding"
+    )
     revision = script.get_revision("0009_entry_concise_meaning")
     assert revision.down_revision == "0008_public_lexicon_import", (
         "0009 stacks on the unpublished 0008 rather than editing it in place"

@@ -107,6 +107,36 @@ def _entry(plan: dict[str, Any], word: str) -> dict[str, Any]:
     return next(item for item in plan["entries"] if item["normalized_word"] == word)
 
 
+def test_optional_source_sense_key_is_frozen_beside_csv_line(tmp_path: Path) -> None:
+    _write(tmp_path, "primary.csv", "word\nIce Cream\n")
+    _write(tmp_path, "meaning.csv", "word,meaning,origin\nIce Cream,冰淇淋,stardict.idx#12075\n")
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "word"}},
+        {"id": "dictionary", "role": "meaning", "file": "meaning.csv",
+         "columns": {"word": "word", "meaning": "meaning"},
+         "sense_key_column": "origin"},
+    ], required_fields=[])
+    plan = _plan(tmp_path, manifest)
+    evidence = _entry(plan, "ice cream")["evidence"]["meaning"][0]
+    assert evidence["line"] == 2
+    assert evidence["sense_key"] == "stardict.idx#12075"
+    assert plan["confirmation_ready"]
+
+
+def test_bad_source_position_blocks_the_plan_instead_of_dropping_a_word(tmp_path: Path) -> None:
+    _write(tmp_path, "primary.csv", "word,position\nIce Cream,\nApple,netem:rank:2\n")
+    manifest = _manifest(tmp_path, [
+        {"id": "primary", "role": "primary", "file": "primary.csv",
+         "columns": {"word": "word"}, "sense_key_column": "position"},
+    ], required_fields=[])
+    plan = _plan(tmp_path, manifest)
+    assert plan["sources"][0]["unreadable_rows"] == [2]
+    assert not plan["confirmation_ready"]
+    assert any("unacknowledged_bad_rows" in item for item in plan["confirmation_blockers"])
+    assert [entry["normalized_word"] for entry in plan["entries"]] == ["apple"]
+
+
 SELECT_PRIMARY_MEANING = {
     "normalized_word": "apple", "field": "meaning", "action": "select",
     "evidence": [{"source_id": "primary", "line": 2}], "note": "以主词表释义为默认",

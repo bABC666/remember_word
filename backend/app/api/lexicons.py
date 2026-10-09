@@ -1,20 +1,26 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
-from sqlalchemy import func, select
+import hashlib
 
-from app.api.deps import CurrentUser, SessionDep
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from sqlalchemy import func, or_, select
+
+from app.api.deps import CurrentUser, SessionDep, ensure_user_settings
 from app.models import (
     Lexicon,
     LexiconEntry,
     PublicImportRun,
     PublicImportRunSource,
+    ReviewEvent,
     SourceArtifact,
     UserLexicon,
     UserWordState,
 )
 from app.schemas import LexiconCreateRequest, LexiconUpdateRequest
+from app.services.file_lexicons import parse_file
+from app.services.lexicon_selection import effective_lexicon_selection
 from app.services.public_lexicon_target_preflight import explicitly_unapproved
+from app.services.source_attribution import frozen_attribution
 from app.services.userdata import (
     load_readable_lexicon,
     user_lexicon,
@@ -55,21 +61,37 @@ def _count_entries(session, lexicon_id: int) -> int:
 
 
 def _count_learning_states(session, lexicon_id: int) -> int:
-    """How many of this lexicon's entries already carry a user's learning state.
-
-    ``user_word_state.lexicon_entry_id`` is declared ``ON DELETE CASCADE``, so this
-    count is exactly how much learning progress a delete of the lexicon would
-    destroy: the rows would not be detached, they would be gone.
-    """
-    return (
+    """Count actual progress, excluding untouched states created for a queue."""
+    state_count = (
         session.scalar(
             select(func.count())
             .select_from(UserWordState)
             .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
-            .where(LexiconEntry.lexicon_id == lexicon_id)
+            .where(
+                LexiconEntry.lexicon_id == lexicon_id,
+                or_(
+                    UserWordState.status != "new",
+                    UserWordState.last_review.is_not(None),
+                    UserWordState.next_review_at.is_not(None),
+                    UserWordState.recall_success > 0,
+                    UserWordState.recall_fail > 0,
+                    UserWordState.consecutive_failures > 0,
+                    UserWordState.context_exposure > 0,
+                    UserWordState.anchor_override != "",
+                    UserWordState.semantic_note != "",
+                    UserWordState.notes != "",
+                    UserWordState.possible_issue.is_(True),
+                ),
+            )
         )
         or 0
     )
+    review_count = session.scalar(
+        select(func.count()).select_from(ReviewEvent)
+        .join(LexiconEntry, LexiconEntry.id == ReviewEvent.lexicon_entry_id)
+        .where(LexiconEntry.lexicon_id == lexicon_id)
+    ) or 0
+    return state_count + review_count
 
 
 @router.get("")
@@ -98,6 +120,84 @@ def list_lexicons(user: CurrentUser, session: SessionDep) -> list[dict[str, obje
             )
         )
     return items
+
+
+@router.get("/selection")
+def read_selection(user: CurrentUser, session: SessionDep) -> dict[str, object]:
+    lexicon_id, source = effective_lexicon_selection(session, user)
+    return {"lexicon_id": lexicon_id, "source": source}
+
+
+@router.post("/{lexicon_id}/select")
+def select_lexicon(lexicon_id: int, user: CurrentUser, session: SessionDep) -> dict[str, object]:
+    lexicon = load_readable_lexicon(session, user, lexicon_id)
+    membership = user_lexicon(session, user, lexicon.id)
+    if membership is None:
+        membership = UserLexicon(user_id=user.id, lexicon_id=lexicon.id, enabled=True)
+    else:
+        membership.enabled = True
+    settings = ensure_user_settings(session, user)
+    settings.selected_lexicon_id = lexicon.id
+    session.add_all((membership, settings))
+    session.commit()
+    return {"lexicon_id": lexicon.id, "source": "explicit"}
+
+
+async def _parse_upload(file: UploadFile):
+    content = await file.read(1024 * 1024 + 1)
+    try:
+        rows = parse_file(file.filename or "", content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    digest = hashlib.sha256((file.filename or "").encode() + b"\0" + content).hexdigest()
+    return rows, digest
+
+
+@router.post("/file-preview")
+async def preview_file_lexicon(user: CurrentUser, file: UploadFile = File(...)):
+    """Read and classify a list; create no lexicon or word rows."""
+    rows, digest = await _parse_upload(file)
+    return {
+        "sha256": digest,
+        "rows": [row.as_dict() for row in rows],
+        "counts": {status: sum(row.status == status for row in rows)
+                   for status in ("valid", "duplicate", "error")},
+    }
+
+
+@router.post("/file-import", status_code=201)
+async def import_file_lexicon(
+    user: CurrentUser, session: SessionDep,
+    file: UploadFile = File(...), name: str = Form(...),
+    preview_sha256: str | None = Form(default=None),
+):
+    rows, digest = await _parse_upload(file)
+    if not preview_sha256:
+        raise HTTPException(status_code=400, detail="请先预览文件再导入")
+    if preview_sha256 != digest:
+        raise HTTPException(status_code=409, detail="文件已变化，请重新预览后导入")
+    valid = [row for row in rows if row.status == "valid"]
+    title = name.strip()
+    if not title or len(title) > 200 or not valid:
+        raise HTTPException(status_code=400, detail="词库名称不能为空，且文件须含有效单词")
+    lexicon = Lexicon(owner_user_id=user.id, name=title,
+                      description="用户上传的词库；释义由用户提供，未经平台核实",
+                      visibility="private", source_type="user_file", entry_count=len(valid))
+    session.add(lexicon)
+    session.flush()
+    session.add(UserLexicon(user_id=user.id, lexicon_id=lexicon.id, enabled=True))
+    entries = []
+    for sequence, row in enumerate(valid, 1):
+        entry = LexiconEntry(
+            lexicon_id=lexicon.id, word=row.word, normalized_word=row.word.casefold(),
+            part_of_speech=row.part_of_speech,
+            source_meanings=[row.meaning] if row.meaning else [],
+            source_raw="", sequence=sequence,
+        )
+        entries.append(entry)
+    session.add_all(entries)
+    session.commit()
+    return {**lexicon_dict(lexicon, enabled=True), "imported_count": len(valid)}
 
 
 @router.post("", status_code=201)
@@ -177,13 +277,9 @@ def delete_lexicon(lexicon_id: int, user: CurrentUser, session: SessionDep) -> d
     A system lexicon cannot be deleted through the API, not even by an admin, so
     the shared migration result cannot be destroyed by accident.
 
-    A lexicon whose entries already carry learning state is refused with 409.
-    Deleting it would not stop at the lexicon: ``lexicon_entry`` cascades to
-    ``user_word_state`` (``ON DELETE CASCADE``), so the caller's own review status,
-    consecutive failures, next review time and counters would be deleted with it,
-    and the exposure and review links that identify those words would be cleared
-    to NULL. Losing study history to tidy up a library is never what the request
-    meant, so the delete is refused and nothing is written.
+    Untouched ``new`` states are only queue placeholders and may be deleted.
+    Any review, changed state, note, exposure or schedule is real progress: deleting
+    its entry would destroy state and detach review links, so return 409.
 
     Refusal order matters. Ownership and the system-lexicon rule are decided first,
     so another user's private lexicon -- and whether it holds learning records --
@@ -201,7 +297,7 @@ def delete_lexicon(lexicon_id: int, user: CurrentUser, session: SessionDep) -> d
         raise HTTPException(
             status_code=409,
             detail=(
-                f"该词库中有 {learning_states} 个单词已经存在学习记录，"
+                f"该词库中有 {learning_states} 条学习记录，"
                 "删除词库会连同这些学习记录一起永久删除（复习进度、"
                 "连续失败次数与下次复习时间都会丢失），因此已拒绝删除。"
                 "词库与学习记录均已保留，未做任何修改。"
@@ -289,6 +385,9 @@ def list_lexicon_sources(
                 "display_scope": artifact.display_scope,
                 "runs": [],
             }
+            attribution = frozen_attribution(artifact)
+            if attribution:
+                item["attribution"] = attribution
             # Decided after the declaration fields are in place, and kept apart from
             # the values above on purpose: these are what the *source* declares about
             # its own use, and the preflight's recogniser reads them to decide whether

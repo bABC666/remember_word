@@ -357,6 +357,8 @@ def load_manifest(path: Path, *, source_root: Path) -> ManifestSpecs:
                 encoding=item.get("encoding", "utf-8-sig"),
                 delimiter=item.get("delimiter", ","),
                 revision=parse_revision(item["id"], item.get("revision")),
+                sense_key_column=item.get("sense_key_column"),
+                attribution=item.get("attribution"),
             ),
             role=role,
             provenance=parse_provenance(item["id"], item.get("provenance")),

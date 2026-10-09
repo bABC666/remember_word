@@ -1,0 +1,310 @@
+{
+  "generated_at_utc": "2026-10-05T02:46:32.756416+00:00",
+  "baseline": "15621927ee8edba7596c7d3232275db10fe44da4",
+  "code_commit": "8960395f47248e5acf774214d28d94b95315da5a",
+  "publication": "The documentation delivery commit contains this index; obtain its full SHA from git log -1 -- docs/NETEM-PRODUCTION-COPY-EVIDENCE-2026-10-05.json. Runtime trees must equal code_commit.",
+  "candidate_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+  "final_copy": "D:\\背单词web\\test-artifacts\\netem-production-copy-20261005\\release",
+  "backup": {
+    "production_database": "D:\\背单词web\\data\\vocab.db",
+    "revision": "0015_session_autoincrement",
+    "online_backup": "D:\\背单词web\\test-artifacts\\netem-production-copy-20261005\\release\\protected-before.db",
+    "backup_sha256": "a7ad830ff2232ee5afea465878c1087f7394392795995a91214618da956dd4bb",
+    "backup_readonly": true,
+    "candidate_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+    "production_files_before": {
+      "vocab.db": {
+        "sha256": "53faa52e21631f68b1e19fe0384a0b9a040074ed36e920d341e977fd4bb7a07c",
+        "mtime_ns": 1791037730392002000,
+        "bytes": 1290240
+      },
+      "vocab.db-wal": {
+        "sha256": "b41f0635ab7ef48d71a7ef8ba21dfddf803342a9d54efc353b85f9b7d1d88b97",
+        "mtime_ns": 1791090477049639100,
+        "bytes": 28872
+      },
+      "vocab.db-shm": {
+        "sha256": "3761a2361825f555a5a5386fb22d6270edf9c0cc7af92a1192ac3bd0638eecd1",
+        "mtime_ns": 1791168124655530100,
+        "bytes": 32768
+      }
+    },
+    "production_port_8000_listening_before": false,
+    "original_counts": {
+      "alembic_version": 1,
+      "app_setting": 5,
+      "article": 3,
+      "article_word_exposure": 16,
+      "article_word_lookup": 1,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 0,
+      "history_event": 13,
+      "import_batch": 4,
+      "import_candidate": 142,
+      "import_image": 8,
+      "lexicon": 4,
+      "lexicon_entry": 64,
+      "public_import_run": 0,
+      "public_import_run_source": 0,
+      "review_event": 11,
+      "source_artifact": 0,
+      "source_wikitext_line": 0,
+      "user": 2,
+      "user_lexicon": 4,
+      "user_session": 1,
+      "user_settings": 2,
+      "user_word_state": 64,
+      "word": 19
+    },
+    "preserved_documents": {
+      "docs/V1.2-NETEM-DEFAULT-LEXICON-LAUNCH-CANDIDATE-2026-10-03.md": "8bdce41ae071d76284f3ca3d196e73c716714a6b905a14ea5af2d8270ee155ed",
+      "docs/V1.2-PHASE2.9-POS-MEANING-CONTRACT-DESIGN.md": "dfae28454a18a3603815139e6fe549e72332ff85defa241d7cd7416d78668bf4",
+      "docs/V1.2-PHASE2.9-ZHWIKTIONARY-LICENSE-EVIDENCE-CHECK.md": "28284746f65db876938af58e36e58b59103e9efd8d891c3cd9076a9f9a660122"
+    },
+    "created_at_utc": "2026-10-05T02:42:05.027597+00:00"
+  },
+  "content": {
+    "package_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+    "words": 5528,
+    "definitions": 5451,
+    "empty": 77,
+    "source_evidence": 16430,
+    "order_matches_v2": true,
+    "empty_has_no_meaning_evidence_or_raw_fallback": true,
+    "frozen_attribution_matches_database": true,
+    "integrity": "ok",
+    "foreign_keys": "ok",
+    "all_original_rows_unchanged": true,
+    "original_counts": {
+      "alembic_version": 1,
+      "app_setting": 5,
+      "article": 3,
+      "article_word_exposure": 16,
+      "article_word_lookup": 1,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 0,
+      "history_event": 13,
+      "import_batch": 4,
+      "import_candidate": 142,
+      "import_image": 8,
+      "lexicon": 4,
+      "lexicon_entry": 64,
+      "public_import_run": 0,
+      "public_import_run_source": 0,
+      "review_event": 11,
+      "source_artifact": 0,
+      "source_wikitext_line": 0,
+      "user": 2,
+      "user_lexicon": 4,
+      "user_session": 1,
+      "user_settings": 2,
+      "user_word_state": 64,
+      "word": 19
+    },
+    "dictionary_counts": {
+      "wikdict.csv": 4814,
+      "zhwiktionary.csv": 637
+    },
+    "same_word_private_entries_preserved": 45,
+    "all_evidence_rows_verified": 16430,
+    "selections": {
+      "explicit_original_preserved": 1,
+      "unselected_original_recommended": 1
+    },
+    "code_commit": "8960395f47248e5acf774214d28d94b95315da5a"
+  },
+  "import": {
+    "status": "applied",
+    "run_id": "lex-20261005T024206Z-c9cae67d",
+    "import_run_id": 1,
+    "plan_sha256": "5e17f98651acbb5df9af697c6a19b6abbd0088e7373cce99603059e2b21497fe",
+    "target_lexicon": {
+      "id": 6,
+      "name": "NETEM"
+    },
+    "entries_created": 5528,
+    "entries_matched": 0,
+    "evidence_written": 16430,
+    "sources_created": 3,
+    "conflicts": [],
+    "evidence": {
+      "written": 16430,
+      "skipped_existing": 0,
+      "readjudicated": 0
+    }
+  },
+  "repeat_cli": {
+    "all_business_rows_identical": true,
+    "code_commit": "8960395f47248e5acf774214d28d94b95315da5a",
+    "run_id": "lex-20261005T024206Z-c9cae67d"
+  },
+  "delta": {
+    "alembic_version": 0,
+    "app_setting": 0,
+    "article": 0,
+    "article_word_exposure": 0,
+    "article_word_lookup": 0,
+    "entry_concise_meaning": 0,
+    "entry_concise_meaning_citation": 0,
+    "entry_concise_meaning_revision": 0,
+    "entry_source_evidence": 16430,
+    "history_event": 0,
+    "import_batch": 0,
+    "import_candidate": 0,
+    "import_image": 0,
+    "lexicon": 1,
+    "lexicon_entry": 5528,
+    "public_import_run": 1,
+    "public_import_run_source": 3,
+    "review_event": 0,
+    "source_artifact": 3,
+    "source_wikitext_line": 0,
+    "user": 0,
+    "user_lexicon": 0,
+    "user_session": 0,
+    "user_settings": 0,
+    "user_word_state": 0,
+    "word": 0
+  },
+  "failures": {
+    "exception": {
+      "database": "D:\\背单词web\\test-artifacts\\netem-production-copy-20261005\\release\\faults-20261005T024352616756Z\\failure-exception.db",
+      "exit_code": 1,
+      "precommit_all_rows_rolled_back": true,
+      "no_empty_public_NETEM": true,
+      "retry_entries_created": 5528,
+      "repeat_no_changes": true
+    },
+    "kill": {
+      "database": "D:\\背单词web\\test-artifacts\\netem-production-copy-20261005\\release\\faults-20261005T024352616756Z\\failure-kill.db",
+      "exit_code": 86,
+      "precommit_all_rows_rolled_back": true,
+      "no_empty_public_NETEM": true,
+      "retry_entries_created": 5528,
+      "repeat_no_changes": true
+    }
+  },
+  "withdrawal": {
+    "database": "D:\\背单词web\\test-artifacts\\netem-production-copy-20261005\\release\\withdrawal-024530642497.db",
+    "changed_tables": [
+      "lexicon"
+    ],
+    "all_user_data_preserved": true,
+    "fallback_queue_excludes_withdrawn_library": true,
+    "reimport_refused": true
+  },
+  "browser": {
+    "exercise_checks": 63,
+    "restart_checks": 6,
+    "viewports": [
+      "1440x1000",
+      "390x844"
+    ],
+    "success": true,
+    "screenshots_sha256": {
+      "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-copy-study-desktop.png": "dc0a4d825be1f9e57c2cca5c51743175865114a0827b876d28a785d78005484c",
+      "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-copy-sources-desktop.png": "1a284cd831025410974605a035fd1b75ad5e85110cd1dab797a8dfe057593e71",
+      "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-copy-study-mobile.png": "379aaaa708f45b4e1779c4e016d5d8590bc46143a96554a093e8b8d5c317d87b",
+      "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-copy-details-mobile.png": "9a0fec4faad8c977257015afa04cd6c47cae624ac60bac4e75579163003c12e5",
+      "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-copy-sources-mobile.png": "b17e93856461775f7950e8aecc5e9cab8b67674a675100cc96404ccd264d71fa",
+      "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-copy-empty-mobile.png": "f757b6de3a6979e0d134c08a35c02fde442eb910a9aea601fc92a5c5897bf0e1"
+    }
+  },
+  "gate": {
+    "command": "./scripts/check.ps1",
+    "exit_code": 0,
+    "backend_passed": 1029,
+    "backend_skipped": 1,
+    "backend_warnings": 2,
+    "frontend_passed": 199,
+    "frontend_files": 20,
+    "ruff_typecheck_lint_build": true,
+    "isolation": {
+      "generated_at_utc": "2026-10-05T02:41:12.338760+00:00",
+      "pytest_exit_code": 0,
+      "pytest_summary": "1029 passed, 1 skipped, 2 warnings in 277.82s (0:04:37)",
+      "files_before": 42405,
+      "files_after": 42405,
+      "added": [],
+      "removed": [],
+      "changed": [],
+      "untouched": true
+    },
+    "tools_final_ruff_exit": 0
+  },
+  "preservation": {
+    "production_files_after": {
+      "vocab.db": {
+        "sha256": "53faa52e21631f68b1e19fe0384a0b9a040074ed36e920d341e977fd4bb7a07c",
+        "mtime_ns": 1791037730392002000,
+        "bytes": 1290240
+      },
+      "vocab.db-wal": {
+        "sha256": "b41f0635ab7ef48d71a7ef8ba21dfddf803342a9d54efc353b85f9b7d1d88b97",
+        "mtime_ns": 1791090477049639100,
+        "bytes": 28872
+      },
+      "vocab.db-shm": {
+        "sha256": "3761a2361825f555a5a5386fb22d6270edf9c0cc7af92a1192ac3bd0638eecd1",
+        "mtime_ns": 1791168124967134500,
+        "bytes": 32768
+      }
+    },
+    "main_and_wal_bytes_and_mtime_identical": true,
+    "shm_bytes_identical": true,
+    "shm_mtime_changed": true,
+    "production_port_8000_listening_after": false,
+    "production_business_rows_identical": true,
+    "original_documents_preserved": true,
+    "finished_at_utc": "2026-10-05T02:46:32.733031+00:00"
+  },
+  "artifact_sha256": {
+    "test-artifacts/netem-production-copy-20261005/release/backup-receipt.json": "ae166a5d5671df1e4fac1b37d7ea5bc72f9174783d456bad5614b5015058b0cf",
+    "test-artifacts/netem-production-copy-20261005/release/before-cli-repeat-rows.json": "d697b56b4423349b316dd25c5663b8ab298621239a5990fe28f59a8086372874",
+    "test-artifacts/netem-production-copy-20261005/release/before-import-rows.json": "e7e3cf22dbc6285a67bf63399e61cb24e5a8f12d0afd305c576c75b1212b33d2",
+    "test-artifacts/netem-production-copy-20261005/release/browser-exercise.json": "a54fbefbc35fa721bd426eb95fdaf8ebc7de80fe2be28045de8ab7370a5beefb",
+    "test-artifacts/netem-production-copy-20261005/release/browser-restart.json": "4e6b3309746d3bd87c48153fe4f444c23f48718d0dc731ac21985e325b70c16a",
+    "test-artifacts/netem-production-copy-20261005/release/cli-first.json": "f87ebd0722880a07405173b2e79eff993c52537866169554813d3f47667e3922",
+    "test-artifacts/netem-production-copy-20261005/release/cli-repeat-preservation.json": "25cb761d7435a587974bb74232e6c1e31c714b9d455700995af2ed1df540df47",
+    "test-artifacts/netem-production-copy-20261005/release/cli-repeat.json": "2f9cef6566e64685a2b20be080777be3eda99aca7feee097c4015b4c11ea56a1",
+    "test-artifacts/netem-production-copy-20261005/release/content-verification.json": "59b59cb728f8b0a9a535bb1ca7ca1d6f1e97570aa599ac00252df8f00ccdccec",
+    "test-artifacts/netem-production-copy-20261005/release/failure-receipt.json": "021e7d8b35f36977aa1c4d1ce9450d5b19b1da03036f5552252b345211c5aede",
+    "test-artifacts/netem-production-copy-20261005/release/import-receipt.json": "7318c4856b07e08ba2d460a0641bf1f3216cdd88b1d521bc8101c72d39eb48db",
+    "test-artifacts/netem-production-copy-20261005/release/locked-plan.json": "f6e68fe6521edfe19b98a4db6bf73fb60e569fd37c70accd13bec283a21bfe98",
+    "test-artifacts/netem-production-copy-20261005/release/original-rows.json": "3006be970d3d60b5d2aca9c1b2a9cf0f931ce82f861a86f207795182532e033a",
+    "test-artifacts/netem-production-copy-20261005/release/preservation-receipt.json": "88d0dfc27b0e6a8dbf41681b1903bafcb207c783ad9280bb117ac39be32f78a6",
+    "test-artifacts/netem-production-copy-20261005/release/repeat-receipt.json": "d5335273d3a2b57b5d7cd8e07598e01ac51b9394cf281ebbfdc590154ba6f3cd",
+    "test-artifacts/netem-production-copy-20261005/release/withdrawal-receipt.json": "ac51b939e650979cdf54be71d4499dd3414555830ebfe0113540295ce59b7802",
+    "test-artifacts/netem-production-copy-20261005/release/protected-before.db": "a7ad830ff2232ee5afea465878c1087f7394392795995a91214618da956dd4bb",
+    "test-artifacts/netem-production-copy-20261005/release/working/vocab.db": "73882644f895ab0a41f80eb15a92c8ac16a73764c16aa652c616afce425abddb",
+    "test-artifacts/netem-production-copy-20261005/release/working/vocab.db-wal": "f2856f1da7863724c65c77377089fe25c4ea41370450b0c2a8feda876de6e587",
+    "test-artifacts/netem-production-copy-20261005/release/working/vocab.db-shm": "20723f00ec43d10b8a6b9abc5902a80901506a5df24669192612a982c30e57da",
+    "test-artifacts/netem-production-copy-20261005/full-gate.log": "186175fc3980034f7bdd1020b3a6da59bde38ea5566d0ed18ae699ef3071d326",
+    "test-artifacts/pytest-isolation-evidence.json": "31d5bfd3c3399d0b0f48fda7ab4fcb578c3a1a107ca3e07e6cbfdb8095825041",
+    "test-artifacts/netem-production-copy-20261005/release/runbook-withdrawal.db": "5322111a8977ddff0334b8fbfa435a6ed489d6bde964cdc350b555bc53ba317b"
+  },
+  "not_executed": [
+    "production_import",
+    "production_migration",
+    "production_service_change",
+    "push",
+    "whole_dictionary_meaning_merge"
+  ],
+  "status": "NETEM production-copy accepted; production import pending; private self-import already live",
+  "runtime_trees": {
+    "backend": "2b7da9de6f8f5ed8bc16f70a21e00346f708e600",
+    "frontend": "2ba5e37c18ad6bade93fcc9653b0d5821b8945e9",
+    "tools": "f0e192d2861072e8307c44b5b3f6de507142100d",
+    "scripts": "6f6549ad800a4c0404207062bf8d518126d69e44"
+  },
+  "runbook_withdrawal_sql_copy_test": {
+    "database": "test-artifacts\\netem-production-copy-20261005\\release\\runbook-withdrawal.db",
+    "only_lexicon_visibility_changed": true,
+    "all_user_tables_identical": true,
+    "production_not_used": true
+  }
+}

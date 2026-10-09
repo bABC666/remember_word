@@ -20,14 +20,21 @@ worth showing at all.
   operator identity, and no other entry's evidence.
 
 Every import here is a real confirmation through ``confirm_plan`` against synthetic CSV
-in a temporary directory, on the session's migrated 0010 database. No test opens a file
+in a temporary directory, on the session's migrated database. No test opens a file
 under ``data/`` and none touches the production database.
+
+One test is the exception to "through a real confirmation": it writes its short
+meanings directly as *already-confirmed* rows. It is about the read path -- which
+evidence id reaches a client -- and the position shape it uses is one the confirmation
+entry refuses on purpose, so a row carrying it cannot be produced by confirming
+anything today.
 """
 
 from __future__ import annotations
 
 import json
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +52,16 @@ SUPPLEMENT_TEMPLATE = "https://github.com/example/supplement-pack/tree/{revision
 
 PRIMARY_REVISION = "1111111"
 SUPPLEMENT_REVISION = "2222222"
+
+#: The position shape the trial record's short meanings were written with: the field's
+#: *role* and the line -- here the adopted ``meaning`` row, which is the supplement CSV's
+#: physical line 2. The confirmation entry refuses it today because ``meaning`` is a role
+#: rather than a declared source id and no persisted line evidence is named, which is
+#: exactly why the test that uses it represents *already-confirmed* data rather than a
+#: confirmation.
+LEGACY_LOCATOR = "meaning:2"
+#: The moment such a row was confirmed. Fixed so the fixture is reproducible.
+LEGACY_CONFIRMED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 #: The whole of what one evidence row may expose. Named rather than counted, so
 #: widening the payload has to be a deliberate edit here too.
@@ -379,20 +396,36 @@ def test_a_row_the_import_did_not_adopt_is_not_the_source_of_the_value(
     assert [row["source"]["role"] for row in word["candidates"]] == ["meaning"]
 
 
-def test_the_concise_meaning_reports_the_evidence_row_it_was_proposed_against(
+def test_the_concise_meaning_reports_the_evidence_row_it_was_recorded_against(
     admin, tmp_path: Path
 ) -> None:
     """``concise_meanings[]`` carries the id that ties it to one evidence row.
 
     The display value and the source block have to agree about which row a short
     meaning came from; the id is what lets a client ask, and a supplement has none.
+
+    The two values are written **directly**, as already-confirmed data, and that is the
+    subject rather than a shortcut. ``LEGACY_LOCATOR`` has the shape the trial record
+    used, and the confirmation entry resolves a position through a *declared* source: it
+    refuses this one, because no ``_require_csv_position`` contract can be met by it --
+    it is neither a WikDict CSV line nor a line of a pinned wikitext revision. A row
+    carrying it can therefore only be one written before that contract existed, or a
+    direct write; the read path is documented to still render those
+    (``load_concise_meanings``: "Rows written before this rule existed are exactly the
+    ones that land here"). This test checks that read path -- which id reaches the client
+    and that the two sides of the payload agree about it, not how the row got there.
+
+    What it deliberately does **not** do is dress the synthetic position up as a verified
+    one. Renaming it to a WikDict locator with a fabricated evidence row would make the
+    fixture pass by asserting a provenance chain nobody produced; and relaxing the
+    confirmation entry to accept ``meaning:2`` would remove the check the position
+    contract exists for. The position stays named as what it is.
     """
+    from app.models import EntryConciseMeaning, EntrySourceEvidence
     from app.services.concise_meaning import (
         KIND_AI_SUPPLEMENT,
         KIND_DERIVED,
-        ConciseMeaningProposal,
-        confirm,
-        propose,
+        STATUS_CONFIRMED,
     )
 
     root = tmp_path / "sources"
@@ -403,8 +436,6 @@ def test_the_concise_meaning_reports_the_evidence_row_it_was_proposed_against(
     state_id = ids["states"][f"word{token}"]
 
     with admin.session() as session:
-        from app.models import EntrySourceEvidence, LexiconEntry
-
         evidence = session.scalars(
             select(EntrySourceEvidence).where(
                 EntrySourceEvidence.lexicon_entry_id == entry_id,
@@ -414,30 +445,56 @@ def test_the_concise_meaning_reports_the_evidence_row_it_was_proposed_against(
         ).all()
         assert len(evidence) == 1, "control: exactly one adopted meaning row"
         evidence_id = evidence[0].id
-        administrator = _administrator(session, admin)
-        entry = session.get(LexiconEntry, entry_id)
-        rows = propose(
-            session, entry=entry,
-            proposals=[
-                ConciseMeaningProposal(
-                    text=f"补充释义-{token}", provenance_kind=KIND_DERIVED,
-                    display_order=1, source_locator="meaning:2",
-                    derivation_note="来源为补充来源原文，此处仅取常见义项",
-                    source_evidence_id=evidence_id,
-                ),
-                ConciseMeaningProposal(
-                    text="自拟补充义项", provenance_kind=KIND_AI_SUPPLEMENT,
-                    display_order=2, derivation_note="来源未收录该义项，按常用度补足",
-                ),
-            ],
-            actor=administrator,
+        assert evidence[0].row_locator == 2, (
+            "the legacy locator's line is the physical line this evidence row records, "
+            "so the fixture names a real position; what the current contract refuses is "
+            "its source name, which is the field's role and not a declared source id"
         )
-        for row in rows:
-            confirm(session, meaning=row, confirmer=administrator)
+        administrator = _administrator(session, admin)
+
+        # The group the two values share. Both are confirmed, both name a reviewer basis,
+        # both record the target language: the read path is allowed to withhold a
+        # confirmed row whose provenance does not hold up, so a fixture that skipped
+        # these would test "an undisplayable row stays hidden" instead.
+        group = {
+            "pos_key": "noun", "pos_label": "名词", "pos_order": 1,
+            "pos_source": "reviewer", "pos_evidence_locator": LEGACY_LOCATOR,
+            "language": "en",
+        }
+        attribution = {
+            "status": STATUS_CONFIRMED,
+            "proposed_by_username": administrator.username,
+            "confirmed_by_user_id": administrator.id,
+            "confirmed_by_username": administrator.username,
+            "confirmed_at": LEGACY_CONFIRMED_AT,
+        }
+        session.add_all([
+            EntryConciseMeaning(
+                lexicon_entry_id=entry_id, display_order=1,
+                text=f"补充释义-{token}", provenance_kind=KIND_DERIVED,
+                source_locator=LEGACY_LOCATOR, source_evidence_id=evidence_id,
+                derivation_note="来源为补充来源原文，此处仅取常见义项",
+                **group, **attribution,
+            ),
+            EntryConciseMeaning(
+                lexicon_entry_id=entry_id, display_order=2,
+                text="自拟补充义项", provenance_kind=KIND_AI_SUPPLEMENT,
+                source_locator="", source_evidence_id=None,
+                derivation_note="来源未收录该义项，按常用度补足",
+                **group, **attribution,
+            ),
+        ])
         session.commit()
 
     detail = _detail(admin, state_id)
-    by_order = {item["display_order"]: item for item in detail["concise_meanings"]}
+    # The response groups by part of speech, so the two values are read out of their
+    # group; the grouping is not what this test is about.
+    displayed = [
+        meaning
+        for pos in detail["concise_meanings"]
+        for meaning in pos["meanings"]
+    ]
+    by_order = {item["display_order"]: item for item in displayed}
     assert by_order[1]["source_evidence_id"] == evidence_id
     assert by_order[2]["source_evidence_id"] is None, (
         "a supplement points at no evidence row"

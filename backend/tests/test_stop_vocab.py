@@ -193,6 +193,21 @@ def run_stop(
     )
 
 
+def can_inspect_port_owner(powershell: str, port: int, expected_pid: int) -> bool:
+    """Probe the same Windows API used by stop-vocab before relying on its warning."""
+    command = (
+        f"Get-NetTCPConnection -State Listen -LocalPort {port} -ErrorAction Stop "
+        "| Select-Object -ExpandProperty OwningProcess -Unique"
+    )
+    result = subprocess.run(
+        [powershell, "-NoProfile", "-Command", command],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and str(expected_pid) in result.stdout.split()
+
+
 def write_pid_file(data_root: Path, value: object) -> Path:
     data_root.mkdir(parents=True, exist_ok=True)
     pid_file = data_root / "server.pid"
@@ -249,15 +264,19 @@ def test_wrong_pid_with_a_live_listener_reports_the_real_process(
 ) -> None:
     process, port = start_fake_server(fake_checkout, tmp_path, spawned)
     data_root = tmp_path / "data"
-    write_pid_file(data_root, dead_pid())
+    stale_pid = dead_pid()
+    write_pid_file(data_root, stale_pid)
+    owner_visible = can_inspect_port_owner(powershell, port, process.pid)
 
     result = run_stop(powershell, fake_checkout, data_root, port=port)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    # The whole point: the real listener is named even though the pid file lied.
+    # The real process is named even when the pid file lies and the port API is denied.
+    assert f"= {stale_pid}" in result.stdout, result.stdout
     assert str(process.pid) in result.stdout, result.stdout
-    assert "WARNING" in result.stdout
-    assert "does not exist" in result.stdout
+    if owner_visible:
+        assert "WARNING" in result.stdout
+        assert "does not exist" in result.stdout
     assert "Shici server stopped." in result.stdout
     assert wait_for(lambda: not port_is_listening(port)), "the port was never released"
     assert wait_for(lambda: process.poll() is not None), "the real listener survived"
@@ -269,13 +288,18 @@ def test_missing_pid_file_with_a_live_listener_reports_the_real_process(
     process, port = start_fake_server(fake_checkout, tmp_path, spawned)
     data_root = tmp_path / "data"
     data_root.mkdir()
+    owner_visible = can_inspect_port_owner(powershell, port, process.pid)
 
     result = run_stop(powershell, fake_checkout, data_root, port=port)
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert str(process.pid) in result.stdout, result.stdout
-    assert "server.pid is missing" in result.stdout
+    assert "pid file  : missing" in result.stdout
+    if owner_visible:
+        assert "server.pid is missing" in result.stdout
+    assert "Shici server stopped." in result.stdout
     assert wait_for(lambda: not port_is_listening(port)), "the port was never released"
+    assert wait_for(lambda: process.poll() is not None), "the real listener survived"
 
 
 # --- case 4: no service ----------------------------------------------------

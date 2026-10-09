@@ -179,8 +179,15 @@ class PreviewMapping:
     #: gets no link -- and it is also what keeps every manifest written before this
     #: declaration existed working unchanged (see :func:`mapping_as_frozen`).
     revision: RevisionDeclaration | None = None
+    # Optional original position within a dictionary or source snapshot. The
+    # existing row locator remains the physical line of this import CSV.
+    sense_key_column: str | None = None
+    attribution: dict | None = None
 
     def __post_init__(self) -> None:
+        if self.attribution is not None:
+            from app.services.source_attribution import validate_attribution
+            validate_attribution(self.attribution)
         if "word" not in self.columns or not self.columns["word"]:
             raise ValueError("word needs a source column")
         if not self.columns.keys() <= FIELDS:
@@ -203,6 +210,11 @@ class PreviewMapping:
                     "canonical field; a source column is either lexicon content or "
                     "revision metadata, not both"
                 )
+        if self.sense_key_column is not None and (
+            not self.sense_key_column or self.sense_key_column in self.columns.values()
+            or (self.revision is not None and self.sense_key_column == self.revision.column)
+        ):
+            raise ValueError("sense key must use its own nonempty source column")
 
 
 def mapping_as_frozen(mapping: PreviewMapping) -> dict[str, object]:
@@ -223,6 +235,11 @@ def mapping_as_frozen(mapping: PreviewMapping) -> dict[str, object]:
     }
     if mapping.revision is not None:
         frozen["revision"] = mapping.revision.as_mapping()
+    if mapping.sense_key_column is not None:
+        frozen["sense_key_column"] = mapping.sense_key_column
+    if mapping.attribution is not None:
+        from app.services.source_attribution import validate_attribution
+        frozen["attribution"] = validate_attribution(mapping.attribution)
     return frozen
 
 
@@ -307,12 +324,18 @@ def preview_file(
     revision = mapping.revision
     if revision is not None and revision.column and revision.column not in header:
         issues.append({"line": 1, "code": "missing_column", "field": "revision"})
+    if mapping.sense_key_column is not None and mapping.sense_key_column not in header:
+        issues.append({"line": 1, "code": "missing_column", "field": "sense_key"})
     if issues:
         return _bounded_report(report)
 
     positions = {field: header.index(column) for field, column in mapping.columns.items()}
     revision_position = (
         header.index(revision.column) if revision is not None and revision.column else None
+    )
+    sense_key_position = (
+        header.index(mapping.sense_key_column)
+        if mapping.sense_key_column is not None else None
     )
     #: The revision every row shares when the file is pinned as a whole.
     fixed_revision = revision.value if revision is not None else ""
@@ -344,6 +367,12 @@ def preview_file(
             continue
         values = {field: cells[index] for field, index in positions.items()}
         row["values"] = values
+        if sense_key_position is not None:
+            sense_key = cells[sense_key_position]
+            row["sense_key"] = sense_key
+            if (not sense_key or sense_key != sense_key.strip() or len(sense_key) > 80
+                    or any(ord(char) < 32 or ord(char) == 127 for char in sense_key)):
+                row_issues.append({"code": "invalid_sense_key", "field": "sense_key"})
         if revision_position is not None:
             # Taken verbatim, including an empty cell: the revision is what the source
             # says it is, and this is one of the values a re-read at confirmation has
@@ -359,11 +388,12 @@ def preview_file(
             if not values[field].strip():
                 row_issues.append({"code": "missing_value", "field": field})
         normalized = values["word"].strip().casefold()
-        invalid_revision = any(
-            issue["code"] == "invalid_source_revision" for issue in row_issues
+        invalid_metadata = any(
+            issue["code"] in {"invalid_source_revision", "invalid_sense_key"}
+            for issue in row_issues
         )
-        row["normalized_word"] = "" if invalid_revision else normalized
-        if normalized and not invalid_revision:
+        row["normalized_word"] = "" if invalid_metadata else normalized
+        if normalized and not invalid_metadata:
             if normalized in seen:
                 row_issues.append({"code": "duplicate_word", "field": "word",
                                    "first_line": seen[normalized]})

@@ -5,8 +5,9 @@
 #   2. backend tests (temporary databases only)
 #   3. frontend tests, typecheck, lint and production build
 #   4. proof that pytest did not touch the real data directory
+#   5. exact production/code revision gate, then historical row verification
 #
-# Step 4 is a REQUIRED gate: any change involving a migration, a downgrade, a
+# Steps 4 and 5 are REQUIRED gates: any change involving a migration, a downgrade, a
 # schema reset, a fixture schema setup or destructive SQL must pass it. Run this
 # script instead of individual commands so the check never depends on memory.
 
@@ -73,12 +74,37 @@ Invoke-Step 'test isolation proof (real data must be untouched)' {
     try { & $python (Join-Path $projectRoot 'tools\prove_test_isolation.py') } finally { Pop-Location }
 }
 
-Invoke-Step 'verified backup check (live database vs baseline)' {
+$productionDatabase = Join-Path $projectRoot 'data\vocab.db'
+$expectedReleaseRevision = '0015_session_autoincrement'
+
+Invoke-Step 'production database and code revision' {
+    Push-Location $backendRoot
+    try {
+        $statusJson = & $python -m app.cli migration-status --database $productionDatabase
+    } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $status = $statusJson | ConvertFrom-Json
+    Write-Host "Code head   : $($status.code_head)"
+    Write-Host "DB revision : $($status.database_revision)"
+    Write-Host "Database    : $productionDatabase"
+    if (-not $status.exists -or $status.problem -or
+        $status.code_head -ne $expectedReleaseRevision -or
+        $status.database_revision -ne $expectedReleaseRevision -or
+        $status.action -ne 'current') {
+        Write-Host "FAILED: code and production database must both be $expectedReleaseRevision" -ForegroundColor Red
+        exit 1
+    }
+}
+
+Invoke-Step 'historical baseline rows, integrity and foreign keys' {
     Push-Location $projectRoot
     try {
+        # The preceding gate pins both revisions to 0015; the 0007 baseline
+        # remains the source of historical row fingerprints.
         & $python (Join-Path $projectRoot 'tools\verify_backup.py') `
-            (Join-Path $projectRoot 'data\vocab.db') `
-            --baseline (Join-Path $projectRoot 'data\recovery\baseline.json')
+            $productionDatabase `
+            --baseline (Join-Path $projectRoot 'data\recovery\baseline.json') `
+            --allow-revision-change
     } finally { Pop-Location }
 }
 

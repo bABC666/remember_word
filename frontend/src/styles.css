@@ -88,15 +88,28 @@ h1, h2, h3, p { margin-top: 0; }
 .model-identity { display: block; margin-top: 7px; color: var(--muted); font-weight: 400; line-height: 1.5; }
 .concise-meanings { display: block; }
 .concise-meanings .concise-label { color: var(--green); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.concise-meanings .concise-group + .concise-group { margin-top: 14px; }
+.concise-meanings .concise-pos-head { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.concise-meanings .concise-pos { color: var(--ink); font-size: 13px; font-weight: 700; }
+.concise-meanings .concise-pos-basis { padding: 1px 7px; border-radius: 999px; background: var(--indigo-soft); color: var(--indigo); font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; font-weight: 700; }
 .concise-meaning-list { width: fit-content; max-width: 100%; margin: 12px auto 0; padding-left: 1.65em; text-align: left; line-height: 1.8; font-family: Georgia, "Noto Serif SC", serif; font-size: 18px; }
+.concise-group .concise-meaning-list { margin-top: 6px; }
 .concise-meaning-list li { padding-left: .25em; margin: 6px 0; }
 .concise-meaning-list .concise-text { font-weight: 600; }
 .concise-meaning-list .concise-origin { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #f1eefb; color: var(--indigo); font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; font-weight: 700; vertical-align: middle; }
 .concise-meaning-list .concise-origin-ai_supplement { background: #fdf0e2; color: #9a5b12; }
-.concise-meaning-list .concise-note, .concise-meaning-list .concise-locator { display: block; color: var(--muted); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.5; }
-.concise-confirmed-by { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.concise-meaning-list .concise-note, .concise-meaning-list .concise-locator, .concise-meaning-list .concise-citations { display: block; color: var(--source-secondary); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.5; }
+.concise-meaning-list .concise-citation { display: inline-block; margin-left: 6px; }
+.concise-confirmed-by { display: block; margin-top: 8px; color: var(--source-secondary); font-size: 12px; }
 .answer-area .concise-meaning-list { margin-inline: auto; }
 .answer-area .concise-confirmed-by { margin-inline: auto; }
+/* The detail page is left-aligned throughout, so the study page's centred block does
+   not belong there: with `width: fit-content` plus `margin-inline: auto` each group's
+   list was centred under a heading that sits flush left, and the heading looked
+   detached from the values it labels. Filling the container instead puts the heading
+   and its list on the same left edge, at every width. The study page keeps the centred
+   rule above, which is the only place that centres. */
+.word-detail .concise-meaning-list { width: auto; margin-inline: 0; }
 .word-detail .concise-meanings { margin-bottom: 4px; }
 .study-source { margin-top: 18px; text-align: left; }
 .study-source summary { cursor: pointer; color: var(--muted); font-size: 13px; }
@@ -257,6 +270,11 @@ h1, h2, h3, p { margin-top: 0; }
 .source-card { padding: 16px 18px; border: 1px solid var(--line); border-radius: 10px; background: white; }
 .source-card > header { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
 .source-card h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.source-attribution { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.source-attribution code { font-size: 11px; word-break: break-all; }
+.attribution-links { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.attribution-details { margin: 8px 0; }
+.attribution-details > summary { cursor: pointer; color: var(--accent); }
 .source-role { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: var(--source-secondary); font-size: 10px; }
 .approval-badge { padding: 3px 8px; border-radius: 999px; background: #eef0f4; color: var(--source-secondary); font-size: 10px; }
 .approval-badge.unapproved { background: var(--danger-soft); color: var(--danger); }
@@ -325,8 +343,15 @@ h1, h2, h3, p { margin-top: 0; }
    4.5:1 on every surface these blocks put text on; `--muted` itself and every
    existing site-wide control are left exactly as they were. The adopted and
    unadopted states keep their wording, their colour pair and their border
-   style, so nothing here is carried by colour alone. */
-.sources-page, .entry-sources { --source-secondary: #5f6880; }
+   style, so nothing here is carried by colour alone.
+
+   **Follow-up (browser acceptance F1).** The concise block's own 12px secondary
+   lines -- the primary position, the additional citations and the rewrite note --
+   were measured in a real browser at 3.71:1 on `--bg`, the same shortfall on the
+   same ink. They now share the same local ink, which is why `.concise-meanings`
+   is in the scope list above rather than a second hex being introduced: one
+   variable, one place to change, and the contrast assertion below covers them. */
+.sources-page, .entry-sources, .concise-meanings { --source-secondary: #5f6880; }
 .source-row-link,
 .source-row-card,
 .source-meta a { display: inline-flex; align-items: center; min-width: 24px; min-height: 24px; }
@@ -336,3 +361,28 @@ h1, h2, h3, p { margin-top: 0; }
    the intended one, the colour is not. Removing the class the component used to
    carry is what let that rule take over. */
 .entry-sources .source-section-label { color: var(--source-secondary); }
+.lexicon-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1rem; margin: 1.5rem 0; }
+.lexicon-cards article, .file-lexicon-import { border: 1px solid var(--border, #d8ddd7); border-radius: 16px; padding: 1.25rem; background: var(--surface, #fff); }
+.lexicon-cards article h2 { margin-top: 0; }
+.lexicon-cards article h2 small { font-size: .7em; color: #4c734e; margin-left: .4rem; }
+.file-lexicon-import label { display: block; margin: 1rem 0; }
+.file-lexicon-import input { display: block; width: min(100%, 480px); margin-top: .4rem; }
+.file-preview-list { max-height: 360px; overflow: auto; margin: 1rem 0; border: 1px solid #d8ddd7; border-radius: 10px; }
+.file-preview-list [role="listitem"] { display: flex; flex-wrap: wrap; gap: .75rem; padding: .55rem .8rem; border-bottom: 1px solid #edf0eb; }
+.file-preview-list [role="listitem"]:last-child { border-bottom: 0; }
+.dictionary-source-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; }
+.dictionary-source-note button { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.dictionary-source-dialog { width: min(660px, 100%); max-height: min(760px, 85dvh); overflow-y: auto; overscroll-behavior: contain; min-width: 0; }
+.dictionary-source-dialog > header { display: flex; justify-content: space-between; align-items: center; }
+.dictionary-source-dialog h2 { margin: 0; }
+.dictionary-source-dialog .source-attribution { font-size: 13px; line-height: 1.7; }
+.library-pagination { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; margin: 16px 0; }
+.library-pagination > span { color: var(--muted); font-size: 13px; }
+.word-source-explanation { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
+.word-source-explanation > summary { min-height: 28px; cursor: pointer; color: var(--indigo); font-size: 13px; font-weight: 600; }
+.word-source-explanation > summary:focus-visible { outline: 2px solid var(--indigo); outline-offset: 4px; }
+.word-source-explanation > p { overflow-wrap: anywhere; }
+.dictionary-extraction { margin-block: 1rem; }
+.dictionary-extraction-evidence { margin-top: 1rem; }
+.dictionary-extraction-evidence > div { margin-block: .75rem; }
+.extraction-hash { overflow-wrap: anywhere; }

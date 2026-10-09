@@ -37,6 +37,10 @@ CHECK_NAME = "ck_entry_source_evidence_revision_trimmed"
 
 REVISION_0009 = "0009_entry_concise_meaning"
 REVISION_0010 = "0010_entry_source_revision"
+REVISION_0011 = "0011_entry_concise_meaning_pos"
+REVISION_0012 = "0012_source_wikitext_line"
+REVISION_0013 = "0013_concise_meaning_wikitext_binding"
+REVISION_0014 = "0014_selected_lexicon"
 
 NOW = "2026-01-01 00:00:00"
 
@@ -281,14 +285,24 @@ def step(tmp_path: Path, database: Path, *arguments: str) -> None:
 # --- the revision chain -------------------------------------------------------
 
 
-def test_0010_is_the_single_head_and_stacks_on_0009() -> None:
+def test_0010_stacks_on_0009_and_the_graph_has_one_head() -> None:
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == [REVISION_0010], (
-        "adding 0010 must keep exactly one head; a second head means the migration "
-        "graph branched"
+    # The later revisions follow 0010 in one chain, not a second branch.
+    assert script.get_heads() == ["0016_dictionary_extraction"], (
+        "there must be exactly one head; a second head means the migration graph branched"
+    )
+    assert script.get_revision("0016_dictionary_extraction").down_revision == (
+        "0015_session_autoincrement"
+    )
+    assert script.get_revision("0015_session_autoincrement").down_revision == REVISION_0014
+    assert script.get_revision(REVISION_0014).down_revision == REVISION_0013
+    assert script.get_revision(REVISION_0013).down_revision == REVISION_0012
+    assert script.get_revision(REVISION_0012).down_revision == REVISION_0011
+    assert script.get_revision(REVISION_0011).down_revision == REVISION_0010, (
+        "0011 follows 0010 rather than editing it in place"
     )
     assert script.get_revision(REVISION_0010).down_revision == REVISION_0009, (
         "0010 stacks on 0009 rather than editing an unpublished revision in place"

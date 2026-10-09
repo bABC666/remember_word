@@ -6,6 +6,8 @@ from app.api.deps import CurrentUser, SessionDep
 from app.api.helpers import review_dict, word_dict_from_view
 from app.schemas import ReviewRequest
 from app.services.concise_meaning import entry_short_meanings
+from app.services.entry_provenance import selected_meaning_sources
+from app.services.lexicon_selection import effective_lexicon_selection
 from app.services.study import (
     build_today_queue,
     record_review_for_user,
@@ -20,6 +22,7 @@ def today_queue(
     user: CurrentUser,
     session: SessionDep,
     limit: int = Query(default=50, ge=1, le=200),
+    lexicon_id: int | None = Query(default=None, ge=1),
 ) -> dict[str, object]:
     """Words to study now, **for this user only**.
 
@@ -36,17 +39,24 @@ def today_queue(
     numbers behind it are reported as ``daily_new_words``; the rules and their
     boundaries are in ``docs/V1.2-PHASE2.8-E-DAILY-NEW-WORDS-DESIGN.md``.
     """
-    queue = build_today_queue(session, user, limit=limit)
+    selected_id, source = effective_lexicon_selection(session, user)
+    scope = lexicon_id if lexicon_id is not None else selected_id
+    queue = build_today_queue(session, user, limit=limit, lexicon_id=scope)
     # One query for the whole response. ``entry_short_meanings`` returns only
     # human-confirmed values, so a word with an unconfirmed proposal answers with an
     # empty list and the client falls back to the source meanings.
     short = entry_short_meanings(session, (view.entry.id for view in queue.words))
-    words = [
-        word_dict_from_view(view, short.get(view.entry.id))
-        for view in queue.words
-    ]
+    attribution = selected_meaning_sources(session, [view.entry.id for view in queue.words])
+    words = []
+    for view in queue.words:
+        word = word_dict_from_view(view, short.get(view.entry.id))
+        if view.entry.lexicon.source_type == "netem":
+            word["source_meaning_sources"] = attribution.get(view.entry.id, [])
+        words.append(word)
     return {
         "total": len(words),
+        "lexicon_id": scope,
+        "selection_source": "request" if lexicon_id is not None else source,
         "words": words,
         "daily_new_words": {
             "target": queue.budget.target,

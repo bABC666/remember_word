@@ -45,13 +45,15 @@ from urllib.parse import quote
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import EntrySourceEvidence, SourceArtifact
+from app.models import EntrySourceEvidence, PublicImportRun, SourceArtifact
+from app.services.public_lexicon_gap import RETRACTION_KIND
 from app.services.public_lexicon_joint_preview import FIELD_ORDER
 from app.services.public_lexicon_preview import (
     REVISION_PLACEHOLDER,
     RevisionDeclaration,
     linkable_revision_identifier,
 )
+from app.services.source_attribution import frozen_attribution, has_fixed_package
 
 #: Reported in ``completeness.missing`` when a degradation reason applies. Named
 #: rather than counted, so a caller can branch on the machine-readable code and a
@@ -133,7 +135,7 @@ def _evidence_dict(
     alike.
     """
     revision = row.source_revision or ""
-    return {
+    value = {
         "source_evidence_id": row.id,
         "field_kind": row.field_kind,
         "row_locator": row.row_locator,
@@ -155,6 +157,11 @@ def _evidence_dict(
             "license_id": artifact.license_id,
         },
     }
+    attribution = frozen_attribution(artifact)
+    if attribution:
+        value["source"]["attribution"] = attribution
+        value["source_history_url"] = revision_url(attribution.get("history_url_template", ""), revision)
+    return value
 
 
 def _rows(session: Session, entry_id: int) -> list[tuple[EntrySourceEvidence, SourceArtifact]]:
@@ -178,6 +185,54 @@ def _rows(session: Session, entry_id: int) -> list[tuple[EntrySourceEvidence, So
             )
         ).all()
     )
+
+
+def selected_meaning_sources(
+    session: Session, entry_ids: list[int]
+) -> dict[int, list[dict[str, object]]]:
+    """Batch-load adopted dictionary attribution for a study queue.
+
+    The physical CSV row and the source-internal position remain separate. Only
+    selected meaning evidence is eligible; private uploads have no such record.
+    """
+    if not entry_ids:
+        return {}
+    rows = session.execute(
+        select(EntrySourceEvidence, SourceArtifact)
+        .join(SourceArtifact, SourceArtifact.id == EntrySourceEvidence.source_artifact_id)
+        .where(
+            EntrySourceEvidence.lexicon_entry_id.in_(entry_ids),
+            EntrySourceEvidence.field_kind == "meaning",
+            EntrySourceEvidence.selected_for_default.is_(True),
+        )
+        .order_by(EntrySourceEvidence.lexicon_entry_id, EntrySourceEvidence.selection_order,
+                  EntrySourceEvidence.id)
+    ).all()
+    result: dict[int, list[dict[str, object]]] = {}
+    retracted = _retracted_run_ids(session)
+    for evidence, artifact in rows:
+        if evidence.import_run_id in retracted:
+            continue
+        revision = evidence.source_revision or ""
+        template = frozen_revision_template(artifact)
+        item = {
+            "name": artifact.name,
+            "source_artifact_id": artifact.id,
+            "file_sha256": artifact.file_sha256,
+            "publisher": artifact.publisher,
+            "version": artifact.version,
+            "source_position": evidence.sense_key,
+            "import_csv_line": str(evidence.row_locator),
+            "source_revision": revision,
+            "source_revision_url": revision_url(template, revision),
+            "license_id": artifact.license_id,
+        }
+        attribution = frozen_attribution(artifact)
+        if attribution:
+            item["attribution"] = attribution
+            item["source_history_url"] = revision_url(attribution.get("history_url_template", ""), revision)
+        result.setdefault(evidence.lexicon_entry_id, []).append(item)
+    return result
 
 
 def _field_order(field_kinds: list[str]) -> list[str]:
@@ -219,6 +274,8 @@ def _completeness(
             missing.append(_missing(FIELD_WITHOUT_SELECTED_SOURCE, field_kind))
             continue
         for item in selected:
+            if has_fixed_package(item["source"].get("attribution", {})):
+                continue
             if not item["source_revision"]:
                 missing.append(_missing(SOURCE_REVISION_MISSING, field_kind))
             elif not item["source_revision_url"]:
@@ -246,12 +303,18 @@ def entry_sources(session: Session, entry_id: int) -> dict[str, object]:
     pairs = _rows(session, entry_id)
     templates: dict[int, str] = {}
     grouped: dict[str, dict[str, list[dict[str, object]]]] = {}
+    retracted = _retracted_run_ids(session)
     for row, artifact in pairs:
         if artifact.id not in templates:
             templates[artifact.id] = frozen_revision_template(artifact)
         item = _evidence_dict(row, artifact, templates[artifact.id])
+        active = row.selected_for_default and row.import_run_id not in retracted
+        if row.import_run_id in retracted:
+            item["selection_retracted"] = True
+            item["recorded_selected_for_default"] = item["selected_for_default"]
+            item["selected_for_default"] = False
         bucket = grouped.setdefault(row.field_kind, {"selected": [], "candidates": []})
-        bucket["selected" if row.selected_for_default else "candidates"].append(item)
+        bucket["selected" if active else "candidates"].append(item)
 
     fields = [
         {
@@ -262,3 +325,13 @@ def entry_sources(session: Session, entry_id: int) -> dict[str, object]:
         for field_kind in _field_order(list(grouped))
     ]
     return {"fields": fields, "completeness": _completeness(fields, bool(pairs))}
+
+
+def _retracted_run_ids(session: Session) -> set[int]:
+    """An appended retraction changes adoption, never the original evidence row."""
+    values = session.scalars(select(PublicImportRun.result_json).where(
+        PublicImportRun.target_lexicon_id == 5,
+        PublicImportRun.result_json["kind"].as_string() == RETRACTION_KIND,
+    )).all()
+    return {value["retracted_run_id"] for value in values
+            if isinstance(value.get("retracted_run_id"), int)}

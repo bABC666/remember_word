@@ -58,7 +58,7 @@ def _set_target(world, value: int) -> None:
 
 
 def _set_target_in_db(world, value: int) -> None:
-    """Write a value the settings API refuses (its range is 1-100).
+    """Write a value the settings API refuses (its range is 1-500).
 
     The column can hold anything, so the queue has to stay sane for a value written
     by hand or by an older version.
@@ -140,6 +140,84 @@ def _add_new_words(world, count: int, *, prefix: str = "word") -> list[int]:
 
 
 # --- the daily cap -----------------------------------------------------------
+
+def test_raising_target_after_finishing_selected_lexicon_unlocks_more_words(world):
+    lexicon_id = world.lexicon("NETEM")
+    with world.session() as session:
+        for index in range(60):
+            _entry_in(session, lexicon_id, f"extra-{index}")
+        session.commit()
+    assert world.client.post(f"/api/lexicons/{lexicon_id}/select").status_code == 200
+    first = _new_words(_queue(world))
+    assert len(first) == DEFAULT_TARGET
+    for item in first:
+        _review(world, item["word_state_id"])
+    assert not _new_words(_queue(world))
+    _set_target(world, 60)
+    after = _queue(world)
+    assert _budget(after) == {"target": 60, "consumed_today": 15, "remaining": 45}
+    assert len(_new_words(after)) == 45
+    assert {item["word_state_id"] for item in first}.isdisjoint(
+        item["word_state_id"] for item in after["words"]
+    )
+
+
+def test_selected_lexicon_refills_beyond_the_first_queue_page(world):
+    lexicon_id = world.lexicon("NETEM")
+    with world.session() as session:
+        for index in range(100):
+            _entry_in(session, lexicon_id, f"page-{index}")
+        session.commit()
+    _set_target(world, 100)
+    assert world.client.post(f"/api/lexicons/{lexicon_id}/select").status_code == 200
+    first = _new_words(_queue(world))
+    assert len(first) == 50
+    for item in first:
+        _review(world, item["word_state_id"])
+    second = _new_words(_queue(world))
+    assert len(second) == 50
+    assert {item["word_state_id"] for item in first}.isdisjoint(
+        item["word_state_id"] for item in second
+    )
+    for item in second:
+        _review(world, item["word_state_id"])
+    assert _budget(_queue(world)) == {"target": 100, "consumed_today": 100, "remaining": 0}
+    assert not _new_words(_queue(world))
+
+
+@pytest.mark.parametrize("target", [101, 500])
+def test_settings_accept_new_word_targets_up_to_500(world, target):
+    _set_target(world, target)
+    assert world.client.get("/api/settings").json()["daily_new_words"] == target
+
+
+@pytest.mark.parametrize("target", [0, 501])
+def test_settings_reject_new_word_targets_outside_1_to_500(world, target):
+    response = world.client.put("/api/settings", json={"daily_new_words": target})
+    assert response.status_code == 422
+    assert world.client.get("/api/settings").json()["daily_new_words"] == DEFAULT_TARGET
+
+
+def test_selected_lexicon_can_study_500_words_across_ten_queue_pages(world):
+    lexicon_id = world.lexicon("NETEM")
+    with world.session() as session:
+        for index in range(510):
+            _entry_in(session, lexicon_id, f"large-target-{index}")
+        session.commit()
+    _set_target(world, 500)
+    assert world.client.post(f"/api/lexicons/{lexicon_id}/select").status_code == 200
+    studied = set()
+    for _ in range(10):
+        words = _new_words(_queue(world))
+        assert len(words) == 50
+        ids = {item["word_state_id"] for item in words}
+        assert studied.isdisjoint(ids)
+        studied.update(ids)
+        for item in words:
+            _review(world, item["word_state_id"])
+    assert len(studied) == 500
+    assert _budget(_queue(world)) == {"target": 500, "consumed_today": 500, "remaining": 0}
+    assert not _new_words(_queue(world))
 
 
 def test_new_words_are_capped_by_the_daily_target(world) -> None:

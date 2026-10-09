@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import { SourceAttribution } from './SourceAttribution'
+import { licenseLink } from '../pages/sourcesModel'
 import { sourceCardHref } from '../sourceAnchor'
 import type { EntrySources, SourceEvidence } from '../types'
 
@@ -88,13 +90,27 @@ export function EntrySourceList({ sources, lexiconId }: { sources: EntrySources;
       })}
 
       {fields.length > 0 && (
-        <p className="source-foot">以上是导入时记录的来源声明，不代表授权已获确认。</p>
+        <>
+          <p className="source-foot">这里展示固定来源选取或翻译整理的片段；具体修改见来源声明，未经全库逐词语义校订。</p>
+          <p className="source-foot">以上是导入时记录的来源声明，不代表授权已获确认。</p>
+        </>
       )}
     </section>
   )
 }
 
 function EvidenceRow({ row, unadopted, lexiconId }: { row: SourceEvidence; unadopted: boolean; lexiconId: number }) {
+  const packageFixed = !!row.source.attribution?.snapshot_sha256 && !!row.source.attribution?.snapshot_url
+  const licenseUrl = licenseLink(row.source.license_id)
+  const position = row.sense_key.startsWith('wikitext:line:')
+    ? `原 wikitext 行号 ${row.sense_key.slice('wikitext:line:'.length)}`
+    : row.sense_key.startsWith('cache:def:')
+      ? `旧清洗缓存定义序号 ${row.sense_key.slice('cache:def:'.length)}（非原文行号）`
+      : row.sense_key.startsWith('stardict.idx#')
+        ? `StarDict 索引及正文偏移 ${row.sense_key}`
+        : row.sense_key.startsWith('netem:rank:')
+          ? `NETEM 原序号 ${row.sense_key.slice('netem:rank:'.length)}`
+          : `来源内位置 ${row.sense_key}`
   return (
     <li className={unadopted ? 'source-row unadopted' : 'source-row'}>
       <div className="source-row-head">
@@ -106,10 +122,11 @@ function EvidenceRow({ row, unadopted, lexiconId }: { row: SourceEvidence; unado
       </div>
       <p className="source-row-text">{row.raw_text}</p>
       <small className="source-row-meta">
-        第 {row.row_locator} 行 · 版本 {row.source.version || '未记录'} · 许可标识 {row.source.license_id || '未记录'}
+        导入文件第 {row.row_locator} 行 · {position} · 版本 {row.source.version || '未记录'} · 许可标识 {row.source.license_id || '未记录'}
       </small>
+      {licenseUrl && <a className="source-row-link" href={licenseUrl} target="_blank" rel="noreferrer noopener">{row.source.license_id}</a>}
       <small className="source-row-revision">
-        {row.source_revision ? `固定修订 ${row.source_revision}` : '没有记录固定修订号'}
+        {row.source_revision ? `固定修订 ${row.source_revision}` : packageFixed ? '固定来源包；未提供逐词修订号' : '没有记录固定修订号'}
       </small>
       {row.source_revision_url ? (
         <a
@@ -124,9 +141,10 @@ function EvidenceRow({ row, unadopted, lexiconId }: { row: SourceEvidence; unado
         // No link, and the reason said out loud. What is never done here is guessing
         // one from the line number or from another row's revision.
         <small className="source-row-nolink">
-          {row.source_revision ? '无法合成固定修订链接（映射未声明或不可用）' : '没有修订号，无法回查固定版本'}
+          {row.source_revision ? '无法合成固定修订链接（映射未声明或不可用）' : packageFixed ? '使用包日期、SHA-256 和 StarDict 内部位置核对固定版本' : '没有修订号，无法回查固定版本'}
         </small>
       )}
+      <SourceAttribution value={row.source.attribution} historyUrl={row.source_history_url} compact />
       {/* Every recorded row links to its own card on the sources page, including a
           candidate: a source we did not adopt is still a source we recorded. The anchor
           carries the entry's own lexicon as well as the artifact, so a source file

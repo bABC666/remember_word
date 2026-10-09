@@ -234,11 +234,17 @@ def test_staging_clone_downgrade_runs_and_keeps_the_data(tmp_path: Path) -> None
     has to rebuild the same nine tables to remove the foreign keys, and proves the
     rebuild preserves rows.
 
-    The head foreign-key count moved 26 -> 33 -> 40: migration ``0008`` adds four
-    tables carrying seven foreign keys (``public_import_run`` 2,
-    ``public_import_run_source`` 2, ``entry_source_evidence`` 3), and ``0009`` adds
+    The head foreign-key count moved 26 -> 33 -> 40 -> 42 -> 43 -> 46 -> 47:
+    migration ``0008`` adds
+    four tables carrying seven foreign keys (``public_import_run`` 2,
+    ``public_import_run_source`` 2, ``entry_source_evidence`` 3), ``0009`` adds
     two more carrying seven (``entry_concise_meaning`` 3,
-    ``entry_concise_meaning_revision`` 4). The assertion is on the physical count, so
+    ``entry_concise_meaning_revision`` 4), ``0011`` adds one carrying two
+    (``entry_concise_meaning_citation`` 2) and ``0012`` one carrying one
+    (``source_wikitext_line`` 1, the preserved artifact its lines were read from),
+    ``0013`` adds three pinned-line bindings and ``0014`` adds one selected-lexicon
+    reference. The
+    assertion is on the physical count, so
     it has to move with the schema; 17 after the downgrade to ``0006`` is unchanged,
     which is the part that proves the rebuild is exact.
     """
@@ -249,9 +255,11 @@ def test_staging_clone_downgrade_runs_and_keeps_the_data(tmp_path: Path) -> None
     elsewhere.mkdir()
     env = {"VOCAB_REAL_DATA_DIR": str(elsewhere)}
 
-    result = run_alembic(database, "upgrade", "head", extra_env=env)
+    # This older path tests the 0014 -> 0006 chain. The new 0015 revision
+    # intentionally refuses direct downgrade because it would reuse session IDs.
+    result = run_alembic(database, "upgrade", "0014_selected_lexicon", extra_env=env)
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
-    assert foreign_key_count(database) == 40
+    assert foreign_key_count(database) == 47
     connection = sqlite3.connect(str(database))
     try:
         connection.execute(

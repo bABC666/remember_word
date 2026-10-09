@@ -297,6 +297,8 @@ def _mapping_from_plan(source: dict[str, Any]) -> PreviewMapping:
         encoding=frozen["encoding"],
         delimiter=frozen["delimiter"],
         revision=revision,
+        sense_key_column=frozen.get("sense_key_column"),
+        attribution=frozen.get("attribution"),
     )
 
 
@@ -326,6 +328,9 @@ def _reverify_evidence(
                         "请重新预览并重新裁定。"
                     )
                 _reverify_revisions(
+                    previews, item, word=entry["normalized_word"], field=field
+                )
+                _reverify_sense_key(
                     previews, item, word=entry["normalized_word"], field=field
                 )
         _reverify_written_values(previews, entry)
@@ -380,6 +385,24 @@ def _revision_at(preview: dict[str, Any] | None, line: object) -> object:
     # The locator itself did not come back; ``_value_at`` reports that with ``None``,
     # and a revision has nothing to say about a row that is not there.
     return _ABSENT
+
+
+def _reverify_sense_key(
+    previews: dict[str, dict[str, Any]], item: dict[str, Any], *, word: str, field: str
+) -> None:
+    """Re-derive an optional source-internal locator independently of the CSV line."""
+    preview = previews.get(str(item["source_id"]))
+    current = next(
+        (row.get("sense_key", _ABSENT) for row in preview["rows"]
+         if row["line"] == item["line"]),
+        _ABSENT,
+    ) if preview else _ABSENT
+    frozen = item.get("sense_key", _ABSENT)
+    if current != frozen:
+        raise ConfirmRefused(
+            f"{word!r} 的 {field} 证据在 {item['source_id']} 第 {item['line']} 行的"
+            "来源内位置与计划不符；请重新预览并重新裁定。"
+        )
 
 
 def _reverify_written_values(
@@ -831,7 +854,7 @@ def _plan_evidence(
                     "normalized_word": entry["normalized_word"],
                     "row_locator": item["line"],
                     "field_kind": field,
-                    "sense_key": f"{field}@{item['line']}",
+                    "sense_key": item.get("sense_key", f"{field}@{item['line']}"),
                     "raw_word": raw_words.get(locator, entry["normalized_word"]),
                     "raw_text": item["raw_value"],
                     "evidence_sha256": item["idempotency_key"],

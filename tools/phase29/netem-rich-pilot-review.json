@@ -1,0 +1,631 @@
+{
+  "review_kind": "automated_source_comparison",
+  "core_confirmation": false,
+  "scope": "100-word pilot source excerpt comparison; no human confirmation or production approval",
+  "accepted": [
+    {
+      "word": "play",
+      "locator": "wikdict:idx:18537:offset:4183981:/div[1]/ol[1]/li[2]",
+      "text": "玩",
+      "pos_key": "verb",
+      "body_sha256": "c747105cf1940bb41016e70ac42da54ce6b7158ad5a7255505670e985927c1e8",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "above",
+      "locator": "wikdict:idx:107:offset:25981:/div[1]/ol[1]/li[2]",
+      "text": "多",
+      "pos_key": "prep",
+      "body_sha256": "7a97d1c2af282f1fa05ed492de1cee4e4697766a39a90d53272438ee54819402",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "absent",
+      "locator": "wikdict:idx:127:offset:30721:/div[1]/div[2]",
+      "text": "缺席",
+      "pos_key": "adj",
+      "body_sha256": "85f83092cf4fe68b523881b1ab1b01bc62a143dc61b7acbfcb83841d24c19376",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "and",
+      "locator": "wikdict:idx:960:offset:226421:/div[1]/ol[1]/li[2]",
+      "text": "和、以及",
+      "pos_key": "conj",
+      "body_sha256": "b1602fa3082e84c7879be12768f1da99c3f9273ca38f180640d41c179050fdf7",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "in",
+      "locator": "wikdict:idx:12285:offset:2801859:/div[1]/div[2]",
+      "text": "在",
+      "pos_key": "prep",
+      "body_sha256": "0ef6a94ba1b91304bd30dc05167a16bd44ad5e8b18c067ce5587d99481844c10",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "that",
+      "locator": "wikdict:idx:24323:offset:5483930:/div[1]/div[2]",
+      "text": "那",
+      "pos_key": "det",
+      "body_sha256": "f4d9bcc13b211cbe546771428eb37c1eb50fab1c19c8d4bd6f4c2ba92b78b920",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "for",
+      "locator": "wikdict:idx:9453:offset:2183677:/div[1]/div[2]",
+      "text": "因为",
+      "pos_key": "conj",
+      "body_sha256": "ecd011ade131b1f88b2c49301804123bfc9d0850c221664d9810b8ef60cb2a2a",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "for",
+      "locator": "wikdict:idx:9454:offset:2184018:/div[1]/ol[1]/li[3]",
+      "text": "因为",
+      "pos_key": "prep",
+      "body_sha256": "38f1f5685e91e48482664237492f223b1c37a1502af6e976f91ebf3fe57a1d29",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "on",
+      "locator": "wikdict:idx:17069:offset:3839143:/div[1]/div[2]",
+      "text": "开",
+      "pos_key": "adj",
+      "body_sha256": "567967b891150d85bfe5504e95428af8b045010cac9c3d86a2413386c0e81974",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "you",
+      "locator": "wikdict:idx:27110:offset:6112666:/div[1]/ol[1]/li[1]",
+      "text": "你、您",
+      "pos_key": "pron",
+      "body_sha256": "8b0b8466c75cc78d239b402d22e8557d306895d23f5fc0f1477c02966f0a0ed6",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "you",
+      "locator": "wikdict:idx:27110:offset:6112666:/div[1]/ol[1]/li[3]",
+      "text": "您、你",
+      "pos_key": "pron",
+      "body_sha256": "8b0b8466c75cc78d239b402d22e8557d306895d23f5fc0f1477c02966f0a0ed6",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "their",
+      "locator": "wikdict:idx:24356:offset:5490633:/div[1]/ol[1]/li[1]",
+      "text": "他们的",
+      "pos_key": "det",
+      "body_sha256": "44d26a95c52356e49801fa0f26aaa6b18a929409c99a255de3fdcd6a9b9d793a",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "by",
+      "locator": "wikdict:idx:3681:offset:842231:/div[1]/ol[1]/li[2]",
+      "text": "依",
+      "pos_key": "prep",
+      "body_sha256": "8c3396fdcf5a64d09e756b845294fbf2f6fde0be9fb404229afb76e04ff219d3",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "by",
+      "locator": "wikdict:idx:3681:offset:842231:/div[1]/ol[1]/li[3]",
+      "text": "到",
+      "pos_key": "prep",
+      "body_sha256": "8c3396fdcf5a64d09e756b845294fbf2f6fde0be9fb404229afb76e04ff219d3",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "by",
+      "locator": "wikdict:idx:3681:offset:842231:/div[1]/ol[1]/li[7]",
+      "text": "旁边",
+      "pos_key": "prep",
+      "body_sha256": "8c3396fdcf5a64d09e756b845294fbf2f6fde0be9fb404229afb76e04ff219d3",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "not",
+      "locator": "wikdict:idx:16679:offset:3749846:/div[1]/div[2]",
+      "text": "不",
+      "pos_key": "adv",
+      "body_sha256": "48aa63862aa89b5d9f715146be68799b57fc3207b64ac3ad6e77180285eccdae",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "he",
+      "locator": "wikdict:idx:11265:offset:2575803:/div[1]/div[2]",
+      "text": "他",
+      "pos_key": "pron",
+      "body_sha256": "4ef10af385e20d77b278402a37f8bffc892a0553a9b77bf7663b75866fce8ed9",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "from",
+      "locator": "wikdict:idx:9770:offset:2258681:/div[1]/ol[1]/li[1]",
+      "text": "來自",
+      "pos_key": "prep",
+      "body_sha256": "8297681f39e811c667f0ce60257cde3a07a7bb7cf1d85b4084d597e41495f6bf",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "from",
+      "locator": "wikdict:idx:9770:offset:2258681:/div[1]/ol[1]/li[2]",
+      "text": "離",
+      "pos_key": "prep",
+      "body_sha256": "8297681f39e811c667f0ce60257cde3a07a7bb7cf1d85b4084d597e41495f6bf",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "at",
+      "locator": "wikdict:idx:1691:offset:393521:/div[1]/ol[1]/li[3]",
+      "text": "在",
+      "pos_key": "prep",
+      "body_sha256": "5f6f98be82db150693441eea455e3f1a39cb8ed4edb94bb611b884c7f8f0f164",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "will",
+      "locator": "wikdict:idx:26693:offset:6019510:/div[1]/div[2]",
+      "text": "意志",
+      "pos_key": "noun",
+      "body_sha256": "c5f3cce63e52577006d0d01fa74ccb5f00d5a4f090e32fb405807595b051a5a6",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "more",
+      "locator": "wikdict:idx:15831:offset:3566184:/div[1]/div[2]",
+      "text": "更多",
+      "pos_key": "det",
+      "body_sha256": "1357ef09eb9a9d0f3037c43753087ac3b6f08b356104f751c4827bb379708892",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "do",
+      "locator": "wikdict:idx:7225:offset:1668115:/div[1]/div[2]",
+      "text": "做",
+      "pos_key": "verb",
+      "body_sha256": "3e802e9cc4db2c5688120af1b1db11ab2037ffab96241847240db12bcd5ab783",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "we",
+      "locator": "wikdict:idx:26380:offset:5947774:/div[1]/ol[1]/li[2]",
+      "text": "我们、我們",
+      "pos_key": "pron",
+      "body_sha256": "1e9b64a4db590b9690f85da78c8ac771ec898cad87d9d1c5c22fb31cf62b7298",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "can",
+      "locator": "wikdict:idx:3857:offset:881702:/div[1]/ol[1]/li[2]",
+      "text": "會",
+      "pos_key": "verb",
+      "body_sha256": "a09740ec5453274ccd876ce010e8aaccd313473a9f7afd9eb61e528e3462af66",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "I",
+      "locator": "wikdict:idx:12050:offset:2750828:/div[1]/div[2]",
+      "text": "我",
+      "pos_key": "pron",
+      "body_sha256": "6af0aba94398e1ef664ec53e10e5e64305ef7162f7a391e9e3c617a211946f39",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "one",
+      "locator": "wikdict:idx:17107:offset:3844696:/div[1]/div[2]",
+      "text": "一",
+      "pos_key": "num",
+      "body_sha256": "82068ea43ec540dccb005f8f26f3ed8d4c4c4bbd0603a88ef6f999711d27bc9a",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "people",
+      "locator": "wikdict:idx:18034:offset:4068850:/div[1]/div[2]",
+      "text": "人們",
+      "pos_key": "noun",
+      "body_sha256": "0651fa1ffd1924b8eae34ef1d76637362a487b537cf13ae3f6d3475d7604e9b6",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "well",
+      "locator": "wikdict:idx:26455:offset:5964781:/div[1]/div[2]",
+      "text": "井",
+      "pos_key": "noun",
+      "body_sha256": "0276f3311c41bc178d9015a635b2fc46a665390ffecdfba5e9755cc4517ea342",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "about",
+      "locator": "wikdict:idx:102:offset:23788:/div[1]/ol[1]/li[1]",
+      "text": "到处",
+      "pos_key": "adv",
+      "body_sha256": "703423fd40f6bf05ee267274df6fe77c79ef955b70179d724053ae55c9a77728",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "about",
+      "locator": "wikdict:idx:102:offset:23788:/div[1]/ol[1]/li[2]",
+      "text": "差不多",
+      "pos_key": "adv",
+      "body_sha256": "703423fd40f6bf05ee267274df6fe77c79ef955b70179d724053ae55c9a77728",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "answer",
+      "locator": "wikdict:idx:1084:offset:256422:/div[1]/div[2]",
+      "text": "回答",
+      "pos_key": "noun",
+      "body_sha256": "dd689ecacf980fa0e4071cda1e6566168b9cc46606b88db0863dad70469e12cc",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "make",
+      "locator": "wikdict:idx:14734:offset:3320118:/div[1]/ol[1]/li[2]",
+      "text": "使",
+      "pos_key": "verb",
+      "body_sha256": "6bba7680af0b26e3552de96c142786a5922922023f59d859598655a35aecbb2f",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "make",
+      "locator": "wikdict:idx:14734:offset:3320118:/div[1]/ol[1]/li[3]",
+      "text": "做",
+      "pos_key": "verb",
+      "body_sha256": "6bba7680af0b26e3552de96c142786a5922922023f59d859598655a35aecbb2f",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "than",
+      "locator": "wikdict:idx:24307:offset:5478536:/div[1]/div[2]",
+      "text": "比",
+      "pos_key": "prep",
+      "body_sha256": "d20b0fd3216c42302a493fdbfb79243a2f77d5bf17c464453d49a9652d6b7c98",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "his",
+      "locator": "wikdict:idx:11597:offset:2646842:/div[1]/div[2]",
+      "text": "他的",
+      "pos_key": "det",
+      "body_sha256": "6e366d29a76d00bbfd359486a72174973e7b6e38cfd21eb7a4b4c4d5e7af9064",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "time",
+      "locator": "wikdict:idx:24613:offset:5547584:/div[1]/ol[1]/li[1]",
+      "text": "时间、時間",
+      "pos_key": "noun",
+      "body_sha256": "42eb83e18e8319d63b238aeb26ac4a49812fd47e300d387ef89287681718d5f3",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "time",
+      "locator": "wikdict:idx:24613:offset:5547584:/div[1]/ol[1]/li[3]",
+      "text": "次",
+      "pos_key": "noun",
+      "body_sha256": "42eb83e18e8319d63b238aeb26ac4a49812fd47e300d387ef89287681718d5f3",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "say",
+      "locator": "wikdict:idx:21072:offset:4780080:/div[1]/ol[1]/li[1]",
+      "text": "说",
+      "pos_key": "verb",
+      "body_sha256": "f3e4b969556673c40de7f544d9f1f3f44343b6abf6e10f44c27b1e0abc56faa4",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "say",
+      "locator": "wikdict:idx:21072:offset:4780080:/div[1]/ol[1]/li[2]",
+      "text": "说、說",
+      "pos_key": "verb",
+      "body_sha256": "f3e4b969556673c40de7f544d9f1f3f44343b6abf6e10f44c27b1e0abc56faa4",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "which",
+      "locator": "wikdict:idx:26558:offset:5989964:/div[1]/ol[1]/li[2]",
+      "text": "哪",
+      "pos_key": "pron",
+      "body_sha256": "e86fc6daeba677d461150d46dbe3c3aa9d74be7003c099a2064f892a1c9fec5f",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "when",
+      "locator": "wikdict:idx:26532:offset:5980524:/div[1]/div[2]",
+      "text": "什么时候",
+      "pos_key": "adv",
+      "body_sha256": "06f87444854d63902fe0f5a7bbadcd9d95d3af65c3db9254bc8e293927f0b161",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "should",
+      "locator": "wikdict:idx:21830:offset:4938506:/div[1]/ol[1]/li[4]",
+      "text": "该",
+      "pos_key": "verb",
+      "body_sha256": "d8ecc478e9b0b5f22b1287feed376f41c254a15318dde1e432ee7ad422cf4ca9",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "part",
+      "locator": "wikdict:idx:17772:offset:4005482:/div[1]/div[2]",
+      "text": "部分",
+      "pos_key": "noun",
+      "body_sha256": "f4243488b7070199ebe7b686f56cd2ed7930703db94b3512c6a60b785c0e8853",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "your",
+      "locator": "wikdict:idx:27123:offset:6115985:/div[1]/ol[1]/li[2]",
+      "text": "你的",
+      "pos_key": "det",
+      "body_sha256": "7d7eef7d96a7afe6d55a980e5237024af61f159f08e4d2b0147554c8edc409a0",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "all",
+      "locator": "wikdict:idx:671:offset:161050:/div[1]/div[2]",
+      "text": "都",
+      "pos_key": "adv",
+      "body_sha256": "c1b52b49645abdfacd904e53cc086deb685bcc18d9657f086e2fef18a2ee1d9d",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "she",
+      "locator": "wikdict:idx:21679:offset:4909705:/div[1]/div[2]",
+      "text": "她",
+      "pos_key": "pron",
+      "body_sha256": "de9e37c55c2b5bdb3695b0fbf3d1de047d4e640e36d3f43292534adfc3397403",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "who",
+      "locator": "wikdict:idx:26624:offset:6003054:/div[1]/div[2]",
+      "text": "谁",
+      "pos_key": "pron",
+      "body_sha256": "5eddb3a540442fbcc6cd1df3a87174d6f563f1061ab4ff9018f4e27d92d3cfa7",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "each",
+      "locator": "wikdict:idx:7678:offset:1768561:/div[1]/div[2]",
+      "text": "每",
+      "pos_key": "det",
+      "body_sha256": "e6c7c19d2658aaad98dd7565c8678df2570149e2649bea97e83db4e09ae9a409",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "some",
+      "locator": "wikdict:idx:22510:offset:5079665:/div[1]/ol[1]/li[2]",
+      "text": "一些",
+      "pos_key": "det",
+      "body_sha256": "6657dfd86fea601b9a05c985b5ef561e38eaa1d15e876bc2f5f98a8e757b491e",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "some",
+      "locator": "wikdict:idx:22510:offset:5079665:/div[1]/ol[1]/li[3]",
+      "text": "有的",
+      "pos_key": "det",
+      "body_sha256": "6657dfd86fea601b9a05c985b5ef561e38eaa1d15e876bc2f5f98a8e757b491e",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "some",
+      "locator": "wikdict:idx:22511:offset:5080245:/div[1]/ol[1]/li[2]",
+      "text": "一些",
+      "pos_key": "pron",
+      "body_sha256": "03c3096a7476159dc0832ad1030bea0b522f795e2035ada97e065af1e857d016",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "other",
+      "locator": "wikdict:idx:17321:offset:3899312:/div[1]/ol[1]/li[2]",
+      "text": "別的",
+      "pos_key": "adj",
+      "body_sha256": "3779e518678d7cd4f7b71c5a0904dc0dbf634420cb55fcf33630518b29af0023",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "word",
+      "locator": "wikdict:idx:26870:offset:6057103:/div[1]/ol[1]/li[2]",
+      "text": "词、詞、单词",
+      "pos_key": "noun",
+      "body_sha256": "13fa3ea5a99024eb74fb59992d1d7318a8e1dfaf9ca257939c39a1450cc4fd2a",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "mark",
+      "locator": "wikdict:idx:14947:offset:3369101:/div[1]/ol[1]/li[1]",
+      "text": "分数",
+      "pos_key": "noun",
+      "body_sha256": "045a6d77f6210745dc11c911083eee7fd72e20e6f833ec46fead0c7f6e962bbe",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "mark",
+      "locator": "wikdict:idx:14947:offset:3369101:/div[1]/ol[1]/li[4]",
+      "text": "马克",
+      "pos_key": "noun",
+      "body_sha256": "045a6d77f6210745dc11c911083eee7fd72e20e6f833ec46fead0c7f6e962bbe",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "may",
+      "locator": "wikdict:idx:15094:offset:3403495:/div[1]/ol[1]/li[2]",
+      "text": "可以",
+      "pos_key": "verb",
+      "body_sha256": "07cab4e0b39fed4b6f41806bdebdc84e4073b855abfb69488059ee7bc42ccae2",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "many",
+      "locator": "wikdict:idx:14905:offset:3358404:/div[1]/div[2]",
+      "text": "很多",
+      "pos_key": "det",
+      "body_sha256": "1c99fdb1a309f5367bd2145a165115c5edcee7879f71cd47d629ba846732c5e2",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "many",
+      "locator": "wikdict:idx:14907:offset:3358869:/div[1]/div[2]",
+      "text": "很多",
+      "pos_key": "pron",
+      "body_sha256": "bade2a4a3a612ed816d650250ad7a1fda5d765ff2ae13b610e187b653a159244",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "most",
+      "locator": "wikdict:idx:15878:offset:3576946:/div[1]/ol[1]/li[2]",
+      "text": "最",
+      "pos_key": "adv",
+      "body_sha256": "03208b2597d0194de0f41b2fd34fa491820dbb0fc94b63fbf552ff2da5fc5f07",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "her",
+      "locator": "wikdict:idx:11440:offset:2612517:/div[1]/div[2]",
+      "text": "她的",
+      "pos_key": "det",
+      "body_sha256": "0f1c117ab0844142bb9069d206a1a0052721337bfa401b918b30a0997e42bc4d",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "her",
+      "locator": "wikdict:idx:11441:offset:2613169:/div[1]/div[2]",
+      "text": "她",
+      "pos_key": "pron",
+      "body_sha256": "d545275b666d8a385f2c8a97fd44b796b3a46c64d2484228f659d343e57bd333",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "go",
+      "locator": "wikdict:idx:10405:offset:2395089:/div[1]/ol[1]/li[2]",
+      "text": "去、走",
+      "pos_key": "verb",
+      "body_sha256": "299bb61ae0cb9b830a8b16ebcd82e9620262533eb1c49dfe07cf152c52bf4273",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "hear",
+      "locator": "wikdict:idx:11310:offset:2584933:/div[1]/ol[1]/li[1]",
+      "text": "听",
+      "pos_key": "verb",
+      "body_sha256": "107889d1e71fbe7b55471dd63e98c6cb0c7cc9fadc0b894cbe3d514b8cb3f9b9",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "hear",
+      "locator": "wikdict:idx:11310:offset:2584933:/div[1]/ol[1]/li[2]",
+      "text": "听、听见",
+      "pos_key": "verb",
+      "body_sha256": "107889d1e71fbe7b55471dd63e98c6cb0c7cc9fadc0b894cbe3d514b8cb3f9b9",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "base",
+      "locator": "wikdict:idx:2249:offset:523860:/div[1]/div[2]",
+      "text": "基地",
+      "pos_key": "noun",
+      "body_sha256": "96bb4d60505226ae73dc02cfe263df90ef35a0442ba62dac6e1abdc5e6e7d1f5",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "get",
+      "locator": "wikdict:idx:10210:offset:2355471:/div[1]/ol[1]/li[5]",
+      "text": "到达",
+      "pos_key": "verb",
+      "body_sha256": "784350816f68ea4dcf8026abaf656843f3ecec7631cec2551af212b33d823b81",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "get",
+      "locator": "wikdict:idx:10210:offset:2355471:/div[1]/ol[1]/li[9]",
+      "text": "得",
+      "pos_key": "verb",
+      "body_sha256": "784350816f68ea4dcf8026abaf656843f3ecec7631cec2551af212b33d823b81",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "get",
+      "locator": "wikdict:idx:10210:offset:2355471:/div[1]/ol[1]/li[11]",
+      "text": "明白",
+      "pos_key": "verb",
+      "body_sha256": "784350816f68ea4dcf8026abaf656843f3ecec7631cec2551af212b33d823b81",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "our",
+      "locator": "wikdict:idx:17340:offset:3903941:/div[1]/div[2]",
+      "text": "我們的",
+      "pos_key": "det",
+      "body_sha256": "89963f85ba33d6e6075165bd6a96d0b6bf5fd8d7762d538865208feb8c32bbc7",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "out",
+      "locator": "wikdict:idx:17345:offset:3905912:/div[1]/ol[1]/li[1]",
+      "text": "外边",
+      "pos_key": "adv",
+      "body_sha256": "8ad479267d85f416bdb87b1f1000a296bb50fbe6661666019983add401587dbb",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "out",
+      "locator": "wikdict:idx:17345:offset:3905912:/div[1]/ol[1]/li[2]",
+      "text": "外面",
+      "pos_key": "adv",
+      "body_sha256": "8ad479267d85f416bdb87b1f1000a296bb50fbe6661666019983add401587dbb",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "out",
+      "locator": "wikdict:idx:17345:offset:3905912:/div[1]/ol[1]/li[4]",
+      "text": "远",
+      "pos_key": "adv",
+      "body_sha256": "8ad479267d85f416bdb87b1f1000a296bb50fbe6661666019983add401587dbb",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "just",
+      "locator": "wikdict:idx:13182:offset:2996318:/div[1]/ol[1]/li[1]",
+      "text": "仅有",
+      "pos_key": "adv",
+      "body_sha256": "ead6014ac09ada0961c89bf6bb9169ae9ccabe850e868f11833a8b9862c080ce",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "just",
+      "locator": "wikdict:idx:13182:offset:2996318:/div[1]/ol[1]/li[3]",
+      "text": "刚刚",
+      "pos_key": "adv",
+      "body_sha256": "ead6014ac09ada0961c89bf6bb9169ae9ccabe850e868f11833a8b9862c080ce",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "just",
+      "locator": "wikdict:idx:13182:offset:2996318:/div[1]/ol[1]/li[5]",
+      "text": "準確",
+      "pos_key": "adv",
+      "body_sha256": "ead6014ac09ada0961c89bf6bb9169ae9ccabe850e868f11833a8b9862c080ce",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "find",
+      "locator": "wikdict:idx:9115:offset:2105697:/div[1]/div[2]",
+      "text": "找到",
+      "pos_key": "verb",
+      "body_sha256": "f9ddc8834b92d36d9f4462b28e15aaa65da8ead0d2358db3f3411cac46a80cdf",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    },
+    {
+      "word": "way",
+      "locator": "wikdict:idx:26371:offset:5946149:/div[1]/div[2]",
+      "text": "道",
+      "pos_key": "noun",
+      "body_sha256": "d0239dfad9a7725d4aec224e88656ba57a8bcb77990657cc25301cb18fd7e4bc",
+      "note": "本次自动原文对照：中文片段与固定词条英文释义相符；仅保留来源措辞与声明词性，不确认常用核心释义。"
+    }
+  ]
+}

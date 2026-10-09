@@ -742,3 +742,19 @@ def two_worlds(make_world):
     yield first, second
     first.client.__exit__(None, None, None)
     second.client.__exit__(None, None, None)
+
+
+@pytest.fixture
+def netem_production_sentinel(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Give isolated release tests a protected file identity without real data.
+
+    The production alias guard compares file identities. An empty worktree has
+    no production database, so use a pytest-only sentinel for that comparison;
+    the path, existence and hard-link guards themselves remain active.
+    """
+    import netem_release
+
+    protected = tmp_path / "protected-production-identity"
+    protected.write_bytes(b"pytest-only file identity")
+    monkeypatch.setattr(netem_release, "PRODUCTION", protected.resolve())
+    return protected

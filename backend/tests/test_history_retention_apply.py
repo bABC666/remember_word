@@ -668,7 +668,10 @@ def test_the_cli_plans_then_applies_only_with_the_exact_run_id(
     _cli_env(monkeypatch, world)
     plan_path = world.root / "plan.json"
 
-    assert cli.main(["history-retention", "preview", "--plan", str(plan_path)]) == 0
+    assert cli.main([
+        "history-retention", "preview", "--plan", str(plan_path),
+        "--baseline", str(world.baseline_path),
+    ]) == 0
     printed = capsys.readouterr().out
     assert (world.root / "plan.json").is_file()
     plan = json.loads(plan_path.read_text("utf-8"))

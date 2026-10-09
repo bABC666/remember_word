@@ -1,0 +1,699 @@
+{
+  "generated_at_utc": "2026-10-05T03:51:26.674903+00:00",
+  "status": "NETEM production imported and limited localhost trial accepted; private TXT/CSV self-import already live",
+  "independent_review": {
+    "reviewer": "independent read-only production_report_review agent",
+    "result": "accepted",
+    "critical_issues": 0,
+    "important_issues": 0,
+    "verified": [
+      "pure import six-table deltas and preservation",
+      "final QA deltas and single original settings timestamp change",
+      "same-plan repeated import and identical26table snapshots",
+      "candidate18file fingerprints and verification coverage",
+      "25 main operational receipts and11 screenshot fingerprints",
+      "protected backup readonly and3untracked docs preserved",
+      "runtime trees and reused gate identical",
+      "honest browser selector failures and preserved rollback boundary"
+    ],
+    "limits": [
+      "no database business content reads",
+      "no browser or health retest by reviewer",
+      "no full gate rerun",
+      "no production import or rollback action"
+    ]
+  },
+  "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0",
+  "runtime_code_commit": "8960395f47248e5acf774214d28d94b95315da5a",
+  "runtime_trees": {
+    "backend": "2b7da9de6f8f5ed8bc16f70a21e00346f708e600",
+    "frontend": "2ba5e37c18ad6bade93fcc9653b0d5821b8945e9",
+    "tools": "f0e192d2861072e8307c44b5b3f6de507142100d",
+    "scripts": "6f6549ad800a4c0404207062bf8d518126d69e44"
+  },
+  "delivery_commit": "Documentation-only commit containing this file; obtain full SHA with git log -1 -- docs/NETEM-PRODUCTION-IMPORT-EVIDENCE-2026-10-05.json",
+  "database": "D:\\背单词web\\data\\vocab.db",
+  "revision": "0015_session_autoincrement",
+  "lexicon_id": 5,
+  "public_import_run_id": 1,
+  "scope": {
+    "personal_and_friends": true,
+    "maximum_people": 10,
+    "noncommercial": true,
+    "local_address": "127.0.0.1:8000",
+    "active_users": 3,
+    "user_data_shared_externally": false
+  },
+  "candidate_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+  "candidate_zip_sha256": "437c394ea1f34c735f69d1d832b493e2c0131bf7cbd472ebc6cfc2c6b4958a1e",
+  "login_ready": {
+    "accounts": [
+      {
+        "id": 1,
+        "username": "admin",
+        "role": "admin",
+        "password_verified": true
+      },
+      {
+        "id": 2,
+        "username": "release_smoke_20261003",
+        "role": "user",
+        "password_verified": true
+      }
+    ],
+    "readonly_precheck": true,
+    "secret_storage": "Windows current-user DPAPI; removed after acceptance"
+  },
+  "backup": {
+    "production_database": "D:\\背单词web\\data\\vocab.db",
+    "revision": "0015_session_autoincrement",
+    "online_backup": "D:\\背单词web\\test-artifacts\\netem-production-import-20261005\\baseline\\protected-before.db",
+    "backup_sha256": "a7ad830ff2232ee5afea465878c1087f7394392795995a91214618da956dd4bb",
+    "backup_readonly": true,
+    "candidate_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+    "production_files_before": {
+      "vocab.db": {
+        "sha256": "53faa52e21631f68b1e19fe0384a0b9a040074ed36e920d341e977fd4bb7a07c",
+        "mtime_ns": 1791037730392002000,
+        "bytes": 1290240
+      },
+      "vocab.db-wal": {
+        "sha256": "b41f0635ab7ef48d71a7ef8ba21dfddf803342a9d54efc353b85f9b7d1d88b97",
+        "mtime_ns": 1791090477049639100,
+        "bytes": 28872
+      },
+      "vocab.db-shm": {
+        "sha256": "3761a2361825f555a5a5386fb22d6270edf9c0cc7af92a1192ac3bd0638eecd1",
+        "mtime_ns": 1791170852707535400,
+        "bytes": 32768
+      }
+    },
+    "production_port_8000_listening_before": false,
+    "original_counts": {
+      "alembic_version": 1,
+      "app_setting": 5,
+      "article": 3,
+      "article_word_exposure": 16,
+      "article_word_lookup": 1,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 0,
+      "history_event": 13,
+      "import_batch": 4,
+      "import_candidate": 142,
+      "import_image": 8,
+      "lexicon": 4,
+      "lexicon_entry": 64,
+      "public_import_run": 0,
+      "public_import_run_source": 0,
+      "review_event": 11,
+      "source_artifact": 0,
+      "source_wikitext_line": 0,
+      "user": 2,
+      "user_lexicon": 4,
+      "user_session": 1,
+      "user_settings": 2,
+      "user_word_state": 64,
+      "word": 19
+    },
+    "preserved_documents": {
+      "docs/V1.2-NETEM-DEFAULT-LEXICON-LAUNCH-CANDIDATE-2026-10-03.md": "8bdce41ae071d76284f3ca3d196e73c716714a6b905a14ea5af2d8270ee155ed",
+      "docs/V1.2-PHASE2.9-POS-MEANING-CONTRACT-DESIGN.md": "dfae28454a18a3603815139e6fe549e72332ff85defa241d7cd7416d78668bf4",
+      "docs/V1.2-PHASE2.9-ZHWIKTIONARY-LICENSE-EVIDENCE-CHECK.md": "28284746f65db876938af58e36e58b59103e9efd8d891c3cd9076a9f9a660122"
+    },
+    "created_at_utc": "2026-10-05T03:27:33.073541+00:00"
+  },
+  "service_config": {
+    "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0",
+    "database": "D:\\背单词web\\data\\vocab.db",
+    "revision": "0015_session_autoincrement",
+    "host": "127.0.0.1",
+    "port": 8000,
+    "original_service_listening": false,
+    "startup_command": [
+      "backend/.venv/Scripts/python.exe",
+      "-m",
+      "uvicorn",
+      "app.main:app",
+      "--app-dir",
+      "backend",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8000",
+      "--env-file",
+      ".env"
+    ],
+    "unchanged_env_file_sha256": "f9e56bfc06842cb3e709e71ed6f864a3610e98189ea113b01644ae4c31a5fd91",
+    "local_config_sha256": "7a077608f04c4ef5a68b4bae616a7b2c1b56bfdac3ca0703cb8e31802b0b3a5f",
+    "data_root": "D:\\背单词web\\data",
+    "quiescent_file_samples": [
+      {
+        "vocab.db": {
+          "sha256": "53faa52e21631f68b1e19fe0384a0b9a040074ed36e920d341e977fd4bb7a07c",
+          "mtime_ns": 1791037730392002000,
+          "bytes": 1290240
+        },
+        "vocab.db-wal": {
+          "sha256": "b41f0635ab7ef48d71a7ef8ba21dfddf803342a9d54efc353b85f9b7d1d88b97",
+          "mtime_ns": 1791090477049639100,
+          "bytes": 28872
+        },
+        "vocab.db-shm": {
+          "sha256": "3761a2361825f555a5a5386fb22d6270edf9c0cc7af92a1192ac3bd0638eecd1",
+          "mtime_ns": 1791170850939791000,
+          "bytes": 32768
+        }
+      },
+      {
+        "vocab.db": {
+          "sha256": "53faa52e21631f68b1e19fe0384a0b9a040074ed36e920d341e977fd4bb7a07c",
+          "mtime_ns": 1791037730392002000,
+          "bytes": 1290240
+        },
+        "vocab.db-wal": {
+          "sha256": "b41f0635ab7ef48d71a7ef8ba21dfddf803342a9d54efc353b85f9b7d1d88b97",
+          "mtime_ns": 1791090477049639100,
+          "bytes": 28872
+        },
+        "vocab.db-shm": {
+          "sha256": "3761a2361825f555a5a5386fb22d6270edf9c0cc7af92a1192ac3bd0638eecd1",
+          "mtime_ns": 1791170850939791000,
+          "bytes": 32768
+        }
+      }
+    ],
+    "runtime_code_changes": false,
+    "scope": "personal and friends; up to 10 people; noncommercial; localhost only"
+  },
+  "locked_plan_file_sha256": "8108b6738318a357f6a4a1d510dce1dd477be02dba38cad12589de0f345af360",
+  "import": {
+    "status": "applied",
+    "run_id": "lex-20261005T032733Z-6d51f60c",
+    "import_run_id": 1,
+    "plan_sha256": "5e17f98651acbb5df9af697c6a19b6abbd0088e7373cce99603059e2b21497fe",
+    "target_lexicon": {
+      "id": 5,
+      "name": "NETEM"
+    },
+    "entries_created": 5528,
+    "entries_matched": 0,
+    "evidence_written": 16430,
+    "sources_created": 3,
+    "conflicts": [],
+    "evidence": {
+      "written": 16430,
+      "skipped_existing": 0,
+      "readjudicated": 0
+    }
+  },
+  "pure_import": {
+    "package_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+    "words": 5528,
+    "definitions": 5451,
+    "empty": 77,
+    "source_evidence": 16430,
+    "order_matches_v2": true,
+    "empty_has_no_meaning_evidence_or_raw_fallback": true,
+    "frozen_attribution_matches_database": true,
+    "integrity": "ok",
+    "foreign_keys": "ok",
+    "lexicon_id": 5,
+    "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0",
+    "delta": {
+      "alembic_version": 0,
+      "app_setting": 0,
+      "article": 0,
+      "article_word_exposure": 0,
+      "article_word_lookup": 0,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 16430,
+      "history_event": 0,
+      "import_batch": 0,
+      "import_candidate": 0,
+      "import_image": 0,
+      "lexicon": 1,
+      "lexicon_entry": 5528,
+      "public_import_run": 1,
+      "public_import_run_source": 3,
+      "review_event": 0,
+      "source_artifact": 3,
+      "source_wikitext_line": 0,
+      "user": 0,
+      "user_lexicon": 0,
+      "user_session": 0,
+      "user_settings": 0,
+      "user_word_state": 0,
+      "word": 0
+    },
+    "all_existing_business_rows_unchanged": true,
+    "all_evidence_rows_verified": 16430,
+    "dictionary_counts": {
+      "wikdict.csv": 4814,
+      "zhwiktionary.csv": 637
+    }
+  },
+  "ordinary_test_account": {
+    "id": 3,
+    "username": "netem_trial_20261005",
+    "role": "user",
+    "delta": {
+      "alembic_version": 0,
+      "app_setting": 0,
+      "article": 0,
+      "article_word_exposure": 0,
+      "article_word_lookup": 0,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 0,
+      "history_event": 0,
+      "import_batch": 0,
+      "import_candidate": 0,
+      "import_image": 0,
+      "lexicon": 0,
+      "lexicon_entry": 0,
+      "public_import_run": 0,
+      "public_import_run_source": 0,
+      "review_event": 0,
+      "source_artifact": 0,
+      "source_wikitext_line": 0,
+      "user": 1,
+      "user_lexicon": 0,
+      "user_session": 0,
+      "user_settings": 1,
+      "user_word_state": 0,
+      "word": 0
+    },
+    "all_preexisting_rows_unchanged": true
+  },
+  "qa_seed": {
+    "public_lexicon": 5,
+    "smoke_private_lexicon": 4,
+    "smoke_private_compass_state": 61,
+    "states": {
+      "compass": {
+        "user_id": 2,
+        "state_id": 65,
+        "entry_id": 4876
+      },
+      "modern": {
+        "user_id": 3,
+        "state_id": 66,
+        "entry_id": 703
+      },
+      "set": {
+        "user_id": 3,
+        "state_id": 67,
+        "entry_id": 335
+      }
+    },
+    "seed_delta": {
+      "alembic_version": 0,
+      "app_setting": 0,
+      "article": 0,
+      "article_word_exposure": 0,
+      "article_word_lookup": 0,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 0,
+      "history_event": 0,
+      "import_batch": 0,
+      "import_candidate": 0,
+      "import_image": 0,
+      "lexicon": 0,
+      "lexicon_entry": 0,
+      "public_import_run": 0,
+      "public_import_run_source": 0,
+      "review_event": 0,
+      "source_artifact": 0,
+      "source_wikitext_line": 0,
+      "user": 0,
+      "user_lexicon": 0,
+      "user_session": 0,
+      "user_settings": 0,
+      "user_word_state": 3,
+      "word": 0
+    }
+  },
+  "browser": {
+    "exercise": {
+      "phase": "exercise",
+      "url": "http://127.0.0.1:8000",
+      "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0",
+      "checks": [
+        "existing explicit private selection preserved",
+        "existing private Compass familiar progress preserved",
+        "existing private empty answer remains accurate",
+        "ordinary unselected account receives NETEM recommendation",
+        "existing private user supplied meaning remains unverified",
+        "only one public NETEM card",
+        "original first word is the",
+        "compact desktop source default closed",
+        "full attribution version SHA extraction and correction warning accessible",
+        "licence direct link present",
+        "details outside learning answer",
+        "Escape restores source button focus",
+        "source link opens correct WikDict card",
+        "direct source page defaults fully folded",
+        "source detail preserves extraction and imported SHA",
+        "same spelling has independent public state",
+        "public review leaves private whole detail unchanged",
+        "public progress changed independently",
+        "mobile WikDict line default compact",
+        "mobile actual Chinese source short name",
+        "mobile compact page no overflow",
+        "Chinese fixed revision and full attribution accessible",
+        "mobile detail no overflow",
+        "Chinese corresponding source link works",
+        "set has no source meaning or concise fallback",
+        "set rendered empty state accurate",
+        "other users private library inaccessible",
+        "recommendation never saved as explicit choice",
+        "smoke final active selection restored",
+        "no page or console errors"
+      ],
+      "screenshots": [
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-private-compass.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-study-desktop.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-details-desktop.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-sources-desktop.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-wikdict-mobile.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-study-mobile.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-details-mobile.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-sources-mobile.png",
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-empty-mobile.png"
+      ],
+      "browser": "Installed Chrome through bundled Playwright; Browser plugin unavailable",
+      "persistence": {
+        "privateState": 61,
+        "privateSuccess": 1,
+        "publicState": 65,
+        "publicSuccess": 1,
+        "publicStatus": "familiar",
+        "modernState": 66,
+        "modernStatus": "weak",
+        "modernFail": 1
+      },
+      "success": true,
+      "pageErrors": []
+    },
+    "restart": {
+      "phase": "restart",
+      "url": "http://127.0.0.1:8000",
+      "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0",
+      "checks": [
+        "existing explicit private selection preserved",
+        "existing private Compass familiar progress preserved",
+        "existing private empty answer remains accurate",
+        "ordinary unselected account receives NETEM recommendation",
+        "public Compass progress persists",
+        "trial modern progress persists",
+        "real study and compact attribution persist",
+        "source detail persists after restart",
+        "health interface available",
+        "smoke final active selection restored",
+        "no page or console errors"
+      ],
+      "screenshots": [
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-restart-study-mobile.png"
+      ],
+      "browser": "Installed Chrome through bundled Playwright; Browser plugin unavailable",
+      "success": true,
+      "pageErrors": []
+    },
+    "final": {
+      "phase": "final",
+      "url": "http://127.0.0.1:8000",
+      "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0",
+      "checks": [
+        "existing explicit private selection preserved",
+        "existing private Compass familiar progress preserved",
+        "existing private empty answer remains accurate",
+        "ordinary unselected account receives NETEM recommendation",
+        "public Compass progress persists",
+        "trial modern progress persists",
+        "real study and compact attribution persist",
+        "source detail persists after restart",
+        "health interface available",
+        "smoke final active selection restored",
+        "no page or console errors"
+      ],
+      "screenshots": [
+        "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-final-study-mobile.png"
+      ],
+      "browser": "Installed Chrome through bundled Playwright; Browser plugin unavailable",
+      "success": true,
+      "pageErrors": []
+    }
+  },
+  "browser_selector_attempts": {
+    "failed_attempts": 2,
+    "cause": "NETEM heading accessible name includes recommendation badge; corrected only ignored QA locator",
+    "each_attempt_added_login_sessions": 2,
+    "no_choices_or_reviews_before_failure": true,
+    "runtime_changes": false
+  },
+  "repeat": {
+    "result": {
+      "status": "already_applied",
+      "run_id": "lex-20261005T032733Z-6d51f60c",
+      "import_run_id": 1,
+      "plan_sha256": "5e17f98651acbb5df9af697c6a19b6abbd0088e7373cce99603059e2b21497fe",
+      "target_lexicon": {
+        "id": 5,
+        "name": "NETEM"
+      },
+      "entries_created": 5528,
+      "entries_matched": 0,
+      "evidence_written": 16430,
+      "conflicts": [],
+      "detail": "该计划此前已确认；未写入任何新内容。"
+    },
+    "all_26_business_table_rows_identical": true,
+    "fresh_post_qa_backup": "D:\\背单词web\\test-artifacts\\netem-production-import-20261005\\before-repeat.db",
+    "before_backup_sha256": "4dc2dadfad2615bb03adebaf401f8c66f51fe02e269a4657b083c5c446b7948b",
+    "after_backup_sha256": "4dc2dadfad2615bb03adebaf401f8c66f51fe02e269a4657b083c5c446b7948b"
+  },
+  "final": {
+    "stage": "final",
+    "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0",
+    "counts": {
+      "alembic_version": 1,
+      "app_setting": 5,
+      "article": 3,
+      "article_word_exposure": 16,
+      "article_word_lookup": 1,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 16430,
+      "history_event": 23,
+      "import_batch": 4,
+      "import_candidate": 142,
+      "import_image": 8,
+      "lexicon": 5,
+      "lexicon_entry": 5592,
+      "public_import_run": 1,
+      "public_import_run_source": 3,
+      "review_event": 13,
+      "source_artifact": 3,
+      "source_wikitext_line": 0,
+      "user": 3,
+      "user_lexicon": 5,
+      "user_session": 11,
+      "user_settings": 3,
+      "user_word_state": 94,
+      "word": 19
+    },
+    "delta": {
+      "alembic_version": 0,
+      "app_setting": 0,
+      "article": 0,
+      "article_word_exposure": 0,
+      "article_word_lookup": 0,
+      "entry_concise_meaning": 0,
+      "entry_concise_meaning_citation": 0,
+      "entry_concise_meaning_revision": 0,
+      "entry_source_evidence": 16430,
+      "history_event": 10,
+      "import_batch": 0,
+      "import_candidate": 0,
+      "import_image": 0,
+      "lexicon": 1,
+      "lexicon_entry": 5528,
+      "public_import_run": 1,
+      "public_import_run_source": 3,
+      "review_event": 2,
+      "source_artifact": 3,
+      "source_wikitext_line": 0,
+      "user": 1,
+      "user_lexicon": 1,
+      "user_session": 10,
+      "user_settings": 1,
+      "user_word_state": 30,
+      "word": 0
+    },
+    "all_original_private_rows_unchanged": true,
+    "all_original_progress_unchanged": true,
+    "original_users_roles_passwords_unchanged": true,
+    "smoke_selected_lexicon": 4,
+    "trial_selected_lexicon": null,
+    "ordinary_accounts_only": true,
+    "backup": "D:\\背单词web\\test-artifacts\\netem-production-import-20261005\\final.db",
+    "backup_sha256": "5ff921c173aa0e6ad9b258bfa8a4793643fb3e18e76bbc4d2f2bde0b63318aca",
+    "full_candidate_verification": {
+      "package_sha256": "0420923f302b40166b23ae56c2652e93b8d83f3d418fc52020dd6427caf776ab",
+      "words": 5528,
+      "definitions": 5451,
+      "empty": 77,
+      "source_evidence": 16430,
+      "order_matches_v2": true,
+      "empty_has_no_meaning_evidence_or_raw_fallback": true,
+      "frozen_attribution_matches_database": true,
+      "integrity": "ok",
+      "foreign_keys": "ok"
+    },
+    "repeat_all_business_rows_identical": null
+  },
+  "final_existing_rows": {
+    "all_private_libraries_entries_meanings_unchanged": true,
+    "all_64_original_user_word_states_unchanged": true,
+    "original_users_passwords_roles_unchanged": true,
+    "only_original_row_changed": {
+      "table": "user_settings",
+      "id": 2,
+      "column": "updated_at",
+      "reason": "intentional smoke select NETEM then restore original4; all other settings fields identical"
+    },
+    "deleted_rows": 0
+  },
+  "acceptance_only_delta": {
+    "user": 1,
+    "user_settings": 1,
+    "user_word_state": 30,
+    "user_lexicon": 1,
+    "review_event": 2,
+    "user_session": 10,
+    "history_event": 10
+  },
+  "final_health": {
+    "status": "ok",
+    "app": "拾词"
+  },
+  "final_listener": {
+    "LocalAddress": "127.0.0.1",
+    "LocalPort": 8000,
+    "OwningProcess": 286948
+  },
+  "final_service": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "pid": 297012,
+    "stage": "3",
+    "started_at": "2026-10-05T11:39:55.0797582+08:00",
+    "database": "D:\\背单词web\\data\\vocab.db",
+    "release_sha": "0c6da30b818fc878f048dfa8b1264a5bae4c1bf0"
+  },
+  "gate_reused": {
+    "code_commit": "8960395f47248e5acf774214d28d94b95315da5a",
+    "backend_passed": 1029,
+    "backend_skipped": 1,
+    "backend_warnings": 2,
+    "frontend_passed": 199,
+    "ruff_typecheck_lint_build_passed": true,
+    "isolation_files_unchanged": 42405,
+    "log": "test-artifacts/netem-production-copy-20261005/full-gate.log",
+    "log_sha256": "186175fc3980034f7bdd1020b3a6da59bde38ea5566d0ed18ae699ef3071d326",
+    "runtime_unchanged": true
+  },
+  "preserved_documents": {
+    "docs/V1.2-NETEM-DEFAULT-LEXICON-LAUNCH-CANDIDATE-2026-10-03.md": "8bdce41ae071d76284f3ca3d196e73c716714a6b905a14ea5af2d8270ee155ed",
+    "docs/V1.2-PHASE2.9-POS-MEANING-CONTRACT-DESIGN.md": "dfae28454a18a3603815139e6fe549e72332ff85defa241d7cd7416d78668bf4",
+    "docs/V1.2-PHASE2.9-ZHWIKTIONARY-LICENSE-EVIDENCE-CHECK.md": "28284746f65db876938af58e36e58b59103e9efd8d891c3cd9076a9f9a660122"
+  },
+  "temporary_dpapi_credentials_removed": true,
+  "artifact_sha256": {
+    "test-artifacts/netem-production-import-20261005/after-repeat-rows.json": "04567f6ce55f8c4477264413cc11024ea3dd70ee26f4907f155abfefbc54768e",
+    "test-artifacts/netem-production-import-20261005/after-repeat-verification.json": "d207ef25d7fb41a4da879d96102507c1f80169e2442df0a2233de76a7429984a",
+    "test-artifacts/netem-production-import-20261005/after-repeat.db": "4dc2dadfad2615bb03adebaf401f8c66f51fe02e269a4657b083c5c446b7948b",
+    "test-artifacts/netem-production-import-20261005/audit.py": "2fa9eafc62e2456a2aa4e2071ba5be9420a046f222003cf77090f7c9e94b72e8",
+    "test-artifacts/netem-production-import-20261005/auth-check.py": "9d35817354215f1cff607dcd6677aea5646b5e3ecfa37dff323a9f9bec30a8a2",
+    "test-artifacts/netem-production-import-20261005/baseline/backup-receipt.json": "d7494f11638493d17a93e666c3cbf7aa85d475bc8decf854ded6525113ed9d6c",
+    "test-artifacts/netem-production-import-20261005/baseline/original-rows.json": "3006be970d3d60b5d2aca9c1b2a9cf0f931ce82f861a86f207795182532e033a",
+    "test-artifacts/netem-production-import-20261005/baseline/protected-before.db": "a7ad830ff2232ee5afea465878c1087f7394392795995a91214618da956dd4bb",
+    "test-artifacts/netem-production-import-20261005/before-repeat-rows.json": "04567f6ce55f8c4477264413cc11024ea3dd70ee26f4907f155abfefbc54768e",
+    "test-artifacts/netem-production-import-20261005/before-repeat-verification.json": "8ef6165ddb80fd8a99b8e922eeef22bf995d172c8fabf74a130f5eb40c95c321",
+    "test-artifacts/netem-production-import-20261005/before-repeat.db": "4dc2dadfad2615bb03adebaf401f8c66f51fe02e269a4657b083c5c446b7948b",
+    "test-artifacts/netem-production-import-20261005/browser-exercise-failure.json": "babc0d893066f91219788d22390658ba394aa0da1ce0cf44a0d229c67156a89f",
+    "test-artifacts/netem-production-import-20261005/browser-exercise.json": "d93956e44623d02af8cf36d395826b4686dcfa0871028160fdad6d67b1ba1b8a",
+    "test-artifacts/netem-production-import-20261005/browser-final.json": "b6e1b273f5a35d5a28866a2991649e54addb323953970129ef06e524aa2cacf7",
+    "test-artifacts/netem-production-import-20261005/browser-restart.json": "a3d1376457f5ea73e682eaeebdde2f0ec164b71a575cba81f2de2b253589af5b",
+    "test-artifacts/netem-production-import-20261005/browser.cjs": "7164af43fa43d1eca4efd9cddad732dee1daf566d92f274dca0a75021003f70e",
+    "test-artifacts/netem-production-import-20261005/build-evidence.py": "df366eff5241a17f5b108fe0d89a1a0bcd00c80dd2ab262c7f6e5eb5f1d57e3d",
+    "test-artifacts/netem-production-import-20261005/final-rows.json": "e8073df8c8a68cccc2f6b8f12d95cedb00bd6d70263d2e3bded6c1bd8d643e3c",
+    "test-artifacts/netem-production-import-20261005/final-verification.json": "58b8e8c13f549c6eef46a8ec82dc3bae6f220543b94d449068ed815af2cd1646",
+    "test-artifacts/netem-production-import-20261005/final.db": "5ff921c173aa0e6ad9b258bfa8a4793643fb3e18e76bbc4d2f2bde0b63318aca",
+    "test-artifacts/netem-production-import-20261005/health-final.json": "b5cae45b82ab9bf4ddc5b24f550f46fbb02d9b47c9bd18581c5dce373d6f71cf",
+    "test-artifacts/netem-production-import-20261005/import-result.json": "23c83b342d3b25bd464c6d7a8e404721a18dae2c364e0f25648b01575bf7833f",
+    "test-artifacts/netem-production-import-20261005/listener-final.json": "dc66db35b6b019333e6e3b6d0b8a59d0c0bc1643da69b4354b594b7e9eaf9dc7",
+    "test-artifacts/netem-production-import-20261005/locked-plan.json": "8108b6738318a357f6a4a1d510dce1dd477be02dba38cad12589de0f345af360",
+    "test-artifacts/netem-production-import-20261005/login-ready.json": "c4166d24b4c1685c5c5ff7c7898dd6e3cdf034957f7a18f8e8177475a4738672",
+    "test-artifacts/netem-production-import-20261005/login-window.ps1": "b96ba67ec4877f41fbf65d501812d6ec783601fc8a02cabaf6d33dbb1e2c25ad",
+    "test-artifacts/netem-production-import-20261005/original-rows.json": "3006be970d3d60b5d2aca9c1b2a9cf0f931ce82f861a86f207795182532e033a",
+    "test-artifacts/netem-production-import-20261005/post-import-rows.json": "838cec264b04ddeb622c8a650821becd3e011e9120071150ac3a534ce07917c4",
+    "test-artifacts/netem-production-import-20261005/post-import.db": "e7f474f867b960682d44ab51ce37b2be81f9496093576d912daf5bd3de767570",
+    "test-artifacts/netem-production-import-20261005/post-qa.py": "8f60e1eed56062072daefba608eb77a0575cf3cb56223daba8cda5662fe53121",
+    "test-artifacts/netem-production-import-20261005/production-service-1.stderr.log": "c3e423393f11adb0b702515ec2f91c9e21ac17dd879c000e7aa552d7ddc3cbf2",
+    "test-artifacts/netem-production-import-20261005/production-service-1.stdout.log": "d743f8ae25e1929270cad3f77ad4e56c2a6d4076a2a75e08c4288192a7f8bf7b",
+    "test-artifacts/netem-production-import-20261005/production-service-2.stderr.log": "1096de937ac97898d264af18c40e2f9a2c640b8c3b8b18da88e95d9a85e047e0",
+    "test-artifacts/netem-production-import-20261005/production-service-2.stdout.log": "62f6e39238e551a1abcbea7b0f3015577cfe8fc2151c8384ca3cfe1b964af885",
+    "test-artifacts/netem-production-import-20261005/progress.md": "679a8fac588349cdff37e41d75cfc0496fe8fa6cc66a4a28a78880e28f4785b8",
+    "test-artifacts/netem-production-import-20261005/pure-import-verification.json": "0415ded63c185bba39794739ac3ed91fa4daebfdeda13b32db148b82130d0c28",
+    "test-artifacts/netem-production-import-20261005/qa-metadata.json": "0d23c0974de10ddde393de40af1af50ffdc03f05cab2fce8800bb310ab4a7d65",
+    "test-artifacts/netem-production-import-20261005/repeat-result.json": "3f1423aa55db2fb7b21275b79c9979985859dea693ac5faa1700dbc8db680c05",
+    "test-artifacts/netem-production-import-20261005/review-receipt.json": "b6f74414346b4204e9f01006f21bcee4a9e6bcd4e98d5875d84ff81ef4d48994",
+    "test-artifacts/netem-production-import-20261005/run-browser.py": "27a691497527bedc372005fccddc4698e143cd5dc54eb319ccf42df008ab330d",
+    "test-artifacts/netem-production-import-20261005/secret_helpers.py": "78f72d3baf417b6128d18563b69b82159955caa546cce8a8052e1a90437f5494",
+    "test-artifacts/netem-production-import-20261005/service-before.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test-artifacts/netem-production-import-20261005/service-config.json": "a76ef36cb7cfe926ae9bd913a35474dfb8396a2b86709454d155d264d4d68464",
+    "test-artifacts/netem-production-import-20261005/service-final-stderr-capture.log": "f6f63a3408be938fc92fde445a3c6552b568b6f38a3612287d2e3429ab01b4b5",
+    "test-artifacts/netem-production-import-20261005/service-final-stdout-capture.log": "ce71db6a86d05ebe73edf782c1bb94686072dd55f2db7d29b23f03f514307107",
+    "test-artifacts/netem-production-import-20261005/service-start-1.json": "4e7cdefd556c1f1fed79ffce7589540bd933e6b78dc21f4dd73e186c793066c0",
+    "test-artifacts/netem-production-import-20261005/service-start-2.json": "60bd2317e001181c409a8edc42051a0a40229616f6aff4e7ad243e24802a9903",
+    "test-artifacts/netem-production-import-20261005/service-start-3.json": "fc58b55a3c995e25678bbe3412a13a324a892ac5da4068a8b48cf661640355b4",
+    "test-artifacts/netem-production-import-20261005/setup-qa.py": "c254b9fc694388645d6e43c1b55f223d7b9fac0027267121cc2c025d67743d91",
+    "test-artifacts/netem-production-import-20261005/start-service.ps1": "c4c886c09a8e21f6821d0ce7d3d27398225d764f49b95c2809d8c7bcd806b887",
+    "test-artifacts/netem-production-import-20261005/trial-account-receipt.json": "b4904437668bb4b58097b48462b5e30347b604fc71d58878b052dfd1a124f985",
+    "test-artifacts/netem-production-import-20261005/update-handoff.py": "34447fb15162fe3c92dd146c38a1f01736312d86488fd6d2159b2080e5f4fc37",
+    "test-artifacts/netem-production-import-20261005/verify-closeout.py": "2bc8c21447f7b37bf6864fb6d9b07980d1612008ab601cc48038f2043c81eaa1"
+  },
+  "screenshot_sha256": {
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-private-compass.png": "2aa772b5eeac2797053857c386bc32f07bce884520cadbb02fbe797567745cc6",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-study-desktop.png": "6060acb8be767b3c5e592f8c03ab790f0c43ead5060ab4ccfde3aba2e20b2171",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-details-desktop.png": "e4c324df9a516328e4b034d39d1ba67b658cd4d0b47ceca3c32d3965ad945bed",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-sources-desktop.png": "3e027f5aaac14e77b66058593475d74f1d646a48c643db45ceac9af49fd6bf5c",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-wikdict-mobile.png": "9d5ee1f43b726ddd25313e9d3b447a1bd8f49e54a9c6fd7c21a2093c1fac90eb",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-study-mobile.png": "d50cdd945955013e919a4604fe3d14a9459599393a2be9c2ceb51a2de18083a9",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-details-mobile.png": "a32d5ec31f98aed3d7fa6ed0ce4b3f198392b12f8f7ac151bd0be789760873ec",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-sources-mobile.png": "b17e93856461775f7950e8aecc5e9cab8b67674a675100cc96404ccd264d71fa",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-empty-mobile.png": "14e4ef18d8f03ae361d89d589cb833991754cb800c115c8d0ff7724e75f03f48",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-restart-study-mobile.png": "a32d5ec31f98aed3d7fa6ed0ce4b3f198392b12f8f7ac151bd0be789760873ec",
+    "C:\\Users\\丁铭哲\\.codex\\visualizations\\2026\\10\\04\\01a107ee-066b-7840-86c7-26a6a0579c73\\netem-production-final-study-mobile.png": "a32d5ec31f98aed3d7fa6ed0ce4b3f198392b12f8f7ac151bd0be789760873ec"
+  },
+  "not_executed": [
+    "migration",
+    "runtime_code_change",
+    "password_reset",
+    "role_elevation",
+    "old_whole_database_restore",
+    "production_withdrawal",
+    "push",
+    "access_expansion",
+    "whole_dictionary_meaning_merge"
+  ]
+}

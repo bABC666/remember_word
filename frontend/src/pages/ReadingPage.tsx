@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookMarked, CheckCircle2, Languages, Plus, Sparkles, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { MeaningList } from '../components/MeaningList'
+import { ConciseMeaningList } from '../components/ConciseMeaningList'
+import { hasMeaningText } from '../meaningText'
 import { tokenizeReadingText } from '../readingText'
 import type { Article, ArticleWordLookup, ReviewResult, Word } from '../types'
 
@@ -67,6 +70,7 @@ function ReadingQuiz({ article }: { article: Article }) {
   const [suggestion, setSuggestion] = useState<{ suggestion: string; explanation: string } | null>(null)
   const words = article.quiz_words ?? []
   const word = words[index]
+  const hasSource = word ? hasMeaningText(word.source_meanings, word.source_raw) : false
   const review = useMutation({
     // The words in a reading quiz are the article's own test words, including ones
     // this user added from it -- those have no legacy `word` row, so they are
@@ -84,7 +88,31 @@ function ReadingQuiz({ article }: { article: Article }) {
       <div className="quiz-progress">阅读后测试 · {index + 1} / {words.length}</div>
       <h2>{word.word}</h2><p className="context-quote">“{word.context}”</p>
       <label>写下你在当前语境中理解的意思<textarea value={meaning} onChange={(event) => setMeaning(event.target.value)} placeholder="先写下自己的理解，再核对答案…" /></label>
-      {!revealed ? <button className="button primary" disabled={!meaning.trim()} onClick={() => setRevealed(true)}>核对答案</button> : <div className="quiz-answer"><span>最小语义锚点</span><strong>{word.anchor}</strong><span>原书完整释义</span><MeaningList values={word.source_meanings} fallback={word.source_raw} /><div className="quiz-tools"><button className="button secondary" disabled={judge.isPending} onClick={() => judge.mutate()}><Sparkles size={16} />{judge.isPending ? '正在分析…' : '获取 AI 建议（可选）'}</button>{suggestion && <p><b>建议：{suggestion.suggestion}</b> · {suggestion.explanation}</p>}{judge.isError && <p className="muted">AI 暂时不可用，不影响你自行选择。</p>}</div><div className="quiz-rate"><button onClick={() => review.mutate('fail')}>不会</button><button onClick={() => review.mutate('fuzzy')}>模糊</button><button onClick={() => review.mutate('know')}>会</button></div></div>}
+      {!revealed ? (
+        <button className="button primary" disabled={!meaning.trim()} onClick={() => setRevealed(true)}>核对答案</button>
+      ) : (
+        <div className="quiz-answer">
+          <span>最小语义锚点</span><strong>{word.anchor}</strong>
+          {word.concise_meanings.length > 0 ? <ConciseMeaningList groups={word.concise_meanings} /> : (
+            <p className="muted">{hasSource ? '暂无已确认的核心释义' : '暂无可用释义'}</p>
+          )}
+          {hasSource && <details className="source-raw">
+            <summary>查看{word.meaning_origin === 'user_provided' ? '用户提供的释义（未核实）' : '来源原文（未确认短义）'}</summary>
+            <p className="muted">{word.meaning_origin === 'user_provided' ? '用户提供 · 未核实' : <><Link to={`/library/${word.word_state_id}`}>查看词条来源记录</Link>（可能未记录）· 未确认短义</>}</p>
+            <MeaningList values={word.source_meanings} fallback={word.source_raw} />
+          </details>}
+          <div className="quiz-tools">
+            <button className="button secondary" disabled={judge.isPending} onClick={() => judge.mutate()}><Sparkles size={16} />{judge.isPending ? '正在分析…' : '获取 AI 建议（可选）'}</button>
+            {suggestion && <p><b>建议：{suggestion.suggestion}</b> · {suggestion.explanation}</p>}
+            {judge.isError && <p className="muted">AI 暂时不可用，不影响你自行选择。</p>}
+          </div>
+          <div className="quiz-rate">
+            <button onClick={() => review.mutate('fail')}>不会</button>
+            <button onClick={() => review.mutate('fuzzy')}>模糊</button>
+            <button onClick={() => review.mutate('know')}>会</button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

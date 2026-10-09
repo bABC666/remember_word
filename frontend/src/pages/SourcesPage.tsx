@@ -5,6 +5,8 @@ import { useLocation } from 'react-router-dom'
 import { api } from '../api'
 import { sourceCardAnchor } from '../sourceAnchor'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
+import { SourceAttribution } from '../components/SourceAttribution'
+import { dictionaryMeaningNotice, dictionarySourceName } from '../dictionarySource'
 import {
   approvalLabel,
   licenseLink,
@@ -32,7 +34,7 @@ import {
  */
 const DECLARATION_NOTICE =
   '本页只如实转述导入时记录的来源声明与许可标识，不核实许可有效性，也不代表授权已获确认。'
-  + '词库中的来源原文按原样保存，不会被改写。'
+  + '释义可能经过抽取、清洗、去重和拼接；固定版本与具体修改说明见各来源。'
 
 /** How each recorded declaration state is announced at the lexicon level. */
 const REVIEW_LABELS: Record<string, string> = {
@@ -146,6 +148,7 @@ function SourceCard({ row, lexiconId }: { row: SourceArtifactRow; lexiconId: num
   const titleId = `${anchor}-title`
   const link = licenseLink(row.license_id)
   const card = useRef<HTMLElement>(null)
+  const detail = useRef<HTMLDetailsElement>(null)
   const hash = useLocation().hash
 
   // A card only exists once this lexicon's sources have loaded, which is later than the
@@ -162,18 +165,13 @@ function SourceCard({ row, lexiconId }: { row: SourceArtifactRow; lexiconId: num
       throw error
     }
     if (fragment !== anchor) return
+    if (detail.current) detail.current.open = true
     card.current?.scrollIntoView({ block: 'start' })
   }, [hash, anchor])
 
-  return (
-    <article className="source-card" id={anchor} ref={card} aria-labelledby={titleId}>
-      <header>
-        <h3 id={titleId}>{row.publisher || row.name}</h3>
-        <span className="source-role">{row.role}</span>
-        <span className={row.declared_approval_state === 'explicitly_unapproved'
-          ? 'approval-badge unapproved' : 'approval-badge'}>{approvalLabel(row.declared_approval_state)}</span>
-      </header>
+  const content = <>
       <dl className="source-meta">
+        <div className="full"><dt>导入文件 SHA-256</dt><dd>{row.file_sha256 || '未记录'}</dd></div>
         <div><dt>版本</dt><dd>{row.version || '未记录'}</dd></div>
         <div><dt>取得时间</dt><dd>{row.obtained_at_utc || '未记录'}</dd></div>
         <div>
@@ -196,12 +194,22 @@ function SourceCard({ row, lexiconId }: { row: SourceArtifactRow; lexiconId: num
         <div className="full"><dt>使用范围声明</dt><dd>{row.use_scope || '未记录'}</dd></div>
         <div className="full"><dt>展示范围声明</dt><dd>{row.display_scope || '未记录'}</dd></div>
       </dl>
+      <SourceAttribution value={row.attribution} />
+      {row.attribution && row.name !== 'netem-words.csv' && <p className="muted">{row.name.startsWith('enwiktionary-')
+        ? dictionaryMeaningNotice([row.name]) : '词典释义为抽取片段，未做全库逐词语义校订。'}</p>}
       <p className="source-foot">
         记录文件：{row.name}；导入记录：
         {row.runs.length > 0
           ? row.runs.map((run) => `${run.run_id}（${run.outcome}）`).join('、')
           : '未记录'}
       </p>
-    </article>
-  )
+    </>
+  return <article className="source-card" id={anchor} ref={card} aria-labelledby={titleId}>
+    <header>
+      <h3 id={titleId}>{row.attribution ? (row.name === 'netem-words.csv' ? 'NETEM' : dictionarySourceName(row.name)) : row.publisher || row.name}</h3>
+      <span className="source-role">{row.role}</span>
+      <span className={row.declared_approval_state === 'explicitly_unapproved' ? 'approval-badge unapproved' : 'approval-badge'}>{approvalLabel(row.declared_approval_state)}</span>
+    </header>
+    {row.attribution ? <details className="attribution-details" ref={detail}><summary>来源与许可</summary>{content}</details> : content}
+  </article>
 }

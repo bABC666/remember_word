@@ -1,0 +1,39 @@
+word|pos|text|wikdict_grammar|ruling|reason
+as|conj|因为|adverb|confirm|中文“因为”承担连接义；裁定者试判，不称来源标题
+as|conj|当|adverb|confirm|中文“当”承担连接义；裁定者试判
+its|det|它的|pronoun|confirm|中文所有格作限定词；裁定者试判
+so|conj|所以|interjection|confirm|中文“所以”承担连接义；裁定者试判
+like|prep|像|suffix|confirm|中文“像”支持介词用法；裁定者试判
+mean|noun|意思|verb|candidate|动词条的中文不足以单独证实名词义
+accord|verb|符合|noun|confirm|“符合”本身是动词片段；裁定者试判
+show|verb|展|noun|candidate|“展”可能是展览名词，动词义不足
+report|noun|报告|verb|confirm|“报告”可作名词，裁定者试判
+off|adv|离开|adjective|candidate|离开与副词 off 的绑定不够明确
+set|verb|安排|noun|candidate|名词条的“安排”不足以单独证实动词义
+care|noun|关心|verb|candidate|动词条的“关心”不足以单独证实名词义
+support|verb|支持|noun|confirm|“支持”可作动词，裁定者试判
+under|prep|下面|adverb|confirm|中文方位词支持介词试判
+measure|verb|测量|noun|confirm|“测量”可作动词，裁定者试判
+ago|adv|前|postposition|candidate|后置词不应自动映成副词
+late|adj|晚|adverb|confirm|中文“晚”可作形容词，裁定者试判
+fill|verb|填充|noun|confirm|“填充”可作动词，裁定者试判
+check|verb|检查|noun|confirm|“检查”可作动词，裁定者试判
+fast|adj|快|adverb|confirm|中文“快”可作形容词，裁定者试判
+third|num|第三|adjective,noun|confirm|序数词按数字词性试判
+stop|verb|停止|noun|confirm|“停止”是动词片段，裁定者试判
+earth|noun|地球|pronoun|confirm|“地球”明确是名词；原包 grammar 标签异常
+love|verb|喜爱|noun|confirm|“喜爱”是动词片段，裁定者试判
+pass|verb|通过|noun|confirm|“通过”可作动词，裁定者试判
+middle|noun|中央|adjective|confirm|“中央”可作名词，裁定者试判
+visit|verb|拜访|noun|confirm|“拜访”是动词片段，裁定者试判
+picture|noun|照片|verb|confirm|“照片”明确是名词；原包 grammar 标签异常
+limit|noun|限制|verb|confirm|“限制”可作名词，裁定者试判
+exercise|noun|练习|verb|confirm|“练习”可作名词，裁定者试判
+farmer|noun|农民|pronoun|confirm|“农民”明确是名词；原包 grammar 标签异常
+promise|noun|承诺|verb|confirm|“承诺”可作名词，裁定者试判
+progress|noun|进步|verb|confirm|“进步”可作名词，裁定者试判
+charge|noun|指控|verb|confirm|“指控”可作名词，裁定者试判
+link|verb|结合|noun|confirm|“结合”可作动词，裁定者试判
+review|verb|检查|noun|confirm|“检查”可作动词，裁定者试判
+ill|adj|难受|adverb|confirm|“难受”可作形容词，裁定者试判
+china|noun|中国|pronoun|confirm|“中国”明确是专名；原包 grammar 标签异常

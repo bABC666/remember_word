@@ -67,30 +67,14 @@ function Write-Guidance {
     Write-Host 'This launcher will NOT migrate the database for you.' -ForegroundColor Yellow
     Write-Host 'Migrate it explicitly, following the release procedure, then start again:' -ForegroundColor Yellow
     Write-Host ''
-    Write-Host '  1) Take a verified backup first (never migrate without one):'
-    Write-Host "       python tools\verify_backup.py <backup-file> --baseline data\recovery\baseline.json"
-    Write-Host '  2) Rehearse on an isolated clone (Level 2) and compare row counts and'
-    Write-Host '     per-row fingerprints before and after. There is one rehearsal tool per'
-    Write-Host '     migration, and a tool named after a revision rehearses from the one'
-    Write-Host '     before it:'
-    # Listed rather than exemplified: a hard-coded tool name goes stale the moment
-    # another migration is added, and this message is only ever read by someone who
-    # is already being told not to guess.
-    $rehearsals = @(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'tools') `
-        -Filter 'rehearsal_migration_*.py' -Name -ErrorAction SilentlyContinue)
-    if ($rehearsals.Count -eq 0) {
-        Write-Host '       (none found in tools\; follow the runbook below)'
-    } else {
-        foreach ($tool in $rehearsals) {
-            Write-Host "       python tools\$tool --source `"$Database`""
-        }
-    }
-    Write-Host '  3) Migrate with an EXPLICIT revision -- never `upgrade head` on real data:'
-    Write-Host "       cd `"$RepositoryRoot\backend`""
-    Write-Host "       .\.venv\Scripts\python.exe -m alembic -c alembic.ini -x `"db_url=sqlite:///$Database`" upgrade <revision>"
-    Write-Host '  4) Verify revision, integrity and row fingerprints, then start again.'
+    Write-Host '  1) Stop the service and prove writes are quiescent.'
+    Write-Host '  2) Rehearse on an isolated clone and take a verified backup first:'
+    Write-Host "       python tools\private_file_release.py backup --database `"$Database`" --output <new-backup-file>"
+    Write-Host '  3) Record original-row fingerprints, then migrate with explicit revisions.'
+    Write-Host '     Never use `upgrade head` on real data. Verify each revision and compare'
+    Write-Host '     fingerprints before starting the application.'
     Write-Host ''
-    Write-Host '  Full procedure: docs\0007-production-migration-runbook.md and -checklist.md.'
+    Write-Host '  Full procedure: docs\V1.2-PRIVATE-FILE-PRODUCTION-MIGRATION-RUNBOOK.md'
     Write-Host '  List the target revision with: python -m alembic heads'
 }
 

@@ -15,8 +15,7 @@ const savedWord: Word = {
   part_of_speech: 'n.',
   source_meanings: ['琥珀；一种由古代树脂形成的黄色物质', '琥珀色'],
   source_raw: 'amber n. 琥珀；琥珀色。原书补充说明。',
-  // No confirmed short meaning: the detail page must still show the source exactly
-  // as it did before this slice, so the fallback is exercised by every test here.
+  // No confirmed short meaning: the detail page must label the source separately.
   concise_meanings: [],
   anchor: '树脂',
   semantic_note: '在原书语境里指琥珀。',
@@ -296,7 +295,7 @@ describe('mobile library detail', () => {
     expect(document.querySelector<HTMLElement>('.word-list')!.scrollTop).toBe(0)
     expect(window.scrollY).toBe(0)
     expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
-      .toBe('/api/words?search=&status=&view=')
+      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0')
   })
 
   it('clears A filters and position after a library 401, including browser back under B', async () => {
@@ -348,7 +347,7 @@ describe('mobile library detail', () => {
       expect(screen.getByRole('link', { name: /beta/ })).not.toHaveFocus()
     })
     expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
-      .toBe('/api/words?search=&status=&view=')
+      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0')
   })
 
   it.each(['/library/', '/Library'])('clears A filters after a 401 at %s', async (path) => {
@@ -373,7 +372,7 @@ describe('mobile library detail', () => {
     expect(await screen.findByRole('textbox', { name: '搜索单词' })).toHaveValue('')
     expect(window.location.pathname + window.location.search).toBe('/library')
     expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
-      .toBe('/api/words?search=&status=&view=')
+      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0')
   })
 
   it('keeps a filtered library URL through a normal refresh of the same account', async () => {
@@ -428,6 +427,7 @@ describe('mobile library detail', () => {
     expect(await screen.findByText('琥珀；一种由古代树脂形成的黄色物质')).toBeInTheDocument()
     // The right-hand panel is the other entry that reuses the detail component, so the
     // source record has to appear there too.
+    await userEvent.click(await screen.findByText('查看来源说明'))
     expect(await screen.findByRole('region', { name: '来源记录' })).toBeInTheDocument()
   })
 
@@ -436,6 +436,7 @@ describe('mobile library detail', () => {
     mockApi()
     render(<App />)
 
+    await userEvent.click(await screen.findByText('查看来源说明'))
     const record = await screen.findByRole('region', { name: '来源记录' })
     const wordRows = within(record).getByRole('list', { name: '单词：已采用的来源' })
     const meaningRows = within(record).getByRole('list', { name: '释义：已采用的来源' })
@@ -477,10 +478,11 @@ describe('mobile library detail', () => {
     // A partial record says so, and the declaration is quoted as a declaration.
     expect(within(record).getByText(/该词条的来源记录不完整/)).toBeInTheDocument()
     expect(within(record).getByText('以上是导入时记录的来源声明，不代表授权已获确认。')).toBeInTheDocument()
+    expect(screen.getByText('释义采用来源：补充来源整理者')).toBeInTheDocument()
 
-    // The source's own line and the full meanings are still on the page.
+    // The source's own line and meanings are still on the page, separately labelled.
     expect(screen.getByText('琥珀；一种由古代树脂形成的黄色物质')).toBeInTheDocument()
-    expect(screen.getByText('查看原书原文')).toBeInTheDocument()
+    expect(screen.getByText('查看原始记录行（来源可能不同）')).toBeInTheDocument()
   })
 
   it('shows an owned-word-safe 404 on a direct detail visit', async () => {

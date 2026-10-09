@@ -1,14 +1,45 @@
 export type WordStatus = 'new' | 'familiar' | 'learning' | 'known' | 'weak' | 'mastered'
 export type ReviewResult = 'know' | 'fuzzy' | 'fail'
 
+export interface PublicAttribution {
+  creators: string
+  modifications: string
+  license_url: string
+  source_url?: string
+  copyright_notice?: string
+  disclaimer?: string
+  snapshot_label?: string
+  snapshot_url?: string
+  snapshot_sha256?: string
+  links?: Array<{ label: string; url: string }>
+}
+
 /**
- * One short, human-confirmed sense of a word, from
+ * One additional source position a displayed value rests on.
+ *
+ * A value can rest on more than one position and on more than one source: the trial
+ * record's `decrease` merges a zh.wiktionary line with a WikDict value. The primary
+ * citation is the meaning's own `source_locator` / `source_evidence_id`; these are the
+ * **additional** ones, in `citation_order`.
+ */
+export interface ConciseMeaningCitation {
+  /** 1-based position in this value's citation list. */
+  citation_order: number
+  /** `zhwiktionary:7993707:15`-style position in the source. */
+  citation_locator: string
+  /** The evidence row the position resolved to at import time, or null. */
+  source_evidence_id: number | null
+}
+
+/**
+ * One short, evidence-confirmed sense of a word, from
  * `entry_concise_meaning`. Separate from `source_meanings` on purpose: the source
  * default is what the source said, this is what the study page shows, and a
  * supplement nobody else wrote must be able to say so without pretending otherwise.
  */
 export interface ConciseMeaning {
   text: string
+  /** Position **within its part-of-speech group**, 1–3. */
   display_order: number
   /** Where the *wording* came from: the source itself, a change to it, or neither. */
   provenance_kind: 'source' | 'derived' | 'ai_supplement'
@@ -17,7 +48,7 @@ export interface ConciseMeaning {
   /** True only when the text is the source's own value; never inferred on the client. */
   is_source_verbatim: boolean
   is_supplement: boolean
-  /** `primary:12`-style position in the source, empty for a supplement. */
+  /** The **primary** `primary:12`-style position in the source, empty for a supplement. */
   source_locator: string
   /**
    * The evidence row this wording was proposed against, or null when it has none: a
@@ -31,13 +62,86 @@ export interface ConciseMeaning {
    * Reading it correctly means checking the row against `sources.fields`.
    */
   source_evidence_id: number | null
+  /** Every **additional** source position, in `citation_order`. Empty for a supplement. */
+  citations: ConciseMeaningCitation[]
   /** What was changed, or why a supplement was added. */
   derivation_note: string
   confirmed_by: string
   confirmed_at: string | null
 }
 
+/**
+ * One part-of-speech group of short display values.
+ *
+ * The server groups by `pos_key`, sorts groups by `pos_order` and returns each group's
+ * values in `display_order`, so a client renders the list as received rather than
+ * re-deriving an order from two numbers. `pos_order` is repeated on the group so the
+ * order survives any client-side re-sorting.
+ *
+ * `pos_source` says how the part of speech was established — `pos_section` from a
+ * heading in the pinned revision, `reviewer` from a person's judgement — and is
+ * therefore also a statement about how much the label is worth. A group whose part of
+ * speech a person judged is marked as such rather than shown like a sourced one.
+ */
+export interface ConciseMeaningGroup {
+  pos_key: string
+  /** Display label, e.g. `动词`. Falls back to `pos_key` server-side when unset. */
+  pos_label: string
+  pos_source: 'none' | 'pos_section' | 'reviewer'
+  /** The server's wording for `pos_source`, so the two cannot drift. */
+  pos_source_label: string
+  /** Which group comes first; the list arrives in this order already. */
+  pos_order: number
+  /** The group's 1–3 values, in `display_order`. */
+  meanings: ConciseMeaning[]
+}
+
+export interface DictionaryExtractionValue {
+  text: string
+  pos_key?: string
+  pos_label?: string
+  language: string
+  locator: string
+  status: string
+  raw_text?: string
+  reason?: string
+  semantic_scope?: 'sense' | 'word_translation'
+  meaning_kind?: 'source' | 'derived'
+  /** Usage restrictions read from the cited dictionary definition. */
+  display_usage_labels?: string[]
+  accent_status?: string
+  quality_review?: { note: string; kind?: string; core_confirmation?: boolean; alignment_note?: string }
+  pos_raw?: string
+  pos_locator?: string
+  source: {
+    publisher: string
+    license_id?: string
+    version?: string
+    original_file_sha256?: string
+    body_sha256?: string
+    revision?: string
+    mapping_json?: string
+    attribution?: PublicAttribution
+    extraction_modifications?: string
+  }
+}
+
+export interface DictionaryExtraction {
+  entry_id?: number
+  audit_status?: 'automated_source_verified'
+  excluded_count?: number
+  parser_version: string
+  status: 'unconfirmed_source_extraction'
+  senses: DictionaryExtractionValue[]
+  pronunciations: DictionaryExtractionValue[]
+  pending_count: number
+  pending_reasons: string[]
+  pending_values?: DictionaryExtractionValue[]
+  originals?: Array<{ raw_text: string; source: DictionaryExtractionValue['source'] }>
+}
+
 export interface Word {
+  dictionary_extraction?: DictionaryExtraction | null
   /**
    * The V1.1 `word.id`, or null for a word added in V1.2 (one added from an
    * article has no `word` row). It is not interchangeable with `word_state_id`:
@@ -56,12 +160,30 @@ export interface Word {
   source_meanings: string[]
   /** The primary source's own line, verbatim. Still the thing to check a value against. */
   source_raw: string
+  meaning_origin?: 'user_provided' | 'platform'
+  /** Adopted dictionary evidence for study display; absent for private uploads. */
+  source_meaning_sources?: Array<{
+    name?: string
+    source_artifact_id?: number
+    file_sha256?: string
+    publisher: string
+    version: string
+    source_position: string
+    import_csv_line: string
+    source_revision: string
+    source_revision_url: string
+    license_id?: string
+    attribution?: PublicAttribution
+    source_history_url?: string
+  }>
   /**
-   * The short, confirmed display values, in order. An empty array means nothing has
-   * been confirmed for this word: fall back to `source_meanings`/`source_raw`, and
-   * never fill the gap with an unreviewed candidate.
+   * The short, confirmed display values, grouped by part of speech and ordered by
+   * `pos_order`, with each group's values in `display_order`. An empty array means
+   * nothing is displayable for this word -- no confirmed value, or none that passed the
+   * server's display gate. Source text remains separate and must not become a core
+   * meaning or an unmarked answer when this array is empty.
    */
-  concise_meanings: ConciseMeaning[]
+  concise_meanings: ConciseMeaningGroup[]
   anchor: string
   semantic_note: string
   status: WordStatus
@@ -134,6 +256,7 @@ export interface ArticleWordLookup {
 
 /** One source value the import recorded for one field, and what it decided about it. */
 export interface SourceEvidence {
+  source_history_url?: string
   source_evidence_id: number
   /** `word` | `meaning` | `phonetic` | `part_of_speech`, as the import recorded it. */
   field_kind: string
@@ -164,6 +287,7 @@ export interface SourceEvidence {
     publisher: string
     version: string
     license_id: string
+    attribution?: PublicAttribution
   }
 }
 

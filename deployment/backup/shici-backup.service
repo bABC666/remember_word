@@ -1,0 +1,24 @@
+[Unit]
+Description=Shici validated daily SQLite backup
+After=local-fs.target
+
+[Service]
+Type=oneshot
+# Change these literal paths and identity for the target host.
+User=shici
+Group=shici
+WorkingDirectory=/opt/shici
+EnvironmentFile=/etc/shici/backup.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/shici/tools/backup.py
+UMask=0077
+TimeoutStartSec=15min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+# SQLite may need to create/update SHM beside a WAL database, even with mode=ro.
+# Keep this aligned with the source directory and backup directory in backup.env.
+ReadWritePaths=/var/lib/shici /var/backups/shici
+StandardOutput=journal
+StandardError=journal
