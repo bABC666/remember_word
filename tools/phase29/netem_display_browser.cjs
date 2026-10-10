@@ -59,7 +59,15 @@ const navigate=async(page,target)=>page.evaluate(target=>{
     if(record.word==='double')check(device+' double not whole-word cap',await region.locator('li:visible').count()>=10);
     if(record.word==='you')check(device+' you isolated phonemes excluded',!/(\/d\/|\/s\/|\/t\/|\/z\/)/.test(text));
     if(record.word==='February')check(device+' February fragments excluded',!/(\/j\/|\/ɹi\/|\/ɹə\.ɹi\/)/.test(text));
-    if(['July','January','you','February','learn','and','double'].includes(record.word)){
+    const primary=(await region.locator(':scope > p.phonetic').allTextContents()).join(' ');
+    if(record.word==='plant')check(device+' plant independent US/Northern England oracle',primary.includes('/plænt/')&&!primary.includes('/plant/'));
+    if(record.word==='grow')check(device+' grow GA beats regional variant',primary.includes('/ˈɡɹoʊ/')&&!primary.includes('/ˈɡɹɜʊ̯/'));
+    if(record.word==='forget')check(device+' forget following variant qualifier not shown on primary',!primary.includes('less commonly'));
+    if(record.word==='grocer')check(device+' grocer following variant restriction not shown on primary',!primary.includes('proscribed'));
+    if(record.word==='thin')check(device+' thin generic reading beats th-fronting',primary.includes('/ˈθɪn/')&&!primary.includes('/ˈfɪn/'));
+    if(record.word==='could')check(device+' could strong form present',primary.includes('/kʊd/')&&!primary.includes('/kʉd/'));
+    if(record.word==='play')check(device+' play GA mixed transcription recovered',primary.includes('/pleɪ̯/')&&!primary.includes('/ple(j)/'));
+    if(['July','January','you','February','learn','and','double','plant','grow','forget','grocer','thin','could','play'].includes(record.word)){
      const file=path.join(shots,device+'-'+record.word+'.png');await page.screenshot({path:file,fullPage:false});report.screenshots.push(file);
     }
     if(record.word==='July'){

@@ -22,7 +22,8 @@ def check_code(code_sha):
     for path in [Path(__file__).resolve(),Path(quality.__file__).resolve(),
                  ROOT/'tools/phase29/netem_display_diagnosis.py',
                  ROOT/'tools/phase29/netem_display_fetch.py',ROOT/'tools/phase29/netem_display_browser.cjs',
-                 ROOT/'tools/phase29/netem_display_verify.py']:
+                 ROOT/'tools/phase29/netem_display_verify.py',
+                 ROOT/'tools/phase29/netem_pronunciation_context.py']:
         relative=path.relative_to(ROOT).as_posix()
         expected=subprocess.check_output(['git','rev-parse',f'{code_sha}:{relative}'],cwd=ROOT,text=True).strip()
         actual=subprocess.check_output(['git','hash-object',f'--path={relative}',str(path)],cwd=ROOT,text=True).strip()

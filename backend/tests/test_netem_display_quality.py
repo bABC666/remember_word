@@ -57,7 +57,9 @@ def test_fragments_item_qualifiers_and_weak_reading_are_not_promoted():
     values=quality.pronunciations(text,'record')
     assert 'ɹə-' not in [v['text'] for v in values]
     assert 'some speakers' in next(v for v in values if v['text']=='kəmˈpɐʉz')['display_labels']
-    assert next(v for v in values if v['text']=='faːn')['display_labels']==['Southern US,[[w:Monophthongization|monophthongal]]']
+    linked=next(v for v in values if v['text']=='faːn')
+    assert linked['display_labels']==['Southern US','monophthongal']
+    assert any('[[w:Monophthongization|monophthongal]]' in item['raw_template'] for item in linked['label_bindings'])
     weak=quality.choose_pronunciations(quality.pronunciations('==English==\n===Pronunciation===\n* {{IPA|en|/ə/|a=RP|q=weak form}}','a'))
     assert not any(v['representative'] for v in weak)
 

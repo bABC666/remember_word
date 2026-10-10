@@ -10,11 +10,12 @@ from pathlib import Path
 from urllib.parse import quote
 import netem_rich_import as rich
 import netem_display_diagnosis as diagnosis
-from app.services.rich_dictionary_parser import Tree, Node, HEADING, clean_links
+from app.services.rich_dictionary_parser import Tree, Node, HEADING
+import netem_pronunciation_context as pronunciation_context
 
-VERSION = 'netem-learning-display-v1'
+VERSION = 'netem-learning-display-v2'
 digest = rich.digest
-RESTRICTED = r'(?i)weak|unstressed|dated|obsolete|uncommon|rare|nonstandard|folk|Early Modern|dialect|archaic|historical|spelling pronunciation|\[\['
+RESTRICTED = r'(?i)weak|unstressed|dated|obsolete|uncommon|rare|nonstandard|folk|Early Modern|dialect|archaic|historical|spelling pronunciation|less common|minority|proscribed|deprecated|some speakers'
 
 
 def sense_context(body, sense):
@@ -44,98 +45,15 @@ def sense_context(body, sense):
 
 
 def templates(line):
-    # Only flat pronunciation templates; nested dynamic templates remain pending.
-    return [(m.start(), m.end(), m[1], split_parameters(m[2])) for m in
-            re.finditer(r'\{\{(IPA|enPR|a|accent|q|qualifier|sense)\|([^{}]*)\}\}', line)]
+    return pronunciation_context.templates(line)
 
 
 def split_parameters(text):
-    # Pipes inside wikilinks belong to a label, never a template argument.
-    return re.split(r'\|(?![^\[]*\]\])',text)
+    return pronunciation_context.split_parameters(text)
 
 
 def pronunciations(text, word):
-    result, english, in_pron, etymology, header = [], False, False, '', ''
-    ancestors = {}
-    for number, raw in enumerate(text.splitlines(), 1):
-        line = raw.strip()
-        heading = HEADING.fullmatch(line)
-        if heading:
-            level, name = len(heading[1]), heading[2].strip()
-            if level == 2:
-                english, etymology = name == 'English', ''
-            if english and name.startswith('Etymology'):
-                etymology = name
-            in_pron = english and bool(re.fullmatch(r'Pronunciation(?: \d+)?',name))
-            if in_pron:
-                header = f'{etymology or "English"}{" / " + name if name != "Pronunciation" else ""}:L{number}'
-                ancestors = {}
-            continue
-        marker = re.match(r'^[:*]+',line)
-        if not in_pron or not marker:
-            continue
-        depth = len(marker[0])
-        ancestors = {d:v for d,v in ancestors.items() if d < depth}
-        ts = templates(line)
-        labels = [label for d in sorted(ancestors) for label in ancestors[d]]
-        local = []
-        for _, _, kind, args in ts:
-            if kind in {'a','accent','q','qualifier','sense'}:
-                local.extend(a for a in args if a and '=' not in a and a != 'en')
-            elif kind == 'enPR':
-                local.extend(a[2:] for a in args if a.startswith('a='))
-        # Plain structural bullet labels (strong/weak forms) are explicit context.
-        plain = re.sub(r'\{\{.*?\}\}', '', line.lstrip(':*').strip()).strip(' :;,\'')
-        structural=[]
-        if re.fullmatch(r'(?i)(weak|strong) forms?', plain):
-            local.append(plain.lower())
-            structural.append(plain.lower())
-        if local:
-            ancestors[depth] = local
-        for start, end, kind, args in ts:
-            if kind != 'IPA' or not args or args[0] != 'en':
-                continue
-            # A prose explanation can mention IPA without asserting a full word.
-            prefix = re.sub(r'\{\{.*?\}\}', '', line[:start].lstrip(':*')).strip(' :;,\'')
-            if re.search(r'[A-Za-z]{3}', prefix) and not re.fullmatch(r'(?i)(weak|strong) forms?',prefix):
-                continue
-            own = [a[2:] for a in args if a.startswith(('a=','q='))]
-            preceding=[]
-            for label_start,_,label_kind,label_args in ts:
-                if label_start>=start:
-                    break
-                if label_kind in {'a','accent','q','qualifier','sense'}:
-                    preceding.extend(a for a in label_args if a and '=' not in a and a!='en')
-                elif label_kind=='enPR':
-                    preceding.extend(a[2:] for a in label_args if a.startswith('a='))
-            trailing=[]
-            if not any(k=='IPA' and pos>start for pos,_,k,_ in ts):
-                for pos,_,k,arguments in ts:
-                    if pos>end and k in {'a','accent','q','qualifier','sense'}:
-                        trailing.extend(a for a in arguments if a and '=' not in a and a!='en')
-            item_labels = list(dict.fromkeys(labels + structural + preceding + own + trailing))
-            # A nested variant inherits its parent IPA's accent/form labels.
-            ancestors[depth]=list(dict.fromkeys(structural + preceding + own + trailing))
-            ipa_number = 0
-            for arg in args[1:]:
-                if not ((arg.startswith('/') and arg.endswith('/')) or
-                        (arg.startswith('[') and arg.endswith(']'))):
-                    continue
-                ipa_number += 1
-                ipa = arg[1:-1]
-                if (not ipa or ipa.startswith('-') or ipa.endswith('-') or '...' in ipa or re.search(r'[{}<>|;=\n…]',ipa)
-                        or not re.search(r'[a-zæɑ-ʯ]',ipa)):
-                    continue
-                result.append({'text':ipa, 'notation':'phonemic' if arg[0]=='/' else 'phonetic',
-                    'language':'en', 'status':'source_verified', 'locator':f'enwiktionary:L{number}',
-                    'raw_text':raw, 'display_labels':list(dict.fromkeys(item_labels +
-                        [a.split('=',1)[1] for a in args if a.startswith((f'a{ipa_number}=',f'q{ipa_number}='))])),
-                    'pronunciation_scope':header,
-                    'template_span':[start,end], 'source_word':word,
-                    'quality_review':{'kind':'automated_full_word_pronunciation_context',
-                        'core_confirmation':False,
-                        'note':'固定英语 Pronunciation 标题下的显式 IPA|en 条目；排除 IPAchar 音素讨论、其它语言、词尾片段和正文引用。不声称人工确认。'}})
-    return result
+    return pronunciation_context.parse(text, word)
 
 
 def load_evidence(folder):
@@ -195,41 +113,46 @@ def pronunciation_context_lines(text):
     return lines
 
 
+def confirmed_fragment_context(word,text,discussion):
+    if text.startswith('-') or text.endswith('-'):return True
+    # IPAchar also carries complete alternatives (forget, grocer). Its syntax is
+    # never evidence of a fragment. These two explicitly reviewed discussions
+    # identify individual coalescing sounds or a February syllable sequence.
+    if word=='you' and text in {'d','dʒ','s','t','tʃ','z','ʃ','ʒ'}:
+        return any('Following a word ending in an' in d['raw_text'] and 'may coalesce' in d['raw_text'] for d in discussion)
+    if word=='February' and text in {'j','ɹi','ɹə.ɹi'}:
+        return any('the first' in d['raw_text'] and 'sequence' in d['raw_text'] and 'haplology' in d['raw_text'] for d in discussion)
+    return False
+
+
 def choose_pronunciations(values):
-    groups = defaultdict(list)
-    seen = set()
-    for value in values:
-        key = (value['pronunciation_scope'], value['notation'], ipa_key(value['text']), tuple(value['display_labels']))
-        if key in seen:
-            continue
+    groups=defaultdict(list);result=[];seen=set()
+    for original in values:
+        key=(original['pronunciation_scope'],original['notation'],ipa_key(original['text']),tuple(original['display_labels']))
+        if key in seen:continue
         seen.add(key)
-        labels = ','.join(value['display_labels'])
-        tokens = set(part.strip() for label in value['display_labels'] for part in label.split(','))
-        family = ('UK' if tokens & {'RP','UK','SSB'} else 'US' if tokens & {'GA','US','GenAm'} else 'other')
-        weak = bool(re.search(r'(?i)weak|unstressed',labels))
-        restricted = bool(re.search(RESTRICTED,labels))
-        value = dict(value, display_accent=family if family != 'other' else '',
-                     representative=False)
-        usage = tuple(label for label in value['display_labels'] if re.search(
-            r'(?i)\b(noun|verb|adjective|adverb|past|present|plural|singular|participle)\b',label))
-        groups[(value['pronunciation_scope'],family,weak,usage)].append((value,restricted))
-    result = []
-    for (_, family, weak, _), group in groups.items():
-        # Exactly one explicitly supported broad accent per etymology. No first
-        # item in the flattened WikDict list becomes a canonical pronunciation.
-        candidates = [v for v,r in group if not r and v['notation']=='phonemic']
-        if candidates and family != 'other' and not weak:
-            candidates[0]['representative'] = True
-        result.extend(v for v,_ in group)
-    scopes = {v['pronunciation_scope'] for v in result}
-    for scope in scopes:
-        if not any(v['representative'] for v in result if v['pronunciation_scope']==scope):
-            candidates = [v for v in result if v['pronunciation_scope']==scope and v['notation']=='phonemic'
-                          and not re.search(RESTRICTED,','.join(v['display_labels']))]
-            if len({ipa_key(v['text']) for v in candidates}) == 1:
-                # An explicitly full-word IPA can represent its own source scope,
-                # labelled with that scope, without an invented UK/US accent.
-                candidates[0]['representative'] = True
+        accents=set(original.get('accent_labels',[]))
+        families=[]
+        if accents & {'RP','UK','SSB','SSBE','Received Pronunciation'}:families.append('UK')
+        if accents & {'GA','US','GenAm','General American'}:families.append('US')
+        value=dict(original,accent_families=families,display_accent=','.join(families),representative=False)
+        labels=','.join(value.get('qualifier_labels',[]))
+        weak=bool(re.search(r'(?i)weak|unstressed',labels))
+        restricted=bool(re.search(RESTRICTED,labels) or value.get('label_binding_pending'))
+        special=any(re.search(r'(?i)th-fronting|l-vocali|t-glottali|monophthong|ungliding',v) for v in value.get('feature_labels',[]))
+        usage=tuple(v for v in value.get('qualifier_labels',[]) if re.search(r'(?i)\b(noun|verb|adjective|adverb|past|present|plural|singular|participle)\b',v))
+        result.append(value)
+        for family in families:
+            groups[(value['pronunciation_scope'],family,weak,usage)].append((value,restricted or special))
+    for (_,_,weak,_),group in groups.items():
+        candidates=[v for v,restricted in group if not restricted and v['notation']=='phonemic']
+        if candidates and not weak:candidates[0]['representative']=True
+    for scope in {v['pronunciation_scope'] for v in result}:
+        if any(v['representative'] for v in result if v['pronunciation_scope']==scope):continue
+        defaults=[v for v in result if v['pronunciation_scope']==scope and v['notation']=='phonemic' and not v['accent_labels'] and not v['feature_labels'] and not re.search(RESTRICTED,','.join(v['qualifier_labels']))]
+        if len({ipa_key(v['text']) for v in defaults})==1:
+            defaults[0]['representative']=True
+            continue
     return result
 
 
@@ -319,7 +242,7 @@ def projection(row, page):
         discussion = [dict(line=n,raw_text=line) for n,line in pronunciation_context_lines(page['text'])
                       if page and re.search(r'\{\{IPAchar\|[/\[]'+re.escape(value['text'])+r'[/\]]\}\}',line)] if page else []
         classification = ('corroborated_full_word' if matches else 'confirmed_non_word_fragment'
-                          if discussion or value['text'].startswith('-') or value['text'].endswith('-') else 'insufficient_full_word_context')
+                          if confirmed_fragment_context(row['word'],value['text'],discussion) else 'insufficient_full_word_context')
         held.append({'locator':value['locator'],'text':value['text'],
                      'classification':classification,'discussion_evidence':discussion,
                      'matches':[v['locator'] for v in matches],
@@ -341,7 +264,9 @@ def preview(database, evidence, out, limit):
     wik,_,original_ledger=rich.local_sources()
     ledger={**original_ledger,**ledger}
     required={'Easter','July','January','question','learn','or','and','yellow','you','February',
-              'bank','lead','record','read','wind','bow','set','fine','double','lease'}
+              'bank','lead','record','read','wind','bow','set','fine','double','lease',
+              'plant','grow','forget','grocer','tomato','potato','wit','comparable',
+              'with','can','fan','thin','could','yourselves','compose','portrait'}
     rows.sort(key=lambda r:(r['word'] not in required,digest(r['word'])))
     if limit:
         rows=rows[:limit]

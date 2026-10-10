@@ -36,7 +36,7 @@ def display_extraction(row: EntryDictionaryExtraction | None) -> dict | None:
         baseline = {k: v for k, v in payload.items() if k != 'learning_display'}
         fingerprint = hashlib.sha256(json.dumps(baseline, ensure_ascii=False, sort_keys=True,
                                                separators=(',', ':')).encode()).hexdigest()
-        if (profile.get('version') == 'netem-learning-display-v1'
+        if (profile.get('version') == 'netem-learning-display-v2'
                 and profile.get('baseline_sha256') == fingerprint
                 and profile.get('core_confirmation') is False):
             result['learning_display'] = profile
