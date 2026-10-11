@@ -3,6 +3,53 @@ import userEvent from '@testing-library/user-event'
 import { expect, it } from 'vitest'
 import { DictionaryExtractionList } from './DictionaryExtractionList'
 
+it('uses the bound learning projection while keeping originals folded', async () => {
+  const original = {text:'復活節',language:'en',status:'source_verified',locator:'x',pos_key:'noun',pos_label:'名词',source:{publisher:'WikDict'}}
+  render(<DictionaryExtractionList value={{parser_version:'v1',status:'unconfirmed_source_extraction',
+    audit_status:'automated_source_verified',pending_count:0,pending_reasons:[],senses:[original],
+    pronunciations:[{...original,text:'d'}], learning_display:{version:'netem-learning-display-v1',core_confirmation:false,
+      senses:[{...original,text:'复活节',display_aliases:['復活節']}],
+      pronunciations:[{...original,text:'ˈiːstə',display_labels:['RP'],representative:true,pronunciation_scope:'English'},
+        {...original,text:'ˈistəɹ',display_labels:['GA'],representative:false,pronunciation_scope:'English'}],
+      held_pronunciations:[{text:'d',locator:'x',classification:'insufficient_full_word_context',reason:'音素讨论'}]}}} />)
+  expect(screen.getByText('复活节')).toBeVisible()
+  expect(screen.getByText(/^代表读音：/)).toHaveTextContent('/ˈiːstə/')
+  expect(screen.getByText(/ˈistəɹ/)).not.toBeVisible()
+  expect(screen.getByText('查看词典来源').closest('details')).not.toHaveAttribute('open')
+  await userEvent.click(screen.getByText('其他来源读音（1）'))
+  expect(screen.getByText(/ˈistəɹ/)).toBeVisible()
+})
+
+it('does not collapse equal Chinese text in different reviewed English scopes', () => {
+  const s = {text:'学习',language:'en',status:'source_verified',pos_key:'verb',pos_label:'动词',source:{publisher:'WikDict'}}
+  render(<DictionaryExtractionList value={{parser_version:'v1',status:'unconfirmed_source_extraction',
+    audit_status:'automated_source_verified',pending_count:0,pending_reasons:[],senses:[],pronunciations:[],
+    learning_display:{version:'netem-learning-display-v1',core_confirmation:false,
+      senses:[{...s,locator:'study',display_context_note:'to be studying'},
+              {...s,locator:'findout',display_context_note:'to find out'}],pronunciations:[],held_pronunciations:[]}}} />)
+  expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  expect(screen.getByText(/to be studying/)).toBeVisible()
+  expect(screen.getByText(/to find out/)).toBeVisible()
+})
+
+it('keeps stale phonetics out of the learning display', () => {
+  render(<DictionaryExtractionList value={{parser_version:'v1',status:'unconfirmed_source_extraction',
+    audit_status:'automated_source_verified',display_quality_status:'stale_profile',
+    pending_count:0,pending_reasons:[],senses:[],pronunciations:[{text:'d',language:'en',
+      status:'source_verified',locator:'x',source:{publisher:'WikDict'}}]}} />)
+  expect(screen.queryByText('来源音标：/d/')).not.toBeInTheDocument()
+  expect(screen.getByText('展示依据已变更，读音待重新核查。')).toBeVisible()
+})
+
+it('keeps different uses sharing a source locator in the learning projection', () => {
+  const sense={text:'变化',pos_key:'verb',pos_label:'动词',locator:'same-line',language:'en',status:'source_verified',source:{publisher:'词典'}}
+  render(<DictionaryExtractionList value={{parser_version:'v1',status:'unconfirmed_source_extraction',
+    audit_status:'automated_source_verified',pending_count:0,pending_reasons:[],senses:[],pronunciations:[],
+    learning_display:{version:'netem-learning-display-v1',core_confirmation:false,
+      senses:[sense,{...sense,display_usage_labels:['比喻']}],pronunciations:[],held_pronunciations:[]}}} />)
+  expect(screen.getAllByRole('listitem')).toHaveLength(2)
+})
+
 it('shows source-backed usage restrictions beside the meaning', () => {
   render(<DictionaryExtractionList value={{parser_version:'netem-rich-v1',status:'unconfirmed_source_extraction',
     audit_status:'automated_source_verified',pending_count:0,pending_reasons:[],pronunciations:[],
