@@ -1,9 +1,9 @@
 """Read-only acceptance of display-only plans, including retained raw sources."""
 import argparse
 import json
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
-import netem_display_quality as quality
+
 import netem_display_diagnosis as diagnosis
 import netem_rich_import as rich
 

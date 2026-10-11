@@ -11,8 +11,9 @@ import sqlite3
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-import netem_rich_release as protected
+
 import netem_display_quality as quality
+import netem_rich_release as protected
 
 ROOT=protected.ROOT
 

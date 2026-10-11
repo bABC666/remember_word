@@ -2,12 +2,13 @@
 import argparse
 import json
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlencode
+
 import netem_display_diagnosis as diagnosis
 import netem_rich_import as rich
 

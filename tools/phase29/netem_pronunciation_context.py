@@ -5,6 +5,7 @@ qualifiers bind to a phonetic target, including non-extracted IPAchar/enPR targe
 Raw label templates and their original offsets remain available for inspection.
 """
 import re
+
 from app.services.rich_dictionary_parser import HEADING, clean_links
 
 LABEL_TEMPLATES={'a','accent','q','qualifier','sense'}
@@ -16,8 +17,8 @@ FEATURE=re.compile(r'(?i)raising|tensing|coalescen|dropping|flapping|glottali|vo
 def mask_annotations(text):
     def blank(match):
         return ''.join('\n' if c=='\n' else ' ' for c in match[0])
-    text=re.sub(r'<!--.*?-->',blank,text,flags=re.S)
-    return re.sub(r'<ref\b[^>]*(?:/>|>.*?</ref\s*>)',blank,text,flags=re.S|re.I)
+    text=re.sub(r'<!--.*?-->',blank,text,flags=re.DOTALL)
+    return re.sub(r'<ref\b[^>]*(?:/>|>.*?</ref\s*>)',blank,text,flags=re.DOTALL|re.IGNORECASE)
 
 
 def split_parameters(text):

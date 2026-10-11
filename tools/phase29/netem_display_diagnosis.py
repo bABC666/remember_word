@@ -4,6 +4,7 @@ import ctypes
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
+
 import netem_rich_import as rich
 
 

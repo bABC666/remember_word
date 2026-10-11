@@ -1,17 +1,19 @@
 """Source-bound learning projection. Raw extraction and human confirmation stay intact."""
 from __future__ import annotations
+
 import argparse
 import copy
 import json
 import re
 from collections import Counter, defaultdict
-from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
-import netem_rich_import as rich
+
 import netem_display_diagnosis as diagnosis
-from app.services.rich_dictionary_parser import Tree, Node, HEADING
 import netem_pronunciation_context as pronunciation_context
+import netem_rich_import as rich
+
+from app.services.rich_dictionary_parser import HEADING, Node, Tree
 
 VERSION = 'netem-learning-display-v2'
 digest = rich.digest
@@ -211,7 +213,7 @@ def projection(row, page):
         contexts[s['locator']]=context
     unresolved = [{'context':list(k[:3]), 'expressions':v,
                    'reason':'multiple_expressions_not_semantically_adjudicated'} for k,v in candidates.items()
-                  if len(set(diagnosis.simplified(x) for x in v))>1 and
+                  if len({diagnosis.simplified(x) for x in v})>1 and
                   not (len(k[2])==1 and (row['word'],k[2][0]) in EQUIVALENTS)]
     display = list(groups.values())
     # Retain different English scopes even when the simplified Chinese is equal.
@@ -239,7 +241,7 @@ def projection(row, page):
         if value.get('language')!='en':
             continue
         matches=[v for v in fresh if ipa_key(v['text'])==ipa_key(value['text'])]
-        discussion = [dict(line=n,raw_text=line) for n,line in pronunciation_context_lines(page['text'])
+        discussion = [{'line': n, 'raw_text': line} for n,line in pronunciation_context_lines(page['text'])
                       if page and re.search(r'\{\{IPAchar\|[/\[]'+re.escape(value['text'])+r'[/\]]\}\}',line)] if page else []
         classification = ('corroborated_full_word' if matches else 'confirmed_non_word_fragment'
                           if confirmed_fragment_context(row['word'],value['text'],discussion) else 'insufficient_full_word_context')

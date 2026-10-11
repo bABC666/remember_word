@@ -1,12 +1,33 @@
 import copy
+import gc
 import json
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools/phase29'))
 import netem_display_quality as quality
+
 from app.services.dictionary_extraction import display_extraction
+
+
+@pytest.fixture
+def display_artifact_dir():
+    import netem_rich_import as rich
+
+    parent = (rich.ROOT / 'test-artifacts').resolve()
+    parent.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='netem-display-test-', dir=parent) as folder:
+        path = Path(folder).resolve()
+        assert path.is_relative_to(parent)
+        try:
+            yield path
+        finally:
+            # SQLite cursor cycles must be released before Windows removes scratch files.
+            gc.collect()
 
 
 def test_ipa_context_excludes_phoneme_discussion_and_inherits_weak_accent():
@@ -141,7 +162,8 @@ def test_api_profile_is_bound_to_original_payload_and_preserves_evidence():
 
 
 def test_real_api_catalog_detail_and_study_share_projection_without_browse_state(world):
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
+
     from app.models import EntryDictionaryExtraction, UserWordState
     lexicon = world.lexicon('NETEM')
     _, entry_id = world.add_word('Easter', lexicon_id=lexicon)
@@ -167,12 +189,12 @@ def test_real_api_catalog_detail_and_study_share_projection_without_browse_state
     assert study==detail
 
 
-def test_release_rejects_fabricated_projection_and_preserves_originals(world,tmp_path,monkeypatch):
+def test_release_rejects_fabricated_projection_and_preserves_originals(world,display_artifact_dir,monkeypatch):
     import netem_display_release as release
     import netem_rich_import as rich
-    from sqlalchemy import select
-    from app.models import EntryDictionaryExtraction, LexiconEntry
     import pytest
+
+    from app.models import EntryDictionaryExtraction
     lexicon=world.lexicon('NETEM');_,entry_id=world.add_word('Easter',lexicon_id=lexicon)
     original={'senses':[{'text':'復活節','status':'source_verified','language':'en','pos_key':'noun',
                         'locator':'s1','source':{'publisher':'Test','family':'other'}}],
@@ -192,7 +214,7 @@ def test_release_rejects_fabricated_projection_and_preserves_originals(world,tmp
           'evidence_directory':'test-artifacts/test-evidence','source_files':{},
           'records':[{'entry_id':entry_id,'word':'Easter','baseline_sha256':baseline,
              'baseline_extraction_sha256':rich.digest(original),'payload':after,'payload_sha256':rich.digest(after)}]}
-    path=rich.ROOT/'test-artifacts/netem-display-quality-20261009/test-release-plan.json'
+    path=display_artifact_dir/'test-release-plan.json'
     try:
         path.write_text(rich.canonical(plan),encoding='utf-8')
         assert release.validate_plan(database,path,rich.sha(path.read_bytes()))['records'][0]['payload']==after
@@ -207,11 +229,11 @@ def test_release_rejects_fabricated_projection_and_preserves_originals(world,tmp
         path.unlink(missing_ok=True)
 
 
-def test_authenticated_release_and_locked_receipt_preserve_later_review(make_world,monkeypatch):
-    import uuid
-    import pytest
+def test_authenticated_release_and_locked_receipt_preserve_later_review(
+        make_world,monkeypatch,display_artifact_dir,netem_production_sentinel):
     import netem_display_release as release
     import netem_rich_import as rich
+    import pytest
     world=make_world('display-release-admin',role='admin')
     lexicon=world.lexicon('NETEM');state_id,entry_id=world.add_word('test',lexicon_id=lexicon)
     from app.models import EntryDictionaryExtraction
@@ -226,22 +248,36 @@ def test_authenticated_release_and_locked_receipt_preserve_later_review(make_wor
     monkeypatch.setattr(release,'check_code',lambda sha:None)
     monkeypatch.setattr(quality,'load_evidence',lambda folder:({},{}))
     monkeypatch.setattr(rich,'local_sources',lambda:({}, {}, {}))
-    directory=rich.ROOT/'test-artifacts/netem-display-quality-20261009/authenticated-tests'/uuid.uuid4().hex
-    directory.mkdir(parents=True);plan_path=directory/'plan.json'
+    directory=display_artifact_dir
+    cloned_database=directory/'clone/vocab.db'
+    rich.clone(database,cloned_database)
+    database=cloned_database
+    plan_path=directory/'plan.json'
     plan={'parser_version':rich.PARSER_VERSION,'display_version':quality.VERSION,'core_confirmation':False,
           'lexicon_id':lexicon,'source_files':{},'evidence_directory':'test-artifacts/test-evidence',
           'records':[{'entry_id':entry_id,'word':'test','baseline_sha256':baseline,
           'baseline_extraction_sha256':rich.digest(original),'payload':after,'payload_sha256':rich.digest(after)}]}
     plan_path.write_text(rich.canonical(plan),encoding='utf-8');checksum=rich.sha(plan_path.read_bytes())
-    kwargs=dict(database=database,plan_path=plan_path,checksum=checksum,code_sha='a'*40,
-                username=world.username,password='test-password-123')
+    kwargs={'database':database,'plan_path':plan_path,'checksum':checksum,'code_sha':'a'*40,
+            'username':world.username,'password':'test-password-123'}
     with pytest.raises(ValueError,match='password verification'):
         release.authenticated_execute(**(kwargs|{'password':'wrong'}),operation=directory/'bad-auth')
     assert not (directory/'bad-auth').exists()
     result=release.authenticated_execute(**kwargs,operation=directory/'apply')
     assert result['result']['changed']==1
     receipt=Path(result['receipt']);locked_sha=result['receipt_sha256']
-    world.add_review(state_id)
+    from sqlalchemy.orm import Session
+
+    from app.db import make_engine
+    from app.models import User
+    from app.services.study import record_review_for_user_state
+    engine=make_engine(f'sqlite:///{database.as_posix()}')
+    try:
+        with Session(engine) as session:
+            record_review_for_user_state(session,session.get(User,world.user_id),state_id,
+                                         'know','daily','recall')
+    finally:
+        engine.dispose()
     with rich.read_only(database) as c:
         before_tables=rich.table_fingerprints(c)
     tampered=json.loads(receipt.read_bytes());tampered['undo'][0]['before']['payload']='{"senses":["invented"]}'
@@ -260,13 +296,13 @@ def test_authenticated_release_and_locked_receipt_preserve_later_review(make_wor
         assert rich.table_fingerprints(c)==before_tables
 
 
-def test_report_output_cannot_overwrite_production_or_source(tmp_path):
-    import pytest
+def test_report_output_cannot_overwrite_production_or_source(display_artifact_dir):
     import netem_display_diagnosis as diagnosis
     import netem_rich_import as rich
+    import pytest
     with pytest.raises(ValueError,match='protected data'):
         diagnosis.write_report(rich.ROOT/'data/vocab.db',{})
-    path=tmp_path/'report.json'
+    path=display_artifact_dir/'report.json'
     diagnosis.write_report(path,{'entries':1})
     original=path.read_bytes()
     diagnosis.write_report(path,{'entries':1})
