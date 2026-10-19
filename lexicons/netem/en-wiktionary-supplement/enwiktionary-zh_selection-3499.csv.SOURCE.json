@@ -1,0 +1,22 @@
+{
+  "creators": "English Wiktionary contributors（technician词条及其历史列出的贡献者）；中文选择或翻译整理：拾词项目 / Codex（AI）。",
+  "modifications": "本项目由Codex选择中文译词、去模板、繁简转换并拼接；不是整句逐字原文，未经人工逐词核准。 职业义。",
+  "copyright_notice": "上游文字依Wikimedia社区贡献条款；选择CC路径；本项目改编CC BY-SA 4.0。",
+  "disclaimer": "来源及改编按现状提供，无准确性保证；核心义选取不代表全部义项。",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.en",
+  "source_url": "https://en.wiktionary.org/w/index.php?title=technician&oldid=90671970",
+  "snapshot_label": "technician / oldid 90671970 / wikitext lines 64",
+  "snapshot_sha256": "936eb8cce9cbcd202902876b540ae1c2b209a3281aa312b798832dd874f68aa7",
+  "snapshot_url": "https://en.wiktionary.org/w/index.php?title=technician&oldid=90671970",
+  "history_url_template": "https://en.wiktionary.org/w/index.php?title=technician&action=history&oldid={revision}",
+  "links": [
+    {
+      "label": "固定英文字典词条（technician）",
+      "url": "https://en.wiktionary.org/w/index.php?title=technician&oldid=90671970"
+    },
+    {
+      "label": "Wikimedia文字再利用条款 §7",
+      "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content"
+    }
+  ]
+}

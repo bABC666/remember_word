@@ -1,0 +1,22 @@
+{
+  "creators": "English Wiktionary contributors（apart词条及其历史列出的贡献者）；中文选择或翻译整理：拾词项目 / Codex（AI）。",
+  "modifications": "本项目由Codex选择中文译词、去模板、繁简转换并拼接；不是整句逐字原文，未经人工逐词核准。 空间或陪伴关系的分开义，不取四分五裂扩展义。",
+  "copyright_notice": "上游文字依Wikimedia社区贡献条款；选择CC路径；本项目改编CC BY-SA 4.0。",
+  "disclaimer": "来源及改编按现状提供，无准确性保证；核心义选取不代表全部义项。",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.en",
+  "source_url": "https://en.wiktionary.org/w/index.php?title=apart&oldid=92202892",
+  "snapshot_label": "apart / oldid 92202892 / wikitext lines 49",
+  "snapshot_sha256": "134445b3e6c79541caf0b1a6c3b7c281726acbb51dce86f2bffc6ab383f36ce1",
+  "snapshot_url": "https://en.wiktionary.org/w/index.php?title=apart&oldid=92202892",
+  "history_url_template": "https://en.wiktionary.org/w/index.php?title=apart&action=history&oldid={revision}",
+  "links": [
+    {
+      "label": "固定英文字典词条（apart）",
+      "url": "https://en.wiktionary.org/w/index.php?title=apart&oldid=92202892"
+    },
+    {
+      "label": "Wikimedia文字再利用条款 §7",
+      "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content"
+    }
+  ]
+}

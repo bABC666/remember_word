@@ -1,0 +1,26 @@
+{
+  "creators": "English Wiktionary contributors（civilization词条及其历史列出的贡献者）；中文选择或翻译整理：拾词项目 / Codex（AI）。",
+  "modifications": "本项目由Codex选择中文译词、去模板、繁简转换并拼接；不是整句逐字原文，未经人工逐词核准。 固定英式异形对应文明文化义。",
+  "copyright_notice": "上游文字依Wikimedia社区贡献条款；选择CC路径；本项目改编CC BY-SA 4.0。",
+  "disclaimer": "来源及改编按现状提供，无准确性保证；核心义选取不代表全部义项。",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.en",
+  "source_url": "https://en.wiktionary.org/w/index.php?title=civilization&oldid=92679622",
+  "snapshot_label": "civilization / oldid 92679622 / wikitext lines 79",
+  "snapshot_sha256": "31bcac70d117ee9394a5bd4b5aeb99a1e21be497871a72e1bcb7f3cbe067c58d",
+  "snapshot_url": "https://en.wiktionary.org/w/index.php?title=civilization&oldid=92679622",
+  "history_url_template": "https://en.wiktionary.org/w/index.php?title=civilization&action=history&oldid={revision}",
+  "links": [
+    {
+      "label": "固定英文字典词条（civilization）",
+      "url": "https://en.wiktionary.org/w/index.php?title=civilization&oldid=92679622"
+    },
+    {
+      "label": "Wikimedia文字再利用条款 §7",
+      "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content"
+    },
+    {
+      "label": "固定词形关系（civilisation）",
+      "url": "https://en.wiktionary.org/w/index.php?oldid=91864202"
+    }
+  ]
+}

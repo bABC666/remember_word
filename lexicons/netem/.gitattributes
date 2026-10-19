@@ -1,0 +1,2 @@
+# Keep the exported data byte-stable so SHA256SUMS.txt remains valid after checkout.
+* text=auto eol=lf
