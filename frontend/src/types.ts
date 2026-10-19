@@ -110,6 +110,12 @@ export interface DictionaryExtractionValue {
   /** Usage restrictions read from the cited dictionary definition. */
   display_usage_labels?: string[]
   accent_status?: string
+  display_aliases?: string[]
+  display_context_note?: string
+  display_labels?: string[]
+  representative?: boolean
+  notation?: 'phonemic' | 'phonetic'
+  pronunciation_scope?: string
   quality_review?: { note: string; kind?: string; core_confirmation?: boolean; alignment_note?: string }
   pos_raw?: string
   pos_locator?: string
@@ -138,6 +144,16 @@ export interface DictionaryExtraction {
   pending_reasons: string[]
   pending_values?: DictionaryExtractionValue[]
   originals?: Array<{ raw_text: string; source: DictionaryExtractionValue['source'] }>
+  display_quality_status?: string
+  learning_display?: {
+    version: string
+    core_confirmation: false
+    senses: DictionaryExtractionValue[]
+    pronunciations: DictionaryExtractionValue[]
+    held_pronunciations: Array<{text: string; locator: string; classification: string; reason: string}>
+    pronunciation_pending_reason?: string
+    unresolved_meanings?: Array<{reason: string}>
+  }
 }
 
 export interface Word {

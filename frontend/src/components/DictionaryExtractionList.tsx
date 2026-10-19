@@ -21,18 +21,33 @@ function SourceValue({ sense }: { sense: DictionaryExtractionValue }) {
   return <>
     {(sense.display_usage_labels?.length ?? 0) > 0 && <small>（{sense.display_usage_labels!.join('、')}）</small>}
     {sense.text}{sense.meaning_kind === 'derived' && <small> · 据英文来源翻译整理</small>}
+    {sense.display_context_note && <small>（来源用法：{sense.display_context_note}）</small>}
   </>
+}
+
+function PronunciationAttribution({ source }: { source: DictionaryExtractionValue['source'] }) {
+  const attribution = source.attribution
+  if (!attribution) return null
+  return <div>
+    <p>{attribution.creators}</p>
+    <p className="muted">{attribution.modifications}</p>
+    <a href={attribution.license_url} target="_blank" rel="noreferrer">发音来源许可</a>
+    {attribution.source_url && <> · <a href={attribution.source_url} target="_blank" rel="noreferrer">固定发音来源</a></>}
+    {attribution.links?.filter(link => /^https?:\/\//.test(link.url)).map(link =>
+      <span key={`${link.label}-${link.url}`}> · <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></span>)}
+  </div>
 }
 
 export function DictionaryExtractionList({ value }: { value: DictionaryExtraction | null | undefined }) {
   if (!value) return null
   const groups = new Map<string, DictionaryExtractionValue[]>()
+  const display = value.learning_display
   const audited = value.audit_status === 'automated_source_verified'
   const ungrouped: DictionaryExtractionValue[] = []
   const seen = new Set<string>()
-  for (const sense of value.senses) {
-    const key = `${sense.pos_key ?? ''}\0${sense.text}\0${(sense.display_usage_labels ?? []).join('\0')}`
-    if (seen.has(key)) continue
+  for (const sense of display?.senses ?? value.senses) {
+    const key = display ? sense.locator : `${sense.pos_key ?? ''}\0${sense.text}\0${(sense.display_usage_labels ?? []).join('\0')}`
+    if (!display && seen.has(key)) continue
     seen.add(key)
     if (audited && !sense.pos_key) {
       ungrouped.push(sense)
@@ -48,20 +63,44 @@ export function DictionaryExtractionList({ value }: { value: DictionaryExtractio
     }
   }
   const ipa = [...new Set(value.pronunciations.map(item => item.text))]
+  const representatives = display?.pronunciations.filter(p => p.representative) ?? []
+  const variants = display?.pronunciations.filter(p => !p.representative) ?? []
+  const labelNames: Record<string, string> = {RP:'英音（RP）',UK:'英音',GA:'美音（GA）',US:'美音',
+    GenAm:'美音（GenAm）',
+    noun:'名词',verb:'动词',adjective:'形容词',adverb:'副词',
+    'weak form':'弱读','weak forms':'弱读','strong form':'强读','strong forms':'强读','unstressed':'非重读',stressed:'重读'}
+  const formatPronunciation = (p: DictionaryExtractionValue) => {
+    const tokens = p.display_labels?.flatMap(label => label.split(',').map(token => token.trim())) ?? []
+    const labels = [...new Set(tokens.filter(token => !(token === 'UK' && tokens.includes('RP')) && !(token === 'US' && tokens.includes('GA')))
+      .map(token => labelNames[token] ?? token.replace(/\[\[(?:[^\]|]*\|)?([^\]]+)\]\]/g, '$1')))]
+    const scope = p.pronunciation_scope?.split(':L')[0].replace('Etymology', '词源').replace('Pronunciation', '读音')
+    const showScope = new Set(display?.pronunciations.map(item => item.pronunciation_scope)).size > 1
+    return `${p.notation === 'phonetic' ? '[' : '/'}${p.text}${p.notation === 'phonetic' ? ']' : '/'}${labels.length ? `（${labels.join('、')}）` : ''}${showScope && scope && scope !== 'English' ? ` · ${scope}` : ''}`
+  }
   const extraGroups = audited ? [...groups].map(([label, senses]) => [label, senses.slice(3)] as const)
     .filter(([, senses]) => senses.length > 0) : []
-  const extraUngrouped = audited ? ungrouped.slice(3) : []
+  const ungroupedLimit = display && groups.size > 0 ? 0 : 3
+  const extraUngrouped = audited ? ungrouped.slice(ungroupedLimit) : []
   const extraCount = extraGroups.reduce((total, [, senses]) => total + senses.length, extraUngrouped.length)
   return <section className="dictionary-extraction" aria-label="来源义项">
     <span className="source-label">{audited ? '词典释义 · 自动来源核验' : '来源义项 · 自动抽取 · 未核实'}</span>
     {!audited && <p className="muted">按来源词性和义项结构整理，尚未裁定为常用核心释义。</p>}
-    {ipa.length > 0 && <p className="phonetic">来源音标：{ipa.map(text => `/${text}/`).join('、')}</p>}
+    {display ? <>
+      {representatives.length > 0 && <p className="phonetic">代表读音：{representatives.map(formatPronunciation).join('；')}</p>}
+      {representatives.length === 0 && <p className="muted">代表读音待核。</p>}
+      {variants.length > 0 && <details className="source-raw" key={`ipa-${value.entry_id}`}>
+        <summary>其他来源读音（{variants.length}）</summary>
+        {variants.map((p, i) => <p className="phonetic" key={`${p.locator}-${i}`}>{formatPronunciation(p)}</p>)}
+      </details>}
+    </> : value.display_quality_status === 'stale_profile'
+      ? <p className="muted">展示依据已变更，读音待重新核查。</p>
+      : ipa.length > 0 && <p className="phonetic">来源音标：{ipa.map(text => `/${text}/`).join('、')}</p>}
     {[...groups].map(([label, senses]) => <div className="concise-group" key={label}>
       <span className="concise-pos">{label}</span>
       <ol className="concise-meaning-list">{senses.slice(0, audited ? 3 : senses.length).map((sense, i) =>
         <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>
     </div>)}
-    {ungrouped.length > 0 && <ol className="concise-meaning-list">{ungrouped.slice(0, 3).map((sense, i) =>
+    {ungrouped.length > 0 && ungroupedLimit > 0 && <ol className="concise-meaning-list">{ungrouped.slice(0, ungroupedLimit).map((sense, i) =>
       <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>}
     {groups.size === 0 && ungrouped.length === 0 && <p className="muted">{audited
       ? '暂缺可用的词典释义。' : '暂无可可靠分组的来源义项，保留原文待核。'}</p>}
@@ -72,12 +111,26 @@ export function DictionaryExtractionList({ value }: { value: DictionaryExtractio
         <ol className="concise-meaning-list" start={4}>{senses.map((sense, i) =>
           <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>
       </div>)}
-      {extraUngrouped.length > 0 && <ol className="concise-meaning-list" start={4}>{extraUngrouped.map((sense, i) =>
-          <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol>}
+      {extraUngrouped.length > 0 && <><p className="muted">词性尚未明确的来源表达</p><ol className="concise-meaning-list" start={ungroupedLimit + 1}>{extraUngrouped.map((sense, i) =>
+          <li key={`${sense.locator}-${i}`}><SourceValue sense={sense} /></li>)}</ol></>}
     </details>}
     <details className="source-raw dictionary-extraction-evidence" key={`evidence-${value.entry_id}`}>
       <summary>{audited ? '查看词典来源' : `来源与抽取依据（${value.pending_count} 项待核）`}</summary>
       {audited && <p className="muted">已按固定原文自动核对；这不属于人工确认的核心释义。词性不可靠时保留释义并让词性留空。来源待核 {value.pending_count} 项，排除 {value.excluded_count ?? 0} 项。</p>}
+      {display && <>
+        <p className="muted">展示整理仅检查繁简形式、同来源义项边界及显式完整发音条目；同义候选仍待逐项裁定。代表读音依来源口音和用法选择，不是标准读音认证，也不新增人工核心确认。</p>
+        <p className="muted">未裁定表达组 {display.unresolved_meanings?.length ?? 0}；原音标完整性待核 {display.held_pronunciations.filter(p => p.classification !== 'corroborated_full_word').length} 项。</p>
+        {display.held_pronunciations.filter(p => p.classification !== 'corroborated_full_word').map((p, i) =>
+          <p className="muted" key={`held-${p.locator}-${i}`}>待核原音标：{p.text} · {p.reason} · {p.locator}</p>)}
+        {display.senses.filter(s => s.display_aliases?.length).map(s =>
+          <p className="muted" key={`aliases-${s.locator}`}>{s.text} · 原表达：{s.display_aliases!.join('、')}</p>)}
+        {display.pronunciations.map((p, i) => <div key={`pronunciation-evidence-${p.locator}-${i}`}>
+          <small>{p.source.publisher} · {p.source.license_id} · {p.source.version}</small>
+          <p className="muted">{p.locator} · {p.quality_review?.note}</p>
+          <PronunciationAttribution source={p.source} />
+          <pre className="source-raw-line">{p.raw_text}</pre>
+        </div>)}
+      </>}
       {value.pending_count > 0 && <p className="muted">有歧义的内容未列入上述义项，原文保留供核对。</p>}
       {[...value.senses, ...value.pronunciations, ...(value.pending_values ?? [])].map((item, i) => <div key={`${item.locator}-${i}`}>
         {item.status === 'pending' && <small>待核：{pendingLabels[item.reason ?? ''] ?? '需对照固定原文核查'}</small>}

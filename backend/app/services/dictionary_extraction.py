@@ -1,4 +1,7 @@
 """Display only structurally recovered source values, explicitly unconfirmed."""
+import hashlib
+import json
+
 from app.models import EntryDictionaryExtraction
 
 
@@ -29,4 +32,18 @@ def display_extraction(row: EntryDictionaryExtraction | None) -> dict | None:
     if audited:
         result.update(audit_status='automated_source_verified',
                       excluded_count=sum(s.get('status') == 'rejected' for s in senses + pronunciations))
+    profile = payload.get('learning_display')
+    if profile:
+        baseline = {k: v for k, v in payload.items() if k != 'learning_display'}
+        fingerprint = hashlib.sha256(json.dumps(baseline, ensure_ascii=False, sort_keys=True,
+                                               separators=(',', ':')).encode()).hexdigest()
+        if (profile.get('version') == 'netem-learning-display-v2'
+                and profile.get('baseline_sha256') == fingerprint
+                and profile.get('core_confirmation') is False):
+            result['learning_display'] = profile
+            result['display_quality_status'] = 'automated_context_projection'
+            if profile.get('new_source_original'):
+                result['originals'].append(profile['new_source_original'])
+        else:
+            result['display_quality_status'] = 'stale_profile'
     return result

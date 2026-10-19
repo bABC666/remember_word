@@ -1,0 +1,43 @@
+{
+  "format_version": 1,
+  "kind": "netem-default-lexicon-export",
+  "name": "NETEM",
+  "word_count": 5528,
+  "meaning_count": 5528,
+  "sequence": {
+    "first": 1,
+    "last": 5528
+  },
+  "source_counts": {
+    "wikdict": 4814,
+    "zhwiktionary": 637,
+    "enwiktionary_supplement": 77
+  },
+  "files": {
+    "words": "netem-words.csv",
+    "meanings": "netem-meanings.csv",
+    "attribution": "SOURCES.md",
+    "checksums": "SHA256SUMS.txt"
+  },
+  "licenses": {
+    "word_list": "CC-BY-NC-SA-4.0",
+    "meanings": "CC-BY-SA-4.0"
+  },
+  "exported_from": "local production SQLite database, NETEM lexicon id 5",
+  "export_date": "2026-10-19",
+  "includes": [
+    "NETEM unique words and original order",
+    "one selected Chinese display meaning per word",
+    "per-row source name, locator, revision, URL and archive fingerprint",
+    "source attribution and license texts"
+  ],
+  "excludes": [
+    "users",
+    "sessions",
+    "learning states",
+    "review history",
+    "uploads",
+    "private lexicons",
+    "rich dictionary extraction payloads"
+  ]
+}

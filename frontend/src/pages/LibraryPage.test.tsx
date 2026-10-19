@@ -371,8 +371,8 @@ describe('mobile library detail', () => {
     await userEvent.click(screen.getByRole('button', { name: '登录' }))
     expect(await screen.findByRole('textbox', { name: '搜索单词' })).toHaveValue('')
     expect(window.location.pathname + window.location.search).toBe('/library')
-    expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
-      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0')
+    await waitFor(() => expect(requests.filter((url) => url.startsWith('/api/words?')).at(-1))
+      .toBe('/api/words?search=&status=&view=&catalog=true&limit=50&offset=0'))
   })
 
   it('keeps a filtered library URL through a normal refresh of the same account', async () => {
