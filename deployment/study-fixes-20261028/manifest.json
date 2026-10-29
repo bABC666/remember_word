@@ -1,0 +1,19 @@
+{
+  "feature": "study-practice-progress-layout",
+  "date": "2026-10-28",
+  "baseline": {
+    "backend/app/services/study.py": "d9c0c5b8a4fe5ac10d0eaaa94b0d99343a6e786be0a9db7828e165f045d51266",
+    "backend/app/api/study.py": "b3ec9f0a33f8a99c6449e7a3abf679664b3819e4fb15f1fab72bdf356ea601e4",
+    "frontend/src/pages/StudyPage.tsx": "b64ec659e293ce2dc482c14c201df0529c6b37581823b0d59631e6ab9e9177e6",
+    "frontend/src/styles.css": "c3800bda5d1651cec8ecc7b50610e7db30d7fcec0b11ac309229c8e57f6a9e94"
+  },
+  "files": {
+    "backend/app/services/study.py": "4efbdc4021aa13b5c2808e27be23f6a571329f688b761b77ef23a55ed929d00d",
+    "backend/app/api/study.py": "d972ce0195d397e7f7e09bd373308774bb96e007b69201e3f0205d4d8001720b",
+    "frontend/src/pages/StudyPage.tsx": "d9123ed5a6957434dfa5d654a68cd53df510e038c9dfebd4d519b1214da953ad",
+    "frontend/src/styles.css": "473fd4e1db5949ca41228d1996d58818454601fb71d21ab57a82a44a4e39fb7f",
+    "frontend/dist/index.html": "dc0c0c7501d4e2ad13d5f504de430d50a1bceb7e1ee76164ea0aedcac6518055",
+    "frontend/dist/assets/index-ChwIF5hY.js": "c90b846cf1988b8ab10cce8de44f0731f08c93b595bb4432d0d07e487dc37955",
+    "frontend/dist/assets/index-DA_Wmw2W.css": "70f432f0838b84a8851d0e0970e32c7742572cbc9265e2d54e18ba4d2f5a9edf"
+  }
+}

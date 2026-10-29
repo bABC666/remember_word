@@ -1,0 +1,6 @@
+{
+  "backend/app/services/study.py": "d9c0c5b8a4fe5ac10d0eaaa94b0d99343a6e786be0a9db7828e165f045d51266",
+  "backend/app/api/study.py": "b3ec9f0a33f8a99c6449e7a3abf679664b3819e4fb15f1fab72bdf356ea601e4",
+  "frontend/src/pages/StudyPage.tsx": "b64ec659e293ce2dc482c14c201df0529c6b37581823b0d59631e6ab9e9177e6",
+  "frontend/src/styles.css": "c3800bda5d1651cec8ecc7b50610e7db30d7fcec0b11ac309229c8e57f6a9e94"
+}

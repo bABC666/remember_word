@@ -12,6 +12,7 @@ import type { Article, ArticleWordLookup, ReviewResult, Word } from '../types'
 
 function ReadingAssistance({ article }: { article: Article }) {
   const client = useQueryClient()
+  const targetWords = new Set(article.target_words.map((word) => word.trim().replace(/’/g, "'").toLowerCase()))
   const [active, setActive] = useState<ArticleWordLookup | null>(null)
   const [translationOpen, setTranslationOpen] = useState(false)
   const lookup = useMutation({
@@ -39,13 +40,26 @@ function ReadingAssistance({ article }: { article: Article }) {
   return (
     <>
       <div className="reading-toolbar">
-        <span>点按英文单词，查看它在当前句子中的意思</span>
+        <span>{targetWords.size > 0 && <><mark className="reading-target-highlight">黄色荧光</mark>标出本篇生成用词；</>}点按英文单词，查看语境释义</span>
         <button className="button secondary" disabled={translate.isPending} onClick={toggleTranslation}><Languages size={16} />{translate.isPending ? '正在翻译…' : translationOpen ? '隐藏全文翻译' : '显示全文翻译'}</button>
       </div>
       {translationOpen && article.translation && <section className="translation-panel"><div className="eyebrow">全文翻译 · 已自动保存</div>{article.translation.split(/\n\n+/).map((paragraph, index) => <p key={`${index}-${paragraph.slice(0, 20)}`}>{paragraph}</p>)}</section>}
       {translate.isError && <div className="error-inline">翻译暂时失败：{translate.error.message}</div>}
       <div className="article-content interactive-reading">
-        {article.content.split(/\n\n+/).map((paragraph, paragraphIndex) => <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>{tokenizeReadingText(paragraph).map((token, index) => token.isWord ? <button type="button" className="reading-word" disabled={lookup.isPending} key={`${index}-${token.text}`} onClick={() => lookup.mutate(token.text)}>{token.text}</button> : <span key={`${index}-${token.text}`}>{token.text}</span>)}</p>)}
+        {article.content.split(/\n\n+/).map((paragraph, paragraphIndex) => (
+          <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
+            {tokenizeReadingText(paragraph).map((token, index) => {
+              if (!token.isWord) return <span key={`${index}-${token.text}`}>{token.text}</span>
+              const normalized = token.text.replace(/’/g, "'").toLowerCase()
+              const isTarget = targetWords.has(normalized) || targetWords.has(normalized.replace(/'s$/, ''))
+              return (
+                <button type="button" className="reading-word" title={isTarget ? '本篇生成用词' : undefined} disabled={lookup.isPending} key={`${index}-${token.text}`} onClick={() => lookup.mutate(token.text)}>
+                  {isTarget ? <mark className="reading-target-highlight">{token.text}</mark> : token.text}
+                </button>
+              )
+            })}
+          </p>
+        ))}
       </div>
       {lookup.isPending && <div className="lookup-card muted">正在查找当前语境中的意思…</div>}
       {lookup.isError && <div className="lookup-card error-inline">查词暂时失败：{lookup.error.message}</div>}

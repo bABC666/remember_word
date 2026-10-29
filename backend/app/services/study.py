@@ -129,6 +129,18 @@ def _apply(
     before = state.status
     now = datetime.now(UTC)
     schedule = calculate_schedule(before, result, state.consecutive_failures, now=now)
+    # A daily recall after the first one today is practice, not another day of
+    # spaced repetition. Keep its result for the queue without inflating mastery
+    # or counting one difficult word as several consecutive failed days.
+    start, end = today_bounds(now)
+    practice = source == "daily" and review_type == "recall" and session.scalar(
+        select(ReviewEvent.id).where(
+            ReviewEvent.user_id == state.user_id,
+            ReviewEvent.lexicon_entry_id == state.lexicon_entry_id,
+            ReviewEvent.source == "daily", ReviewEvent.review_type == "recall",
+            ReviewEvent.timestamp >= start, ReviewEvent.timestamp < end,
+        ).limit(1)
+    ) is not None
 
     event = ReviewEvent(
         user_id=state.user_id,
@@ -139,17 +151,18 @@ def _apply(
         source=source,
         article_id=article_id,
         status_before=before,
-        status_after=schedule.status,
+        status_after=before if practice else schedule.status,
         review_type=review_type,
     )
 
-    state.status = schedule.status
-    state.next_review_at = schedule.next_review_at
-    state.consecutive_failures = schedule.consecutive_failures
+    if not practice:
+        state.status = schedule.status
+        state.next_review_at = schedule.next_review_at
+        state.consecutive_failures = schedule.consecutive_failures
     state.last_review = now
-    if result == "know":
+    if result == "know" and not practice:
         state.recall_success += 1
-    elif result == "fail":
+    elif result == "fail" and not practice:
         state.recall_fail += 1
 
     session.add(event)
@@ -215,6 +228,9 @@ class TodayQueue:
 
     words: list[WordView]
     budget: NewWordBudget
+    attempted_today: int
+    relearning_ids: frozenset[int]
+    day: str
 
 
 def build_today_queue(
@@ -245,8 +261,41 @@ def build_today_queue(
     if room > 0 and budget.remaining > 0:
         fresh = _new_rows(session, user, room, budget, lexicon_id)
 
+    latest = _latest_daily_reviews(user.id, moment)
+    lexicon_filter = [] if lexicon_id is None else [LexiconEntry.lexicon_id == lexicon_id]
+    attempts = (
+        select(UserWordState, LexiconEntry, ReviewEvent.result)
+        .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
+        .join(latest, latest.c.lexicon_entry_id == LexiconEntry.id)
+        .join(ReviewEvent, ReviewEvent.id == latest.c.event_id)
+        .where(UserWordState.user_id == user.id,
+               LexiconEntry.lexicon_id.in_(_readable_lexicon_ids(user)), *lexicon_filter)
+    )
+    attempted = session.scalar(select(func.count()).select_from(attempts.subquery())) or 0
+    repeats = session.execute(
+        attempts.where(ReviewEvent.result.in_(("fail", "fuzzy")))
+        .order_by(ReviewEvent.timestamp, ReviewEvent.id)
+        .limit(max(0, limit - len(due) - len(fresh)))
+    ).all()
     views = [WordView(state=state, entry=entry) for state, entry in (*due, *fresh)]
-    return TodayQueue(words=views, budget=budget)
+    views.extend(WordView(state=state, entry=entry) for state, entry, _ in repeats)
+    return TodayQueue(
+        words=views, budget=budget, attempted_today=attempted,
+        relearning_ids=frozenset(state.id for state, _, _ in repeats),
+        day=today_bounds(moment)[0].date().isoformat(),
+    )
+
+
+def _latest_daily_reviews(user_id: int, moment: datetime):
+    """One last answer per word in the same UTC day used by the daily budget."""
+    start, end = today_bounds(moment)
+    return (
+        select(ReviewEvent.lexicon_entry_id, func.max(ReviewEvent.id).label("event_id"))
+        .where(ReviewEvent.user_id == user_id, ReviewEvent.source == "daily",
+               ReviewEvent.review_type == "recall", ReviewEvent.timestamp >= start,
+               ReviewEvent.timestamp < end)
+        .group_by(ReviewEvent.lexicon_entry_id).subquery()
+    )
 
 
 def _ensure_selected_states(session: Session, user: User, lexicon_id: int, limit: int) -> None:
@@ -290,6 +339,7 @@ def _due_rows(
     "due now", or "weak" (always offered, whatever the schedule says).
     """
     lexicon_filter = [] if lexicon_id is None else [LexiconEntry.lexicon_id == lexicon_id]
+    latest = _latest_daily_reviews(user.id, moment)
     return list(
         session.execute(
             select(UserWordState, LexiconEntry)
@@ -299,6 +349,11 @@ def _due_rows(
                 LexiconEntry.lexicon_id.in_(_readable_lexicon_ids(user)),
                 *lexicon_filter,
                 UserWordState.status != "new",
+                # Today's difficult words have a separate practice queue. A
+                # successful answer must stay finished even if its state is weak.
+                UserWordState.lexicon_entry_id.not_in(
+                    select(latest.c.lexicon_entry_id).where(latest.c.lexicon_entry_id.is_not(None))
+                ),
                 or_(
                     UserWordState.next_review_at.is_(None),
                     UserWordState.next_review_at <= moment,
@@ -424,8 +479,6 @@ def _lexicon_room(
     silently disappearing from the queue.
     """
     paces = {
-        # The legacy membership default is not a separately configured pace.
-        # It follows the personal goal, including increases made during the day.
         row.lexicon_id: (
             target if row.daily_new_words == DEFAULT_DAILY_NEW_WORDS else row.daily_new_words
         )

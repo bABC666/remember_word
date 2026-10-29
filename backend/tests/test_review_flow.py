@@ -182,3 +182,55 @@ def test_review_of_a_nonexistent_word_raises_lookup_error(session) -> None:
     user, _entry, _state = _seed_word_with_state(session, word="setback")
     with pytest.raises(LookupError):
         record_review_for_user_state(session, user, 123456, "know", "daily", "recall")
+
+
+@pytest.mark.parametrize("result", ["fail", "fuzzy"])
+def test_difficult_words_repeat_today_without_advancing_long_term_schedule(session, result):
+    from app.services.study import build_today_queue, record_review_for_user_state
+
+    user, _entry, state = _seed_word_with_state(session, word=f"practice-{result}")
+    record_review_for_user_state(session, user, state.id, result, "daily", "recall")
+    session.refresh(state)
+    original = (state.status, state.next_review_at, state.consecutive_failures,
+                state.recall_success, state.recall_fail)
+    queue = build_today_queue(session, user, limit=50)
+    assert queue.attempted_today == 1
+    assert queue.relearning_ids == {state.id}
+    assert [view.state.id for view in queue.words] == [state.id]
+
+    # More difficult answers remain in practice; a know answer ends it today.
+    record_review_for_user_state(session, user, state.id, "fuzzy", "daily", "recall")
+    assert build_today_queue(session, user, limit=50).relearning_ids == {state.id}
+    event = record_review_for_user_state(session, user, state.id, "know", "daily", "recall")
+    session.refresh(state)
+    assert event.status_after == original[0]
+    assert (state.status, state.next_review_at, state.consecutive_failures,
+            state.recall_success, state.recall_fail) == original
+    queue = build_today_queue(session, user, limit=50)
+    assert queue.words == []
+    assert queue.attempted_today == 1
+    assert queue.budget.consumed_today == 1
+
+
+def test_practice_is_user_scoped_and_resets_at_the_day_boundary(session):
+    from datetime import timedelta
+
+    from app.models import ReviewEvent
+    from app.services.day import today_bounds
+    from app.services.study import build_today_queue, record_review_for_user_state
+
+    user, _entry, state = _seed_word_with_state(session, word="day-boundary")
+    other, _, _ = _seed_word_with_state(session, word="other-user")
+    record_review_for_user_state(session, user, state.id, "fail", "daily", "recall")
+    record_review_for_user_state(session, user, state.id, "know", "daily", "recall")
+    assert build_today_queue(session, other, limit=50).attempted_today == 0
+    assert build_today_queue(session, other, limit=50).relearning_ids == set()
+    tomorrow = today_bounds()[1] + timedelta(seconds=1)
+    assert build_today_queue(session, user, limit=50, now=tomorrow).attempted_today == 0
+    assert [view.state.id for view in build_today_queue(session, user, limit=50, now=tomorrow).words] == [state.id]
+    # Move history to yesterday to exercise the real recording clock too.
+    for event in session.query(ReviewEvent).filter_by(user_id=user.id):
+        event.timestamp -= timedelta(days=1)
+    session.commit()
+    record_review_for_user_state(session, user, state.id, "know", "daily", "recall")
+    assert state.status == "learning"

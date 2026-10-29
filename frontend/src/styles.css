@@ -386,3 +386,22 @@ h1, h2, h3, p { margin-top: 0; }
 .dictionary-extraction-evidence { margin-top: 1rem; }
 .dictionary-extraction-evidence > div { margin-block: .75rem; }
 .extraction-hash { overflow-wrap: anywhere; }
+
+/* Keep article generation words visible while retaining the lookup button. */
+.reading-target-highlight {
+  padding: .03em .08em;
+  border-radius: .15em;
+  color: inherit;
+  background: #fff18a;
+  box-shadow: 0 .04em 0 #fff18a;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Definitions lead; the optional memory aid stays compact below them. */
+.study-anchor { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); text-align: left; color: var(--muted); }
+.study-anchor > span { font-size: 11px; }
+.study-anchor > p { margin: 5px 0 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.study-anchor > .semantic-note { max-width: none; font-size: 12px; }
+.study-practice-note { margin: 12px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.study-page .answer-area { margin-top: 24px; }

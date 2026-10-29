@@ -141,6 +141,7 @@ def _add_new_words(world, count: int, *, prefix: str = "word") -> list[int]:
 
 # --- the daily cap -----------------------------------------------------------
 
+
 def test_raising_target_after_finishing_selected_lexicon_unlocks_more_words(world):
     lexicon_id = world.lexicon("NETEM")
     with world.session() as session:
@@ -411,7 +412,7 @@ def test_due_words_take_the_limited_slots_before_new_words(world) -> None:
     assert len(_new_words(roomy)) == 5
 
 
-def test_the_queue_stays_ordered_weak_then_due_then_new(world) -> None:
+def test_the_queue_puts_todays_practice_after_due_and_new_words(world) -> None:
     _set_target(world, 2)
     weak_state, _entry_id = world.add_word("weak-one")
     _review(world, weak_state, result="fail")
@@ -420,7 +421,26 @@ def test_the_queue_stays_ordered_weak_then_due_then_new(world) -> None:
 
     statuses = [item["status"] for item in _queue(world)["words"]]
 
-    assert statuses == ["weak", "familiar", "new"]
+    assert statuses == ["familiar", "new", "weak"]
+
+
+@pytest.mark.parametrize("result", ["fail", "fuzzy"])
+def test_refreshed_queue_restores_progress_and_practice_until_known(world, result):
+    _set_target(world, 2)
+    state_id, _ = world.add_word("difficult-today")
+    other_id, _ = world.add_word("next-word")
+    _review(world, state_id, result=result)
+    payload = _queue(world)
+    assert payload["attempted_today"] == 1
+    assert [item["word_state_id"] for item in payload["words"]] == [other_id, state_id]
+    assert payload["words"][-1]["relearning_today"] is True
+    assert payload["words"][0]["relearning_today"] is False
+    _review(world, other_id)
+    _review(world, state_id)
+    payload = _queue(world)
+    assert payload["attempted_today"] == 2
+    assert payload["words"] == []
+    assert payload["daily_new_words"]["consumed_today"] == 2
 
 
 # --- the user level and the lexicon level ------------------------------------

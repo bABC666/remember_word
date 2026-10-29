@@ -5,6 +5,7 @@ import { App } from '../App'
 import type { ConciseMeaning, ConciseMeaningGroup, Word } from '../types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, MemoryRouter } from 'react-router-dom'
+import { AuthContext } from '../authContext'
 import { StudyPage } from './StudyPage'
 
 /**
@@ -78,7 +79,9 @@ function group(overrides: Partial<ConciseMeaningGroup> = {}): ConciseMeaningGrou
 }
 
 function mockApi(words: Word[]) {
-  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+  let queue = words.map((value) => ({ ...value, relearning_today: false }))
+  let attempted = 0
+  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url === '/api/auth/me') {
       return Promise.resolve(Response.json({
@@ -89,11 +92,19 @@ function mockApi(words: Word[]) {
     if (url === '/api/settings/onboarding') return Promise.resolve(Response.json({ seen: true }))
     if (url === '/api/study/today') {
       return Promise.resolve(Response.json({
-        total: words.length, words,
+        total: queue.length, words: queue, attempted_today: attempted,
         daily_new_words: { target: 15, consumed_today: 0, remaining: 15 },
       }))
     }
-    if (url.startsWith('/api/study/word-states/')) return Promise.resolve(Response.json({ ok: true }))
+    if (url.startsWith('/api/study/word-states/')) {
+      const id = Number(url.split('/')[4])
+      const item = queue.find((value) => value.word_state_id === id)!
+      const { result } = JSON.parse(String(init?.body))
+      queue = queue.filter((value) => value.word_state_id !== id)
+      if (!item.relearning_today) attempted += 1
+      if (result !== 'know') queue.push({ ...item, relearning_today: true })
+      return Promise.resolve(Response.json({ ok: true }))
+    }
     if (url === '/api/dashboard') {
       return Promise.resolve(Response.json({ today_new: 0, due_reviews: 0, weak_words: 0, reading_status: 'not_generated', streak_days: 0 }))
     }
@@ -116,7 +127,40 @@ async function reveal() {
 }
 
 describe('the study page and short confirmed meanings', () => {
+  function renderStudy(initialEntry = '/study') {
+    render(<AuthContext.Provider value={{
+      user: { id: 1, username: 'owner', display_name: 'owner', role: 'admin', is_admin: true,
+        settings: { daily_new_words: 15, article_length: 650, onboarding_seen: true } },
+      checking: false, notice: null, login: vi.fn(), logout: vi.fn(), changePassword: vi.fn(), refresh: vi.fn(),
+    }}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <Link to="/study?lexicon_id=2">切到 B</Link><StudyPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </AuthContext.Provider>)
+  }
+
   it('loads the next batch after reviewing the last word without repeating reviewed words', async () => {
+    let reviewed = false
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      if (String(input).startsWith('/api/study/word-states/')) {
+        reviewed = true
+        return Promise.resolve(Response.json({ ok: true }))
+      }
+      // The server now excludes today's known words and restores their count.
+      const words = reviewed ? [word({ word: 'banana', word_state_id: 51 })] : [word()]
+      return Promise.resolve(Response.json({ total: words.length, words, attempted_today: reviewed ? 1 : 0 }))
+    }))
+    renderStudy()
+    await userEvent.click(await screen.findByRole('button', { name: /显示答案/ }))
+    await userEvent.click(screen.getByRole('button', { name: /3.*会/ }))
+    expect(await screen.findByRole('heading', { name: 'banana' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /显示答案/ })).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  })
+
+  it('starts a changed lexicon at its first word with its answer hidden', async () => {
     let reviewed = false
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const url = String(input)
@@ -124,34 +168,13 @@ describe('the study page and short confirmed meanings', () => {
         reviewed = true
         return Promise.resolve(Response.json({ ok: true }))
       }
-      const words = reviewed
-        ? [word(), word({ word: 'banana', word_state_id: 51 })]
-        : [word()]
-      return Promise.resolve(Response.json({ total: words.length, words }))
+      const secondLexicon = url.endsWith('lexicon_id=2')
+      const words = secondLexicon ? [word({ word: 'banana', word_state_id: 51, lexicon_id: 2 })]
+        : reviewed ? [word({ word: 'apple', word_state_id: 43 })]
+          : [word(), word({ word: 'apple', word_state_id: 43 })]
+      return Promise.resolve(Response.json({ total: words.length, words, attempted_today: !secondLexicon && reviewed ? 1 : 0 }))
     }))
-    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter><StudyPage /></MemoryRouter>
-    </QueryClientProvider>)
-    await userEvent.click(await screen.findByRole('button', { name: /显示答案/ }))
-    await userEvent.click(screen.getByRole('button', { name: /3.*会/ }))
-    expect(await screen.findByRole('heading', { name: 'banana' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /显示答案/ })).toBeInTheDocument()
-  })
-  it('starts a changed lexicon at its first word with its answer hidden', async () => {
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.startsWith('/api/study/word-states/')) return Promise.resolve(Response.json({ ok: true }))
-      const words = url.endsWith('lexicon_id=2')
-        ? [word({ word: 'banana', word_state_id: 51, lexicon_id: 2 })]
-        : [word(), word({ word: 'apple', word_state_id: 43 })]
-      return Promise.resolve(Response.json({ total: words.length, words }))
-    }))
-    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={['/study?lexicon_id=1']}>
-        <Link to="/study?lexicon_id=2">切到 B</Link>
-        <StudyPage />
-      </MemoryRouter>
-    </QueryClientProvider>)
+    renderStudy('/study?lexicon_id=1')
     await userEvent.click(await screen.findByRole('button', { name: /显示答案/ }))
     await userEvent.click(screen.getByRole('button', { name: /3.*会/ }))
     await screen.findByRole('heading', { name: 'apple' })
@@ -161,6 +184,7 @@ describe('the study page and short confirmed meanings', () => {
     expect(screen.getByRole('button', { name: /显示答案/ })).toBeInTheDocument()
     expect(screen.getByText('1 / 1')).toBeInTheDocument()
   })
+
   it('shows the confirmed short value first and keeps the source reachable', async () => {
     mockApi([word({ concise_meanings: [group()] })])
     await reveal()
@@ -210,6 +234,10 @@ describe('the study page and short confirmed meanings', () => {
     expect(screen.getByText('用户提供的释义 · 未核实')).toBeInTheDocument()
     expect(screen.getByText('用户写的释义')).toBeInTheDocument()
     expect(screen.queryByText('原书完整释义')).toBeNull()
+    const meaning = screen.getByRole('region', { name: '用户提供的释义' })
+    const anchor = screen.getByRole('region', { name: '语义锚点' })
+    expect(meaning.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(anchor.querySelector('h3')).toBeNull()
   })
 
   it('never invents a displayed value for an unconfirmed draft', async () => {
@@ -362,4 +390,41 @@ describe('the study page and short confirmed meanings', () => {
     await reveal()
     expect(await screen.findByText('adj.')).toBeInTheDocument()
   })
+})
+
+it('repeats difficult words after other words and resumes progress after navigation', async () => {
+  mockApi([word(), word({ word_state_id: 43, word: 'retain' })])
+  await reveal()
+  await userEvent.click(screen.getByRole('button', { name: /1 不会/ }))
+  expect(await screen.findByRole('heading', { name: 'retain' })).toBeInTheDocument()
+  expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('link', { name: '今日概览' }))
+  await screen.findByText('今天也从一个词开始。')
+  await userEvent.click(screen.getByRole('link', { name: '今日学习' }))
+  expect(await screen.findByRole('heading', { name: 'retain' })).toBeInTheDocument()
+  expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /显示答案/ }))
+  await userEvent.click(screen.getByRole('button', { name: /3 会/ }))
+  expect(await screen.findByRole('heading', { name: 'rural' })).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('强化复习')
+  expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /显示答案/ }))
+  await userEvent.click(screen.getByRole('button', { name: /2 模糊/ }))
+  expect(screen.getByRole('heading', { name: 'rural' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /显示答案/ }))
+  await userEvent.click(screen.getByRole('button', { name: /3 会/ }))
+  expect(await screen.findByText('今天暂时没有待学习的单词')).toBeInTheDocument()
+})
+
+it('keeps the same word and progress when a review cannot be saved', async () => {
+  mockApi([word()])
+  const mock = vi.mocked(fetch)
+  const original = mock.getMockImplementation()!
+  mock.mockImplementation((input, init) => String(input).startsWith('/api/study/word-states/')
+    ? Promise.resolve(Response.json({ detail: '保存失败' }, { status: 500 })) : original(input, init))
+  await reveal()
+  await userEvent.click(screen.getByRole('button', { name: /3 会/ }))
+  expect(await screen.findByText('保存失败')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'rural' })).toBeInTheDocument()
+  expect(screen.getByText('1 / 1')).toBeInTheDocument()
 })

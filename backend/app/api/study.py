@@ -50,6 +50,7 @@ def today_queue(
     words = []
     for view in queue.words:
         word = word_dict_from_view(view, short.get(view.entry.id))
+        word["relearning_today"] = view.state.id in queue.relearning_ids
         if view.entry.lexicon.source_type == "netem":
             word["source_meaning_sources"] = attribution.get(view.entry.id, [])
         words.append(word)
@@ -57,6 +58,8 @@ def today_queue(
         "total": len(words),
         "lexicon_id": scope,
         "selection_source": "request" if lexicon_id is not None else source,
+        "day": queue.day,
+        "attempted_today": queue.attempted_today,
         "words": words,
         "daily_new_words": {
             "target": queue.budget.target,
