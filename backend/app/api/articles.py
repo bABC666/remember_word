@@ -85,7 +85,7 @@ async def generate_article(
     """Generate an article from **this user's** words."""
     views = select_target_words(session, user, payload.target_count)
     if not views:
-        raise HTTPException(409, "词库还是空的，请先导入一些单词")
+        raise HTTPException(409, "没有需要巩固的目标词。请先学习一些词；最近答“会”的词不会用于生成文章。")
     settings = ensure_user_settings(session, user)
     length = payload.length or settings.article_length
     targets = [view.entry.word for view in views]
@@ -169,7 +169,7 @@ async def lookup_word(
 ) -> dict[str, object]:
     article = load_user_article(session, user, article_id)
     try:
-        lookup = await lookup_article_word(session, user, article, payload.word, DeepSeekProvider())
+        lookup = await lookup_article_word(session, user, article, payload.word, DeepSeekProvider(), sentence_index=payload.sentence_index)
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     except AIProviderError as error:

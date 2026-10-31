@@ -79,7 +79,7 @@ function group(overrides: Partial<ConciseMeaningGroup> = {}): ConciseMeaningGrou
 }
 
 function mockApi(words: Word[]) {
-  let queue = words.map((value) => ({ ...value, relearning_today: false }))
+  let queue = words.map((value) => ({ ...value, relearning_today: false, practice_remaining: 0, practice_required: 0 }))
   let attempted = 0
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -102,7 +102,8 @@ function mockApi(words: Word[]) {
       const { result } = JSON.parse(String(init?.body))
       queue = queue.filter((value) => value.word_state_id !== id)
       if (!item.relearning_today) attempted += 1
-      if (result !== 'know') queue.push({ ...item, relearning_today: true })
+      const needed = result === 'know' ? Math.max(0, item.practice_remaining - 1) : Math.max(result === 'fail' ? 2 : 1, item.practice_required)
+      if (needed) queue.push({ ...item, relearning_today: true, practice_remaining: needed, practice_required: Math.max(needed, item.practice_required) })
       return Promise.resolve(Response.json({ ok: true }))
     }
     if (url === '/api/dashboard') {
@@ -411,6 +412,10 @@ it('repeats difficult words after other words and resumes progress after navigat
   await userEvent.click(screen.getByRole('button', { name: /显示答案/ }))
   await userEvent.click(screen.getByRole('button', { name: /2 模糊/ }))
   expect(screen.getByRole('heading', { name: 'rural' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /显示答案/ }))
+  await userEvent.click(screen.getByRole('button', { name: /3 会/ }))
+  expect(await screen.findByRole('heading', { name: 'rural' })).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('1 次')
   await userEvent.click(screen.getByRole('button', { name: /显示答案/ }))
   await userEvent.click(screen.getByRole('button', { name: /3 会/ }))
   expect(await screen.findByText('今天暂时没有待学习的单词')).toBeInTheDocument()

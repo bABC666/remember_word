@@ -155,7 +155,8 @@ def lookup_dict(lookup: ArticleWordLookup) -> dict[str, object]:
         "id": lookup.id,
         "article_id": lookup.article_id,
         "surface": lookup.surface,
-        "normalized_word": lookup.normalized_word,
+        "normalized_word": (lookup.ai_raw_json.get("normalized_word", lookup.normalized_word)
+                            if lookup.source == "ai" else lookup.normalized_word),
         "phonetic": lookup.phonetic,
         "part_of_speech": lookup.part_of_speech,
         "meaning": lookup.meaning,
@@ -184,5 +185,9 @@ def article_dict(
     if include_actual or article.completed:
         payload["actual_used_words"] = article.actual_used_words
     if include_lookups:
+        from app.services.sentences import aligned_translations, article_sentences
+
+        payload["sentences"] = article_sentences(article.content)
+        payload["sentence_translations"] = aligned_translations(article)
         payload["lookup_history"] = [lookup_dict(item) for item in article.word_lookups]
     return payload

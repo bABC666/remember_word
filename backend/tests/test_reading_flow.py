@@ -69,7 +69,7 @@ def test_article_completion_creates_explicit_exposure_once(world) -> None:
 
         state = session.get(UserWordState, state_id)
         assert state.context_exposure == 1
-        exposures = session.query(ArticleWordExposure).all()
+        exposures = session.query(ArticleWordExposure).filter_by(article_id=article_id).all()
         assert len(exposures) == 1
         assert exposures[0].article_id == article_id
         assert exposures[0].lexicon_entry_id == entry_id
@@ -95,9 +95,11 @@ class FakeReadingAI:
 
     async def translate_article(self, title: str, content: str):
         from app.services.ai.base import ArticleTranslation
+        from app.services.sentences import article_sentences
 
         self.translation_calls += 1
-        return ArticleTranslation(translation=f"{title}（译文）\n\n{content}（中文翻译）")
+        return ArticleTranslation(translation=f"{title}（译文）\n\n{content}（中文翻译）",
+                                  sentences=[f"中文：{item['text']}" for item in article_sentences(content)])
 
 
 def test_article_lookup_uses_local_word_and_persists_history(world) -> None:
@@ -260,8 +262,8 @@ def test_oldest_reviewed_words_rank_below_unreviewed_ones(world) -> None:
     assert selected[0].entry.word == "beta"
 
 
-def test_stale_review_timestamp_still_selects_for_reading(world) -> None:
-    """A word reviewed long ago remains eligible."""
+def test_known_words_do_not_fill_reading_even_when_stale(world) -> None:
+    """Known words are not substituted for the requested difficult words."""
     from app.models import UserWordState
     from app.services.reading import select_target_words
 
@@ -274,4 +276,4 @@ def test_stale_review_timestamp_still_selects_for_reading(world) -> None:
 
     with world.session() as session:
         selected = select_target_words(session, world.reload_user(), limit=5)
-    assert "stale" in {view.entry.word for view in selected}
+    assert "stale" not in {view.entry.word for view in selected}

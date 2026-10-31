@@ -1,0 +1,23 @@
+{
+  "status": "ok",
+  "schema": "0017_contextual_lookup",
+  "feature": "contextual-reading-weighted-practice",
+  "backup": "/opt/shici/reading-review-20261030/backup",
+  "all_existing_rows_preserved": true,
+  "isolated_api_probe": "passed",
+  "paid_ai_calls": 0,
+  "homepage_and_assets": 200,
+  "backend_health": "ok",
+  "api_configuration_preserved": true,
+  "installed_code_probe": "passed",
+  "running_api_sentence_index": true,
+  "service": "active",
+  "schema_live": "0017_contextual_lookup",
+  "public_browser": {
+    "login_page": true,
+    "js": "/assets/index-BmLt4E0u.js",
+    "css": "/assets/index-DZf-X9h0.css"
+  },
+  "accepted_date": "2026-10-31",
+  "package_sha256": "f0e19c16507f1d076dc66a6fc1832e60185d5421d40f5d9f4a1b64402f6efe41"
+}

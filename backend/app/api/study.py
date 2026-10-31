@@ -51,6 +51,8 @@ def today_queue(
     for view in queue.words:
         word = word_dict_from_view(view, short.get(view.entry.id))
         word["relearning_today"] = view.state.id in queue.relearning_ids
+        word["practice_remaining"] = queue.practice_remaining.get(view.state.id, 0)
+        word["practice_required"] = queue.practice_required.get(view.state.id, 0)
         if view.entry.lexicon.source_type == "netem":
             word["source_meaning_sources"] = attribution.get(view.entry.id, [])
         words.append(word)

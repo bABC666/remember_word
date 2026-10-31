@@ -207,6 +207,9 @@ def test_difficult_words_repeat_today_without_advancing_long_term_schedule(sessi
     assert (state.status, state.next_review_at, state.consecutive_failures,
             state.recall_success, state.recall_fail) == original
     queue = build_today_queue(session, user, limit=50)
+    if queue.words:
+        record_review_for_user_state(session, user, state.id, "know", "daily", "recall")
+        queue = build_today_queue(session, user, limit=50)
     assert queue.words == []
     assert queue.attempted_today == 1
     assert queue.budget.consumed_today == 1

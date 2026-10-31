@@ -56,6 +56,7 @@ class WordLookupResult(BaseModel):
 
 class ArticleTranslation(BaseModel):
     translation: str = Field(min_length=20)
+    sentences: list[str] = Field(default_factory=list)
 
 
 class AIProvider(Protocol):

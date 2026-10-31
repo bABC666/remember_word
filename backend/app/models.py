@@ -259,7 +259,7 @@ class ArticleWordExposure(Base):
 class ArticleWordLookup(Base):
     __tablename__ = "article_word_lookup"
     __table_args__ = (
-        UniqueConstraint("article_id", "normalized_word", name="uq_article_lookup_word"),
+        UniqueConstraint("article_id", "normalized_word", "context", "source", name="uq_article_lookup_context"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

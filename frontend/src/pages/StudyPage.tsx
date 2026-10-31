@@ -12,7 +12,7 @@ import { hasMeaningText } from '../meaningText'
 import { useAuth } from '../useAuth'
 import type { ReviewResult, Word } from '../types'
 
-type StudyWord = Word & { relearning_today?: boolean }
+type StudyWord = Word & { relearning_today?: boolean; practice_remaining?: number; practice_required?: number }
 type StudyQueue = { total: number; words: StudyWord[]; attempted_today?: number; day?: string; daily_new_words?: { target: number; consumed_today: number; remaining: number } }
 
 export function StudyPage() {
@@ -51,7 +51,9 @@ function StudySession({ lexiconQuery }: { lexiconQuery: string }) {
       client.setQueryData<StudyQueue>(queryKey, (queue) => {
         if (!queue) return queue
         const remaining = queue.words.filter((word) => word.word_state_id !== reviewed.word_state_id)
-        if (result !== 'know') remaining.push({ ...reviewed, relearning_today: true })
+        const needed = result === 'know' ? Math.max(0, (reviewed.practice_remaining ?? 1) - 1)
+          : Math.max(result === 'fail' ? 2 : 1, reviewed.practice_required ?? 0)
+        if (needed > 0) remaining.push({ ...reviewed, relearning_today: true, practice_remaining: needed, practice_required: Math.max(needed, reviewed.practice_required ?? 0) })
         return { ...queue, words: remaining, total: remaining.length,
           attempted_today: (queue.attempted_today ?? 0) + (reviewed.relearning_today ? 0 : 1) }
       })
@@ -97,7 +99,7 @@ function StudySession({ lexiconQuery }: { lexiconQuery: string }) {
   return (
     <div className="study-page">
       <header className="study-head"><h1>今日学习</h1><Link to="/lexicons">切换词库</Link><div><span>{position} / {total}</span><div className="progress"><i style={{ width: `${total ? (position / total) * 100 : 0}%` }} /></div></div></header>
-      {current.relearning_today && <p className="study-practice-note" role="status">强化复习 · 把今天没记牢的词再练一遍，选“会”后当天不再出现。</p>}
+      {current.relearning_today && <p className="study-practice-note" role="status">强化复习 · 还需连续答“会”{current.practice_remaining ?? 1} 次；次数会随近期回忆表现和阅读接触调整。</p>}
       <section className="study-stage">
         {/* The part-of-speech chip comes from `lexicon_entry.part_of_speech`, a single
             source-declared string. When the confirmed values carry their own groups,

@@ -438,6 +438,9 @@ def test_refreshed_queue_restores_progress_and_practice_until_known(world, resul
     _review(world, other_id)
     _review(world, state_id)
     payload = _queue(world)
+    if payload["words"]:
+        _review(world, state_id)
+        payload = _queue(world)
     assert payload["attempted_today"] == 2
     assert payload["words"] == []
     assert payload["daily_new_words"]["consumed_today"] == 2

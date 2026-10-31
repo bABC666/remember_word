@@ -229,6 +229,8 @@ export interface Article {
   id: number
   title: string
   content: string
+    sentences?: Array<{ index: number; text: string; paragraph: number }>
+    sentence_translations?: string[]
   created_at: string
   target_words: string[]
   actual_used_words?: string[]

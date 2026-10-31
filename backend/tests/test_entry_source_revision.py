@@ -291,7 +291,7 @@ def test_0010_stacks_on_0009_and_the_graph_has_one_head() -> None:
     script = ScriptDirectory.from_config(config)
 
     # The later revisions follow 0010 in one chain, not a second branch.
-    assert script.get_heads() == ["0016_dictionary_extraction"], (
+    assert script.get_heads() == ["0017_contextual_lookup"], (
         "there must be exactly one head; a second head means the migration graph branched"
     )
     assert script.get_revision("0016_dictionary_extraction").down_revision == (

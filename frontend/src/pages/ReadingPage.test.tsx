@@ -25,12 +25,56 @@ function json(data: unknown) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('ReadingPage assistance', () => {
+  it('separates meanings by clicked sentence and places each translation below its English sentence', async () => {
+    const reading = { ...article, content: 'He left money at the bank. He walked along the bank.',
+      target_words: ['bank'], sentences: [
+        { index: 0, text: 'He left money at the bank.', paragraph: 0 },
+        { index: 1, text: 'He walked along the bank.', paragraph: 0 },
+      ] }
+    const lookups: Array<{ word: string; sentence_index: number }> = []
+    let translationCalls = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/articles') return json([reading])
+      if (url.endsWith('/lookup')) {
+        const request = JSON.parse(String(init?.body))
+        lookups.push(request)
+        return json({ id: 20 + request.sentence_index, article_id: 7, surface: 'bank', normalized_word: 'bank',
+          phonetic: '', part_of_speech: 'n.', meaning: request.sentence_index ? '河岸' : '银行', explanation: '',
+          context: reading.sentences[request.sentence_index].text, source: 'ai', added_word_id: null, created_at: article.created_at })
+      }
+      if (url.endsWith('/translate')) {
+        translationCalls += 1
+        return json({ ...reading, sentence_translations: ['他把钱存进银行。', '他沿着河岸走。'] })
+      }
+      if (url === '/api/articles/7') return json(reading)
+      throw new Error(url)
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter><ReadingPage /></MemoryRouter></QueryClientProvider>)
+    const banks = await screen.findAllByRole('button', { name: 'bank' })
+    await userEvent.click(banks[0])
+    expect(await screen.findByText('银行', { selector: '.lookup-meaning' })).toBeInTheDocument()
+    await userEvent.click(banks[1])
+    expect(await screen.findByText('河岸', { selector: '.lookup-meaning' })).toBeInTheDocument()
+    expect(lookups).toEqual([{ word: 'bank', sentence_index: 0 }, { word: 'bank', sentence_index: 1 }])
+    await userEvent.click(screen.getByRole('button', { name: '显示逐句翻译' }))
+    await screen.findByText('他沿着河岸走。')
+    const pairs = [...document.querySelectorAll('.reading-sentence')]
+    expect(pairs[0]).toHaveTextContent('He left money at the bank.他把钱存进银行。')
+    expect(pairs[1]).toHaveTextContent('He walked along the bank.他沿着河岸走。')
+    expect(pairs[0].lastElementChild).toHaveAttribute('lang', 'zh-CN')
+    await userEvent.click(screen.getByRole('button', { name: '隐藏逐句翻译' }))
+    await userEvent.click(screen.getByRole('button', { name: '显示逐句翻译' }))
+    expect(translationCalls).toBe(1)
+  })
+
   it('looks up a clicked word and keeps an on-demand translation', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = String(input)
       if (url === '/api/articles') return json([article])
       if (url.endsWith('/lookup')) return json({ id: 11, article_id: 7, surface: 'retain', normalized_word: 'retain', phonetic: '/rɪˈteɪn/', part_of_speech: 'v.', meaning: '保留', explanation: '在此处指城市保留痕迹。', context: article.content, source: 'wordbook', added_word_id: 3, created_at: article.created_at })
-      if (url.endsWith('/translate')) return json({ ...article, translation: '城市保留了建造者留下的痕迹。', translated_at: article.created_at, lookup_history: [] })
+      if (url.endsWith('/translate')) return json({ ...article, translation: '城市保留了建造者留下的痕迹。', sentence_translations: ['城市保留了建造者留下的痕迹。'], translated_at: article.created_at, lookup_history: [] })
       if (url === '/api/articles/7') return json(article)
       throw new Error(`unexpected request ${url} ${init?.method ?? 'GET'}`)
     })
@@ -42,7 +86,7 @@ describe('ReadingPage assistance', () => {
     expect(screen.getByText('/rɪˈteɪn/')).toBeInTheDocument()
     expect(screen.getByText('已在词库')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '显示全文翻译' }))
+    fireEvent.click(screen.getByRole('button', { name: '显示逐句翻译' }))
     expect(await screen.findByText('城市保留了建造者留下的痕迹。')).toBeInTheDocument()
   })
 })

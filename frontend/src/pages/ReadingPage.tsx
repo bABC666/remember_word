@@ -15,8 +15,11 @@ function ReadingAssistance({ article }: { article: Article }) {
   const targetWords = new Set(article.target_words.map((word) => word.trim().replace(/’/g, "'").toLowerCase()))
   const [active, setActive] = useState<ArticleWordLookup | null>(null)
   const [translationOpen, setTranslationOpen] = useState(false)
+  const sentences = article.sentences ?? [{ index: 0, text: article.content, paragraph: 0 }]
+  const translations = article.sentence_translations ?? []
+  const hasAlignedTranslation = translations.length === sentences.length && translations.length > 0
   const lookup = useMutation({
-    mutationFn: (word: string) => api<ArticleWordLookup>(`/api/articles/${article.id}/lookup`, { method: 'POST', body: JSON.stringify({ word }) }),
+    mutationFn: ({ word, sentenceIndex }: { word: string; sentenceIndex: number }) => api<ArticleWordLookup>(`/api/articles/${article.id}/lookup`, { method: 'POST', body: JSON.stringify({ word, sentence_index: sentenceIndex }) }),
     onSuccess: (result) => {
       setActive(result)
       client.setQueryData<Article>(['article', article.id], (current) => current ? { ...current, lookup_history: [result, ...(current.lookup_history ?? []).filter((item) => item.id !== result.id)] } : current)
@@ -34,30 +37,31 @@ function ReadingAssistance({ article }: { article: Article }) {
     },
   })
   const toggleTranslation = () => {
-    if (article.translation) setTranslationOpen((value) => !value)
+    if (hasAlignedTranslation) setTranslationOpen((value) => !value)
     else translate.mutate()
   }
   return (
     <>
       <div className="reading-toolbar">
         <span>{targetWords.size > 0 && <><mark className="reading-target-highlight">黄色荧光</mark>标出本篇生成用词；</>}点按英文单词，查看语境释义</span>
-        <button className="button secondary" disabled={translate.isPending} onClick={toggleTranslation}><Languages size={16} />{translate.isPending ? '正在翻译…' : translationOpen ? '隐藏全文翻译' : '显示全文翻译'}</button>
+        <button className="button secondary" disabled={translate.isPending} onClick={toggleTranslation}><Languages size={16} />{translate.isPending ? '正在翻译…' : translationOpen ? '隐藏逐句翻译' : '显示逐句翻译'}</button>
       </div>
-      {translationOpen && article.translation && <section className="translation-panel"><div className="eyebrow">全文翻译 · 已自动保存</div>{article.translation.split(/\n\n+/).map((paragraph, index) => <p key={`${index}-${paragraph.slice(0, 20)}`}>{paragraph}</p>)}</section>}
+      {translationOpen && hasAlignedTranslation && <div className="eyebrow">逐句对照 · 已自动保存</div>}
       {translate.isError && <div className="error-inline">翻译暂时失败：{translate.error.message}</div>}
       <div className="article-content interactive-reading">
-        {article.content.split(/\n\n+/).map((paragraph, paragraphIndex) => (
-          <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
-            {tokenizeReadingText(paragraph).map((token, index) => {
+        {sentences.map((sentence, sentenceIndex) => (
+          <p className={`reading-sentence${sentenceIndex > 0 && sentence.paragraph !== sentences[sentenceIndex - 1].paragraph ? ' paragraph-start' : ''}`} key={sentence.index}>
+            <span className="sentence-english" lang="en">{tokenizeReadingText(sentence.text).map((token, index) => {
               if (!token.isWord) return <span key={`${index}-${token.text}`}>{token.text}</span>
               const normalized = token.text.replace(/’/g, "'").toLowerCase()
               const isTarget = targetWords.has(normalized) || targetWords.has(normalized.replace(/'s$/, ''))
               return (
-                <button type="button" className="reading-word" title={isTarget ? '本篇生成用词' : undefined} disabled={lookup.isPending} key={`${index}-${token.text}`} onClick={() => lookup.mutate(token.text)}>
+                <button type="button" className="reading-word" title={isTarget ? '本篇生成用词' : undefined} disabled={lookup.isPending} key={`${index}-${token.text}`} onClick={() => lookup.mutate({ word: token.text, sentenceIndex: sentence.index })}>
                   {isTarget ? <mark className="reading-target-highlight">{token.text}</mark> : token.text}
                 </button>
               )
-            })}
+            })}</span>
+            {translationOpen && hasAlignedTranslation && <span className="sentence-translation" lang="zh-CN">{translations[sentenceIndex]}</span>}
           </p>
         ))}
       </div>
@@ -72,7 +76,7 @@ function ReadingAssistance({ article }: { article: Article }) {
         {active.added_word_id ? <span className="in-library"><CheckCircle2 size={15} />已在词库</span> : <button className="button primary small" disabled={addWord.isPending} onClick={() => addWord.mutate(active)}><Plus size={15} />{addWord.isPending ? '正在加入…' : '加入我的词库'}</button>}
         {addWord.isError && <p className="error-inline">加入失败：{addWord.error.message}</p>}
       </aside>}
-      {(article.lookup_history?.length ?? 0) > 0 && <details className="lookup-history"><summary>本篇查词记录（{article.lookup_history?.length}）</summary><div>{article.lookup_history?.map((item) => <button key={item.id} onClick={() => setActive(item)}><strong>{item.normalized_word}</strong><span>{item.meaning}</span></button>)}</div></details>}
+      {(article.lookup_history?.length ?? 0) > 0 && <details className="lookup-history"><summary>本篇查词记录（{article.lookup_history?.length}）</summary><div>{article.lookup_history?.map((item) => <button key={item.id} onClick={() => setActive(item)}><strong>{item.normalized_word}</strong><span>{item.meaning}</span><small>{item.context}</small></button>)}</div></details>}
     </>
   )
 }

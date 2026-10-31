@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -13,11 +14,14 @@ from app.models import (
     HistoryEvent,
     Lexicon,
     LexiconEntry,
+    ReviewEvent,
     User,
     UserLexicon,
     UserWordState,
 )
-from app.services.ai.base import AIProvider
+from app.services.ai.base import AIProvider, AIProviderError
+from app.services.day import today_bounds
+from app.services.sentences import aligned_translations, article_sentences
 from app.services.userdata import WordView, accessible_lexicon_ids
 
 #: Reading-side rules are unchanged from V1.1. What changed in V1.2 is that every
@@ -44,27 +48,38 @@ def validate_actual_used_words(
 def select_target_words(session: Session, user: User, limit: int = 20) -> list[WordView]:
     """Pick words to build an article from, **for this user only**.
 
-    Priority mirrors V1.1 (weak first, then previously failed, then recently
-    added, then new) but the candidate set comes from the user's own
-    ``UserWordState`` rows, scoped in SQL.
+    Today's difficult answers lead; a last known answer is never used as filler.
     """
     now = datetime.now(UTC)
+    latest = (select(ReviewEvent.lexicon_entry_id, func.max(ReviewEvent.id).label("event_id"))
+              .where(ReviewEvent.user_id == user.id,
+                     ReviewEvent.timestamp <= now)
+              .group_by(ReviewEvent.lexicon_entry_id).subquery())
+    today, _ = today_bounds(now)
     priority = case(
-        (UserWordState.status == "weak", 0),
-        (UserWordState.consecutive_failures > 0, 1),
-        (UserWordState.first_seen >= now - timedelta(days=2), 2),
-        (UserWordState.status == "new", 3),
+        ((ReviewEvent.result.in_(("fail", "fuzzy"))) & (ReviewEvent.timestamp >= today), 0),
+        (ReviewEvent.result.in_(("fail", "fuzzy")), 1),
+        (UserWordState.status == "weak", 2),
+        (UserWordState.status == "learning", 3),
         else_=4,
     )
     rows = session.execute(
         select(UserWordState, LexiconEntry)
         .join(LexiconEntry, LexiconEntry.id == UserWordState.lexicon_entry_id)
-        .where(UserWordState.user_id == user.id)
+        .join(Lexicon, Lexicon.id == LexiconEntry.lexicon_id)
+        .outerjoin(latest, latest.c.lexicon_entry_id == LexiconEntry.id)
+        .outerjoin(ReviewEvent, ReviewEvent.id == latest.c.event_id)
+        .where(UserWordState.user_id == user.id,
+               or_(Lexicon.owner_user_id == user.id,
+                   (Lexicon.owner_user_id.is_(None)) & (Lexicon.visibility == "public")),
+               or_(ReviewEvent.result.in_(("fail", "fuzzy")),
+                   (ReviewEvent.id.is_(None)) & UserWordState.status.in_(("new", "weak", "learning"))))
         .order_by(
             priority,
             UserWordState.last_review.is_not(None),
             UserWordState.last_review,
             UserWordState.context_exposure,
+            UserWordState.id,
         )
         .limit(limit)
     ).all()
@@ -72,7 +87,7 @@ def select_target_words(session: Session, user: User, limit: int = 20) -> list[W
 
 
 def _context(content: str, word: str) -> str:
-    sentences = re.split(r"(?<=[.!?])\s+", content)
+    sentences = [unit["text"] for unit in article_sentences(content)]
     return next(
         (
             sentence.strip()
@@ -200,23 +215,31 @@ async def lookup_article_word(
     article: Article,
     surface: str,
     provider: AIProvider,
+    *,
+    sentence_index: int | None = None,
 ) -> ArticleWordLookup:
     normalized = normalize_lookup_word(surface)
+    units = article_sentences(article.content)
+    context = _context(article.content, normalized)
+    if sentence_index is not None:
+        if sentence_index >= len(units):
+            raise ValueError("所选句子不在这篇文章中")
+        context = units[sentence_index]["text"]
+    if not context or not re.search(rf"\b{re.escape(normalized)}\b", context, re.IGNORECASE):
+        raise ValueError("所选单词不在这个句子中")
     cached = session.scalar(
         select(ArticleWordLookup).where(
             ArticleWordLookup.article_id == article.id,
             ArticleWordLookup.normalized_word == normalized,
+            ArticleWordLookup.context == context,
+            *([ArticleWordLookup.source == "ai"] if sentence_index is not None else []),
         )
     )
-    if cached is not None:
+    if cached is not None and (sentence_index is None or cached.source == "ai"):
         return cached
 
-    context = _context(article.content, normalized)
-    if not context:
-        raise ValueError("所选单词不在这篇文章中")
-
     local = _local_entry(session, user, normalized)
-    if local is not None:
+    if local is not None and sentence_index is None:
         entry, state = local
         meaning = state.anchor_override or entry.default_anchor
         lookup = ArticleWordLookup(
@@ -236,7 +259,9 @@ async def lookup_article_word(
         lookup = ArticleWordLookup(
             article_id=article.id,
             surface=surface,
-            normalized_word=result.normalized_word.casefold(),
+            # Cache identity is the clicked surface; the AI lemma is retained in
+            # ai_raw_json and exposed by lookup_dict for display/add-to-wordbook.
+            normalized_word=normalized,
             phonetic=result.phonetic,
             part_of_speech=result.part_of_speech,
             meaning=result.meaning,
@@ -255,7 +280,18 @@ async def lookup_article_word(
             payload={"word": normalized, "source": lookup.source},
         )
     )
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        # Concurrent clicks may compute the same explanation; keep one row.
+        existing = session.scalar(select(ArticleWordLookup).where(
+            ArticleWordLookup.article_id == article.id,
+            ArticleWordLookup.normalized_word == normalized, ArticleWordLookup.context == context,
+            ArticleWordLookup.source == lookup.source))
+        if existing is None:
+            raise
+        return existing
     session.refresh(lookup)
     return lookup
 
@@ -263,12 +299,17 @@ async def lookup_article_word(
 async def translate_article(
     session: Session, user: User, article: Article, provider: AIProvider
 ) -> Article:
-    if article.translation:
+    if aligned_translations(article):
         return article
     result = await provider.translate_article(article.title, article.content)
+    sources = [item["text"] for item in article_sentences(article.content)]
+    if len(result.sentences) != len(sources) or not all(value.strip() for value in result.sentences):
+        raise AIProviderError("逐句翻译未与原文完整对应，请重试；原有译文已保留。")
+    previous = article.translation
     article.translation = result.translation
     article.translated_at = datetime.now(UTC)
-    article.translation_ai_raw_json = result.model_dump()
+    article.translation_ai_raw_json = {**result.model_dump(), "sentence_sources": sources,
+                                       "previous_translation": previous}
     session.add(
         HistoryEvent(
             user_id=user.id,
@@ -331,7 +372,8 @@ def add_lookup_to_wordbook(
     from app.services.userdata import get_or_create_word_state
 
     lexicon = personal_lexicon(session, user)
-    normalized = lookup.normalized_word.casefold()
+    normalized = (lookup.ai_raw_json.get("normalized_word", lookup.normalized_word)
+                  if lookup.source == "ai" else lookup.normalized_word).casefold()
     entry = session.scalar(
         select(LexiconEntry).where(
             LexiconEntry.lexicon_id == lexicon.id,
@@ -341,7 +383,7 @@ def add_lookup_to_wordbook(
     if entry is None:
         entry = LexiconEntry(
             lexicon_id=lexicon.id,
-            word=lookup.normalized_word,
+            word=normalized,
             normalized_word=normalized,
             phonetic=lookup.phonetic,
             part_of_speech=lookup.part_of_speech,

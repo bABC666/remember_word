@@ -48,6 +48,7 @@ class ArticleJudgeRequest(BaseModel):
 
 class ArticleLookupRequest(BaseModel):
     word: str = Field(min_length=1, max_length=160)
+    sentence_index: int | None = Field(default=None, ge=0)
 
 
 class SettingsUpdate(BaseModel):

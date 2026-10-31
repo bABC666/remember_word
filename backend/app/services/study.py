@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from app.models import (
     UserWordState,
 )
 from app.services.day import today_bounds
+from app.services.relearning import practice_plans
 from app.services.scheduler import calculate_schedule
 from app.services.userdata import (
     WordView,
@@ -133,11 +134,10 @@ def _apply(
     # spaced repetition. Keep its result for the queue without inflating mastery
     # or counting one difficult word as several consecutive failed days.
     start, end = today_bounds(now)
-    practice = source == "daily" and review_type == "recall" and session.scalar(
+    practice = session.scalar(
         select(ReviewEvent.id).where(
             ReviewEvent.user_id == state.user_id,
             ReviewEvent.lexicon_entry_id == state.lexicon_entry_id,
-            ReviewEvent.source == "daily", ReviewEvent.review_type == "recall",
             ReviewEvent.timestamp >= start, ReviewEvent.timestamp < end,
         ).limit(1)
     ) is not None
@@ -159,6 +159,10 @@ def _apply(
         state.status = schedule.status
         state.next_review_at = schedule.next_review_at
         state.consecutive_failures = schedule.consecutive_failures
+        if source == "daily" and result == "know":
+            pressure = practice_plans(session, state.user_id, [state.lexicon_entry_id], now)[state.lexicon_entry_id].pressure
+            factor = .5 if pressure >= 6 else .75 if pressure >= 2.5 else 1
+            state.next_review_at = now + max(timedelta(days=1), (schedule.next_review_at - now) * factor)
     state.last_review = now
     if result == "know" and not practice:
         state.recall_success += 1
@@ -231,6 +235,8 @@ class TodayQueue:
     attempted_today: int
     relearning_ids: frozenset[int]
     day: str
+    practice_remaining: dict[int, int]
+    practice_required: dict[int, int]
 
 
 def build_today_queue(
@@ -271,18 +277,19 @@ def build_today_queue(
         .where(UserWordState.user_id == user.id,
                LexiconEntry.lexicon_id.in_(_readable_lexicon_ids(user)), *lexicon_filter)
     )
-    attempted = session.scalar(select(func.count()).select_from(attempts.subquery())) or 0
-    repeats = session.execute(
-        attempts.where(ReviewEvent.result.in_(("fail", "fuzzy")))
-        .order_by(ReviewEvent.timestamp, ReviewEvent.id)
-        .limit(max(0, limit - len(due) - len(fresh)))
-    ).all()
+    attempted_rows = session.execute(attempts.order_by(ReviewEvent.timestamp, ReviewEvent.id)).all()
+    attempted = len(attempted_rows)
+    plans = practice_plans(session, user.id, [entry.id for _, entry, _ in attempted_rows], moment)
+    repeats = [row for row in attempted_rows if plans[row[1].id].remaining > 0]
+    repeats = repeats[:max(0, limit - len(due) - len(fresh))]
     views = [WordView(state=state, entry=entry) for state, entry in (*due, *fresh)]
     views.extend(WordView(state=state, entry=entry) for state, entry, _ in repeats)
     return TodayQueue(
         words=views, budget=budget, attempted_today=attempted,
         relearning_ids=frozenset(state.id for state, _, _ in repeats),
         day=today_bounds(moment)[0].date().isoformat(),
+        practice_remaining={state.id: plans[entry.id].remaining for state, entry, _ in repeats},
+        practice_required={state.id: plans[entry.id].required for state, entry, _ in repeats},
     )
 
 

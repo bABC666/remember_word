@@ -89,8 +89,11 @@ class DeepSeekProvider:
         return await self._chat_json(self._prompt("lookup_word.txt"), user, WordLookupResult)
 
     async def translate_article(self, title: str, content: str) -> ArticleTranslation:
+        from app.services.sentences import article_sentences
+
         schema = json.dumps(ArticleTranslation.model_json_schema(), ensure_ascii=False)
-        user = f"标题：{title}\n英文原文：\n{content}\nJSON_SCHEMA:\n{schema}"
+        units = article_sentences(content)
+        user = f"标题：{title}\n英文原文：\n{content}\n按此列表顺序逐句翻译（不得合并或拆分）：{json.dumps(units, ensure_ascii=False)}\nJSON_SCHEMA:\n{schema}"
         return await self._chat_json(
             self._prompt("translate_article.txt"), user, ArticleTranslation
         )

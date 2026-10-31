@@ -51,6 +51,7 @@ V1_1_ADDED_ARGUMENTS: set[str] = {"INDEX(is_deleted)"}
 #: the real production database: V1.1 stored the exposure uniqueness as a single
 #: composite ``UNIQUE(article_id, word_id)``, not as a pair of column indexes.
 REPLACED_ARGUMENTS: dict[str, set[str]] = {
+    "article_word_lookup": {"UNIQUE(article_id,normalized_word)"},
     "article_word_exposure": {
         "UNIQUE(article_id,word_id)",
         # V1.1 declared these as separate single-column indexes; the model now
@@ -68,6 +69,7 @@ REPLACED_ARGUMENTS: dict[str, set[str]] = {
 #: the per-column indexes as ``INDEX(...)``, so the only real change is that the
 #: pair is now unique.
 LATER_ADDED_ARGUMENTS: set[str] = {
+    "UNIQUE(article_id,context,normalized_word,source)",
     "UNIQUE(article_id,lexicon_entry_id)",
     "UNIQUE(article_id,word_id)",
     # Migration 0006 also gives the new column its own lookup index.
